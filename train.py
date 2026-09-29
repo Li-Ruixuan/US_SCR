@@ -1,7 +1,7 @@
 """
 Train the scene coordinate regressor.
 
-  python3 train.py --root data --epochs 50 --hand-eye T_marker_cam.npy
+  python3 train.py --root data --epochs 50 --hand-eye T_marker_cam.npy  --hand-eye-units mm
   python3 train.py --root data --epochs 5 --calibration-pending   # debug only
 
 What is different from the pairwise trainer
