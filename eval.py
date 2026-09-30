@@ -78,6 +78,25 @@ def summarise(name, vals, groups=None, seed=0):
     return res
 
 
+def summarise_by_run(vals, runs):
+    """Per-run median/p95/mean (item 1): room-001 and run-205 have very
+    different trajectory extents (roughly 200x300x400mm vs 70x160x130mm), so
+    a pooled number describes neither -- report each run on its own.
+    """
+    vals = np.asarray(vals, dtype=np.float64)
+    runs = np.asarray(runs)
+    out = {}
+    for run in sorted(set(runs.tolist())):
+        v = vals[runs == run]
+        if len(v) == 0:
+            continue
+        out[run] = {"median": float(np.median(v)), "p95": float(np.percentile(v, 95)),
+                    "mean": float(v.mean()), "n": int(len(v))}
+        print(f"      {run:12s} n={len(v):6d}  median {out[run]['median']:9.3f}   "
+              f"p95 {out[run]['p95']:9.3f}   mean {out[run]['mean']:9.3f}")
+    return out
+
+
 def solve_pnp(xyz_world, uv, K, reproj_threshold):
     return pnp_ransac(xyz_world, uv, K, reproj_threshold)
 
@@ -362,6 +381,11 @@ def main():
                     help="also solve pose via 3D-3D Kabsch (measured depth vs "
                          "predicted coordinates) for the PnP vs Kabsch comparison")
     ap.add_argument("--kabsch-threshold", type=float, default=10.0, help="Kabsch inlier threshold, millimetres")
+    ap.add_argument("--uncertainty-keep-frac", type=float, default=1.0,
+                    help="keep only this fraction of masked cells, the ones with lowest predicted "
+                         "log_var (item 2) -- down-weights cells the network cannot place before "
+                         "they reach the solver. Only has an effect on a checkpoint trained with "
+                         "--uncertainty; 1.0 (default) keeps every masked cell, unchanged.")
     ap.add_argument("--min-inliers", type=int, default=0,
                     help="reject a solved frame (item 2) if its RANSAC inlier count is below this")
     ap.add_argument("--min-inlier-ratio", type=float, default=0.0,
@@ -370,11 +394,18 @@ def main():
                     help="skip the pose-error-vs-inlier-count diagnostic plot used to pick "
                          "--min-inliers/--min-inlier-ratio from the data")
     ap.add_argument("--no-smooth", action="store_true",
-                    help="disable causal trajectory smoothing (item 1); report raw solved poses only")
-    ap.add_argument("--smooth-median-window", type=int, default=5,
-                    help="causal median filter window, frames")
-    ap.add_argument("--smooth-window", type=int, default=3,
-                    help="causal light-smoothing window, frames")
+                    help="disable causal trajectory smoothing; report raw solved poses only")
+    ap.add_argument("--smooth-median-window", type=int, default=3,
+                    help="causal median filter window, frames. Rotation's true motion-to-noise "
+                         "ratio here is much lower than translation's (median interframe "
+                         "rotation 0.17deg vs ~0.85deg per-frame noise), so a wide window lags "
+                         "real rotation almost as much as it removes noise -- 3 keeps the robust "
+                         "reject-a-bad-solve behaviour without that lag.")
+    ap.add_argument("--smooth-window", type=int, default=1,
+                    help="causal light-smoothing window, frames. 1 disables the second "
+                         "(moving-average) stage; validated against runs/scr3 where windows "
+                         "wider than this made rotation p95 worse, not better, while still "
+                         "helping translation at any width tried.")
     ap.add_argument("--out", default=None, help="write metrics json here") 
     ap.add_argument("--plot-out", default=None, help="write the trajectory plot here (default: next to --ckpt)")
     ap.add_argument("--save-poses", action="store_true",
@@ -444,6 +475,7 @@ def main():
     stride, off = net.stride, net.stride // 2
 
     coord_errs = []
+    frame_runs, frame_coord_mm = [], []
     t_pnp, r_pnp, t_kab, r_kab = [], [], [], []
     pose_runs, pose_idx, kab_runs, kab_idx = [], [], [], []
     pnp_records, kab_records = [], []          # (run, frame, T_gt, T_est), for the plot
@@ -458,6 +490,8 @@ def main():
             coord_errs.append(coordinate_metrics(out, b, ck["scene_scale"]).float().cpu())
 
             xyz = out["xyz"].float().cpu().numpy()          # (B, 3, h, w)
+            log_var = out.get("log_var")
+            log_var = log_var.float().cpu().numpy() if log_var is not None else None   # (B, 1, h, w)
             B, _, h, w = xyz.shape
             uv = pixel_grid(h, w, stride).numpy()
             K = batch["K"].numpy()
@@ -469,10 +503,33 @@ def main():
             if args.kabsch:
                 inv_anchor = batch["inv_depth"][:, -1, 0].numpy()
 
+            # Item 1: per-frame median, not just the pooled per-pixel number
+            # above, so coord_mm can be split per validation run below.
+            for i in range(B):
+                pred_i = {"xyz_norm": out["xyz_norm"][i:i + 1]}
+                batch_i = {"xyz": b["xyz"][i:i + 1], "xyz_mask": b["xyz_mask"][i:i + 1]}
+                vals = coordinate_metrics(pred_i, batch_i, ck["scene_scale"])
+                if vals.numel():
+                    frame_coord_mm.append(vals.median().item())
+                    frame_runs.append(batch["run"][i])
+
             for i in range(B):
                 pts_world = xyz[i].reshape(3, -1).T[mask[i]].astype(np.float64)
                 pix = uv[mask[i]]
                 attempted += 1
+
+                # Item 2: drop the least-confident cells before they reach
+                # RANSAC, rather than letting the solver discover the hard
+                # way that the network could not place them. Kept as a
+                # boolean/keep-index applied identically to pts_world/pix
+                # and (below) xyz_cam, so all three stay aligned.
+                keep = None
+                if log_var is not None and args.uncertainty_keep_frac < 1.0 and len(pts_world):
+                    lv_i = log_var[i].reshape(-1)[mask[i]]
+                    keep_n = max(6, int(round(len(lv_i) * args.uncertainty_keep_frac)))
+                    keep = np.argsort(lv_i)[:keep_n]
+                    pts_world = pts_world[keep]
+                    pix = pix[keep]
 
                 T, inl = solve_pnp(pts_world, pix, K[i].astype(np.float64), reproj_threshold)
                 if T is not None:
@@ -493,6 +550,8 @@ def main():
                 depth_mm[m] = min_depth / inv_anchor[i][m]
                 xyz_cam_full = backproject(depth_mm, K[i].astype(np.float64))
                 xyz_cam = xyz_cam_full[off::stride, off::stride].reshape(-1, 3)[mask[i]]
+                if keep is not None:
+                    xyz_cam = xyz_cam[keep]
 
                 Tk, inl = solve_kabsch(pts_world, xyz_cam, args.kabsch_threshold)
                 if Tk is not None:
@@ -510,12 +569,18 @@ def main():
     coord = torch.cat(coord_errs).numpy()
     res = {"coord_mm": summarise("COORDINATE ERROR", coord),
            "centroid_baseline_mm": base_mm}
+    if frame_coord_mm:
+        print("    by run:")
+        res["coord_mm"]["by_run"] = summarise_by_run(frame_coord_mm, frame_runs)
 
     if t_pnp:
         groups = resample_labels(pose_runs, pose_idx)
         res["pose_pnp"] = summarise("POSE (PnP, 2D-3D)  translation mm", t_pnp, groups)
+        print("    by run:")
+        res["pose_pnp"]["by_run"] = summarise_by_run(t_pnp, pose_runs)
         res["pose_pnp"]["rotation_deg"] = summarise(
             "POSE (PnP, 2D-3D)  rotation deg", r_pnp, groups)
+        res["pose_pnp"]["rotation_deg"]["by_run"] = summarise_by_run(r_pnp, pose_runs)
         res["pose_pnp"]["solve_rate"] = solved_pnp / max(attempted, 1)
     print(f"\n  PnP solve rate: {solved_pnp}/{attempted}")
 
@@ -534,6 +599,8 @@ def main():
             groups_acc = resample_labels(pose_runs_acc, pose_idx_acc)
             res["pose_pnp_accepted"] = summarise(
                 "POSE (PnP, accepted)  translation mm", t_pnp_acc, groups_acc)
+            print("    by run:")
+            res["pose_pnp_accepted"]["by_run"] = summarise_by_run(t_pnp_acc, pose_runs_acc)
             res["pose_pnp_accepted"]["rotation_deg"] = summarise(
                 "POSE (PnP, accepted)  rotation deg", r_pnp_acc, groups_acc)
 
@@ -548,6 +615,9 @@ def main():
                                        [f for _, f, *_ in pnp_smoothed])
             res["pose_pnp_smoothed"] = summarise(
                 "POSE (PnP, smoothed)  translation mm", t_s, groups_s)
+            print("    by run:")
+            res["pose_pnp_smoothed"]["by_run"] = summarise_by_run(
+                t_s, [r for r, *_ in pnp_smoothed])
             res["pose_pnp_smoothed"]["rotation_deg"] = summarise(
                 "POSE (PnP, smoothed)  rotation deg", r_s, groups_s)
 
@@ -556,6 +626,8 @@ def main():
             groups = resample_labels(kab_runs, kab_idx)
             res["pose_kabsch"] = summarise(
                 "POSE (Kabsch, 3D-3D)  translation mm", t_kab, groups)
+            print("    by run:")
+            res["pose_kabsch"]["by_run"] = summarise_by_run(t_kab, kab_runs)
             res["pose_kabsch"]["rotation_deg"] = summarise(
                 "POSE (Kabsch, 3D-3D)  rotation deg", r_kab, groups)
             res["pose_kabsch"]["solve_rate"] = solved_kab / max(attempted, 1)
@@ -576,6 +648,8 @@ def main():
                 groups_acc = resample_labels(kab_runs_acc, kab_idx_acc)
                 res["pose_kabsch_accepted"] = summarise(
                     "POSE (Kabsch, accepted)  translation mm", t_kab_acc, groups_acc)
+                print("    by run:")
+                res["pose_kabsch_accepted"]["by_run"] = summarise_by_run(t_kab_acc, kab_runs_acc)
                 res["pose_kabsch_accepted"]["rotation_deg"] = summarise(
                     "POSE (Kabsch, accepted)  rotation deg", r_kab_acc, groups_acc)
 
@@ -588,6 +662,9 @@ def main():
                                        [f for _, f, *_ in kab_smoothed])
             res["pose_kabsch_smoothed"] = summarise(
                 "POSE (Kabsch, smoothed)  translation mm", t_s, groups_s)
+            print("    by run:")
+            res["pose_kabsch_smoothed"]["by_run"] = summarise_by_run(
+                t_s, [r for r, *_ in kab_smoothed])
             res["pose_kabsch_smoothed"]["rotation_deg"] = summarise(
                 "POSE (Kabsch, smoothed)  rotation deg", r_s, groups_s)
 

@@ -266,6 +266,8 @@ def validate(net, crit, dl, dev, args, aux_crit=None):
 
         if args.solve_every and bi % args.solve_every == 0:
             xyz = out["xyz"].float().cpu().numpy()          # (B, 3, h, w)
+            log_var = out.get("log_var")
+            log_var = log_var.float().cpu().numpy() if log_var is not None else None   # (B, 1, h, w)
             B, _, h, w = xyz.shape
             uv = pixel_grid(h, w, net.stride).numpy()
             K = batch["K"].cpu().numpy()
@@ -285,6 +287,14 @@ def validate(net, crit, dl, dev, args, aux_crit=None):
                 pts = xyz[b].reshape(3, -1).T[mask[b]].astype(np.float64)
                 pix = uv[mask[b]]
                 attempted += 1
+                # Item 2: drop the least-confident cells before the solver
+                # sees them, same policy as eval.py -- see its docstring.
+                if log_var is not None and args.uncertainty_keep_frac < 1.0 and len(pts):
+                    lv_b = log_var[b].reshape(-1)[mask[b]]
+                    keep_n = max(6, int(round(len(lv_b) * args.uncertainty_keep_frac)))
+                    keep = np.argsort(lv_b)[:keep_n]
+                    pts = pts[keep]
+                    pix = pix[keep]
                 T, inl = pnp_ransac(pts, pix, K[b].astype(np.float64),
                                     args.reproj_threshold)
                 if T is None:
@@ -389,6 +399,11 @@ def main():
                     help="multiply the complete training objective by this value; does not change the relative balance between losses")
     ap.add_argument("--solve-every", type=int, default=4, help="run the pose solver on every Nth validation batch; 0 disables it")
     ap.add_argument("--reproj-threshold", type=float, default=3.0)
+    ap.add_argument("--uncertainty-keep-frac", type=float, default=1.0,
+                    help="validation solve step only: keep only this fraction of masked cells, "
+                         "the ones with lowest predicted log_var (item 2) -- down-weights cells "
+                         "the network cannot place before they reach the solver. Only has an "
+                         "effect with --uncertainty; 1.0 (default) keeps every masked cell.")
     args = ap.parse_args()
 
     if not args.hand_eye and not args.calibration_pending:

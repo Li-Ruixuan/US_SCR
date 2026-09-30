@@ -7,15 +7,20 @@ Final: train coord 8.4 mm, val coord 17.9 mm, pose 7.97 mm / 0.802 deg,
 centroid baseline 877 mm.
 
 Done: trajectory smoothing (`smoothing.py`, causal median + light smooth,
-weighted by RANSAC inlier count), rejecting solves below an inlier threshold
-before they reach the trajectory (`eval.py --min-inliers/--min-inlier-ratio`,
-with a diagnostic plot to pick the threshold from data), `huber_delta`
-moved from 0.05 to 0.008 to sit near the now-settled ~18 mm median error, and
-the solver already runs on `depth_mask` rather than the GT `xyz_mask` (the
-existing "D4 fix" in `train.py`/`eval.py`).
+weighted by RANSAC inlier count, rotation smoothed with a proper causal
+geodesic mean on SO(3) rather than per-axis filtering), rejecting solves below
+an inlier threshold before they reach the trajectory (`eval.py
+--min-inliers/--min-inlier-ratio`, with a diagnostic plot to pick the
+threshold from data), `huber_delta` moved from 0.05 to 0.008 to sit near the
+now-settled ~18 mm median error, the solver already runs on `depth_mask`
+rather than the GT `xyz_mask` (the existing "D4 fix" in
+`train.py`/`eval.py`), and metrics are now split per validation run
+(`room-001` vs `run-205`) instead of only pooled -- `run-205`, the realistic
+inference trajectory, is well below the pooled number (5.0 mm vs 7.2 mm
+pose median on `runs/scr3`).
 
-Remaining work is ordered by value per unit effort. Item 1 needs **no
-retraining**. Item 2 needs a retrain. Items 3 and 4 are the real ceilings.
+Remaining work is ordered by value per unit effort. Item 1 needs a retrain.
+Items 2 and 3 are the real ceilings.
 
 ---
 
@@ -49,19 +54,7 @@ targets.
 
 ---
 
-## 1. Split the metrics per validation run (no retraining)
-
-`room-001` and `run-205` are different in kind -- the plot axes show `room-001`
-spanning roughly 200 x 300 x 400 mm and `run-205` about 70 x 160 x 130 mm --
-and pooling them produces a number that describes neither. Report per run.
-
-If one is a broad exploration run and the other a realistic inference
-trajectory, the second is the number that answers the gate question, and the
-pooled figure is hiding it.
-
----
-
-## 2. Turn on the uncertainty head (needs retraining)
+## 1. Turn on the uncertainty head (needs retraining)
 
 `uncertainty: false` currently. With it on, the network emits a per-cell
 confidence that can weight RANSAC and down-weight cells it cannot place.
@@ -77,7 +70,7 @@ meaningful once the loss it is fitted against is behaving sensibly.
 
 ---
 
-## 3. The calibration floor (~16 mm)
+## 2. The calibration floor (~16 mm)
 
 Nothing above gets coordinate error below the self-consistency of the labels.
 To go further, the hand-eye translation has to improve -- the two sessions
@@ -88,12 +81,12 @@ settled. The translation is not observable without large rotations, so a better 
 
 Until then, treat ~16 mm as the floor and do not attribute anything near it to the model.
 
-## 4. Pose-space coverage (the generalisation gap)
+## 3. Pose-space coverage (the generalisation gap)
 
 Train 8.4 mm against val 17.9 mm, a ratio of 2.1. Part of that is the floor,
 but part is genuine: the model is better on views it has seen.
 
-Recorded runs span roughly a 15 cm python3 eval.py --ckpt runs/scr3/best.pttranslation envelope and a 26 degree viewing
+Recorded runs span roughly a 15 cm translation envelope and a 26 degree viewing
 cone. That is not pose-space coverage, and it is the binding constraint on
 everything the project wants to claim. More runs, at varied heights, standing
 positions and paths, will do more for held-out performance than any
@@ -125,6 +118,5 @@ split over runs tracing similar paths measures interpolation.
 
 ## Suggested order
 
-1. Item 1, on the existing checkpoint. No retraining.
-2. Item 2 (uncertainty head), now that `huber_delta` is fixed.
-3. Then coverage (item 4), then calibration (item 3).
+1. Item 1 (uncertainty head), now that `huber_delta` is fixed.
+2. Then coverage (item 3), then calibration (item 2).

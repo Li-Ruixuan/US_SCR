@@ -116,10 +116,17 @@ def smooth_trajectory(
     translations: np.ndarray,              # (N, 3) mm, causal time order
     rotations: np.ndarray,                 # (N, 3, 3)
     weights: Optional[np.ndarray] = None,  # (N,) inlier counts; None -> uniform
-    median_window: int = 5,
-    smooth_window: int = 3,
+    median_window: int = 3,
+    smooth_window: int = 1,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Causal median + light-smooth filter over a solved SE(3) trajectory.
+
+    Defaults validated against runs/scr3: rotation's true motion-to-noise
+    ratio here is much lower than translation's (median interframe rotation
+    0.17deg vs ~0.85deg per-frame noise), so windows wider than this lag real
+    rotation almost as much as they remove noise, making p95 *worse*; these
+    settings keep the robust reject-a-bad-solve behaviour without that lag,
+    while translation still benefits at any width tried.
 
     Caller is responsible for time-ordering and for only including frames
     from a single, genuinely causal run -- this function has no notion of
