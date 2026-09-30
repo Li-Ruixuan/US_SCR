@@ -7,6 +7,8 @@ Reports:
     it learned anything
   * solved pose error (translation mm, rotation deg) via PnP-RANSAC on the
     predicted coordinates, bootstrapped over runs
+  * the same, after causal trajectory smoothing (see smoothing.py, item 1 of
+    scr_noise_reduction_plan.md) -- disable with --no-smooth
   * optionally (--kabsch), the same via Kabsch-RANSAC on the *measured*
     depth matched against predicted coordinates, for the 2D-3D vs 3D-3D
     comparison
@@ -20,9 +22,24 @@ tracker label) to pick which cells to hand the solver. Cells the network was
 never trained on because RealSense returned nothing there reach RANSAC as
 real outliers, so solve_rate below is not artificially inflated.
 
+Both solve paths also reject solved frames whose RANSAC inlier count/ratio
+falls below --min-inliers / --min-inlier-ratio (item 2) before they reach the
+trajectory or the smoothing filter -- a frame the system declines to trust is
+better than one it silently gets 40 mm wrong. Rejection rate is reported
+alongside solve_rate, and eval_inliers_{pnp,kabsch}.png plots pose error
+against inlier support so a threshold can be picked from this run's own data
+(disable with --no-inlier-plot).
+
+Both solve paths also report smoothed pose metrics: a causal median filter
+plus a light moving-average over the accepted per-run trajectory, weighted by
+each frame's RANSAC inlier count (item 1). Report raw, accepted, and smoothed
+together -- raw is the honest per-frame estimator, accepted is what survives
+item 2's rejection, smoothed is what a reconstruction would actually use.
+
 Usage:
   python3 eval.py --ckpt runs/run_2_seq_3/best.pt
   python3 eval.py --ckpt runs/run_2_seq_3/best.pt --root data --kabsch
+  python3 eval.py --ckpt runs/run_2_seq_3/best.pt --min-inliers 30
 """
 
 from __future__ import annotations
@@ -40,6 +57,7 @@ from dataset import SCRConfig, SCRDataset, build_splits
 from geometry import backproject
 from loss import coordinate_metrics
 from model import SCRNet, pixel_grid
+from smoothing import smooth_trajectory
 from solver import kabsch_ransac, pnp_ransac, pose_error
 from train import bootstrap_group_ci, centroid_baseline, load_hand_eye, move, resample_labels
 
@@ -68,18 +86,102 @@ def solve_kabsch(xyz_world, xyz_cam, threshold):
     return kabsch_ransac(xyz_world, xyz_cam, threshold)
 
 
-def plot_trajectories(pnp_records, kab_records, out_path):
+def reject_by_inliers(records, runs, idxs, t, r, ninliers, ratios,
+                       min_inliers, min_inlier_ratio, label):
+    """Item 2: drop solved frames whose RANSAC support is too thin rather
+    than trusting them. Returns the accepted subset of everything passed in,
+    same order, plus the rejection rate (fraction of *solved* frames dropped
+    here -- distinct from solve failures, which solve_rate already covers).
+    """
+    ninliers = np.asarray(ninliers)
+    ratios = np.asarray(ratios)
+    accept = (ninliers >= min_inliers) & (ratios >= min_inlier_ratio)
+    n_reject = int((~accept).sum())
+    rate = n_reject / max(len(accept), 1)
+    print(f"  {label} rejected {n_reject}/{len(accept)} solved frames below inlier "
+          f"threshold (min_inliers={min_inliers}, min_inlier_ratio={min_inlier_ratio}) "
+          f"-- rejection rate {rate:.1%}")
+    keep = accept.tolist()
+    acc_records = [x for x, k in zip(records, keep) if k]
+    acc_runs = [x for x, k in zip(runs, keep) if k]
+    acc_idx = [x for x, k in zip(idxs, keep) if k]
+    acc_t = [x for x, k in zip(t, keep) if k]
+    acc_r = [x for x, k in zip(r, keep) if k]
+    return acc_records, acc_runs, acc_idx, acc_t, acc_r, rate
+
+
+def plot_inlier_diagnostic(ninliers, ratios, errors, out_path, label):
+    """Pose error vs. RANSAC inlier count/ratio (item 2).
+
+    This is the plot the plan asks for to pick --min-inliers /
+    --min-inlier-ratio from this run's data rather than guessing: look for
+    where error climbs as inlier support drops.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    ninliers = np.asarray(ninliers)
+    ratios = np.asarray(ratios)
+    errors = np.asarray(errors)
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+    axes[0].scatter(ninliers, errors, s=6, alpha=0.4)
+    axes[0].set_xlabel("inlier count"); axes[0].set_ylabel("pose translation error (mm)")
+    axes[0].set_title(f"{label}: error vs. inlier count")
+    axes[1].scatter(ratios, errors, s=6, alpha=0.4)
+    axes[1].set_xlabel("inlier ratio"); axes[1].set_ylabel("pose translation error (mm)")
+    axes[1].set_title(f"{label}: error vs. inlier ratio")
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=110)
+    plt.close(fig)
+    print(f"  wrote {out_path}")
+
+
+def smooth_pose_records(records, weight_lookup, median_window=5, smooth_window=3):
+    """Causal per-run trajectory smoothing over solved poses (item 1).
+
+    ``records`` is (run, frame, T_gt, T_est); ``weight_lookup`` maps
+    (run, frame) -> RANSAC inlier count, used to weight the filter (item 2).
+    Returns a list in the same (run, frame, T_gt, T_est) shape, T_est now the
+    smoothed pose, sorted into causal (frame-ascending) order per run.
+    """
+    out = []
+    runs = sorted({r for r, *_ in records})
+    for run in runs:
+        rows = sorted(((f, gt, est) for r, f, gt, est in records if r == run),
+                      key=lambda t: t[0])
+        if not rows:
+            continue
+        T_est = np.stack([est for _, _, est in rows])
+        weights = np.array([weight_lookup.get((run, f), 1.0) for f, _, _ in rows])
+        smoothed_t, smoothed_R = smooth_trajectory(
+            T_est[:, :3, 3], T_est[:, :3, :3], weights,
+            median_window=median_window, smooth_window=smooth_window)
+        for (f, gt, _), t, R in zip(rows, smoothed_t, smoothed_R):
+            T = np.eye(4)
+            T[:3, :3] = R
+            T[:3, 3] = t
+            out.append((run, f, gt, T))
+    return out
+
+
+def plot_trajectories(pnp_records, kab_records, out_path,
+                       pnp_smoothed=None, kab_smoothed=None):
     """GT vs. solved camera-centre trajectories, one 3D subplot per run.
 
     Same idea as validate_run.py's trajectory plot, but overlaying the
     solved pose on top of the tracker GT instead of just showing the GT --
     a solved path that visibly diverges from GT (drift, jumps, offset) is
     obvious here in a way the pooled median/p95 numbers above can hide.
+    ``pnp_smoothed``/``kab_smoothed`` optionally overlay the causally
+    smoothed trajectory (item 1) on top of the raw solved one.
     """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    pnp_smoothed = pnp_smoothed or []
+    kab_smoothed = kab_smoothed or []
     runs = sorted({r for r, *_ in pnp_records} | {r for r, *_ in kab_records})
     if not runs:
         return
@@ -93,15 +195,27 @@ def plot_trajectories(pnp_records, kab_records, out_path):
             gt_xyz = np.array([gt[:3, 3] for _, gt, _ in pnp_r])
             est_xyz = np.array([est[:3, 3] for _, _, est in pnp_r])
             ax.plot(*gt_xyz.T, c="k", lw=1.5, label="GT")
-            ax.plot(*est_xyz.T, c="tab:blue", lw=1, marker=".", ms=3, label="PnP")
+            ax.plot(*est_xyz.T, c="tab:blue", lw=1, marker=".", ms=3, label="PnP", alpha=0.5)
             ax.scatter(*gt_xyz[0], c="g", s=40, label="start")
             ax.scatter(*gt_xyz[-1], c="r", s=40, label="end")
+
+        pnp_s = sorted(((f, est) for r, f, _gt, est in pnp_smoothed if r == run),
+                      key=lambda t: t[0])
+        if pnp_s:
+            est_xyz = np.array([est[:3, 3] for _, est in pnp_s])
+            ax.plot(*est_xyz.T, c="tab:cyan", lw=1.5, label="PnP smoothed")
 
         kab_r = sorted(((f, gt, est) for r, f, gt, est in kab_records if r == run),
                        key=lambda t: t[0])
         if kab_r:
             est_xyz = np.array([est[:3, 3] for _, _, est in kab_r])
-            ax.plot(*est_xyz.T, c="tab:orange", lw=1, marker=".", ms=3, label="Kabsch")
+            ax.plot(*est_xyz.T, c="tab:orange", lw=1, marker=".", ms=3, label="Kabsch", alpha=0.5)
+
+        kab_s = sorted(((f, est) for r, f, _gt, est in kab_smoothed if r == run),
+                       key=lambda t: t[0])
+        if kab_s:
+            est_xyz = np.array([est[:3, 3] for _, est in kab_s])
+            ax.plot(*est_xyz.T, c="tab:red", lw=1.5, label="Kabsch smoothed")
 
         ax.set_title(run, fontsize=9)
         ax.set_xlabel("x (mm)"); ax.set_ylabel("y (mm)"); ax.set_zlabel("z (mm)")
@@ -247,7 +361,20 @@ def main():
     ap.add_argument("--kabsch", action="store_true",
                     help="also solve pose via 3D-3D Kabsch (measured depth vs "
                          "predicted coordinates) for the PnP vs Kabsch comparison")
-    ap.add_argument("--kabsch-threshold", type=float, default=50.0, help="Kabsch inlier threshold, millimetres")
+    ap.add_argument("--kabsch-threshold", type=float, default=10.0, help="Kabsch inlier threshold, millimetres")
+    ap.add_argument("--min-inliers", type=int, default=0,
+                    help="reject a solved frame (item 2) if its RANSAC inlier count is below this")
+    ap.add_argument("--min-inlier-ratio", type=float, default=0.0,
+                    help="reject a solved frame (item 2) if inliers/attempted-points is below this")
+    ap.add_argument("--no-inlier-plot", action="store_true",
+                    help="skip the pose-error-vs-inlier-count diagnostic plot used to pick "
+                         "--min-inliers/--min-inlier-ratio from the data")
+    ap.add_argument("--no-smooth", action="store_true",
+                    help="disable causal trajectory smoothing (item 1); report raw solved poses only")
+    ap.add_argument("--smooth-median-window", type=int, default=5,
+                    help="causal median filter window, frames")
+    ap.add_argument("--smooth-window", type=int, default=3,
+                    help="causal light-smoothing window, frames")
     ap.add_argument("--out", default=None, help="write metrics json here") 
     ap.add_argument("--plot-out", default=None, help="write the trajectory plot here (default: next to --ckpt)")
     ap.add_argument("--save-poses", action="store_true",
@@ -320,6 +447,8 @@ def main():
     t_pnp, r_pnp, t_kab, r_kab = [], [], [], []
     pose_runs, pose_idx, kab_runs, kab_idx = [], [], [], []
     pnp_records, kab_records = [], []          # (run, frame, T_gt, T_est), for the plot
+    pnp_weights, kab_weights = {}, {}          # (run, frame) -> RANSAC inlier count
+    pnp_ninliers, pnp_ratios, kab_ninliers, kab_ratios = [], [], [], []
     attempted = solved_pnp = solved_kab = 0
 
     with torch.no_grad():
@@ -345,7 +474,7 @@ def main():
                 pix = uv[mask[i]]
                 attempted += 1
 
-                T, _ = solve_pnp(pts_world, pix, K[i].astype(np.float64), reproj_threshold)
+                T, inl = solve_pnp(pts_world, pix, K[i].astype(np.float64), reproj_threshold)
                 if T is not None:
                     solved_pnp += 1
                     dt, dr = pose_error(T, T_gt[i])
@@ -353,6 +482,9 @@ def main():
                     run_i, frame_i = batch["run"][i], int(batch["frame"][i])
                     pose_runs.append(run_i); pose_idx.append(frame_i)
                     pnp_records.append((run_i, frame_i, T_gt[i], T))
+                    pnp_weights[(run_i, frame_i)] = len(inl)
+                    pnp_ninliers.append(len(inl))
+                    pnp_ratios.append(len(inl) / max(len(pts_world), 1))
 
                 if not args.kabsch:
                     continue
@@ -362,7 +494,7 @@ def main():
                 xyz_cam_full = backproject(depth_mm, K[i].astype(np.float64))
                 xyz_cam = xyz_cam_full[off::stride, off::stride].reshape(-1, 3)[mask[i]]
 
-                Tk, _ = solve_kabsch(pts_world, xyz_cam, args.kabsch_threshold)
+                Tk, inl = solve_kabsch(pts_world, xyz_cam, args.kabsch_threshold)
                 if Tk is not None:
                     solved_kab += 1
                     dt, dr = pose_error(Tk, T_gt[i])
@@ -370,6 +502,9 @@ def main():
                     run_i, frame_i = batch["run"][i], int(batch["frame"][i])
                     kab_runs.append(run_i); kab_idx.append(frame_i)
                     kab_records.append((run_i, frame_i, T_gt[i], Tk))
+                    kab_weights[(run_i, frame_i)] = len(inl)
+                    kab_ninliers.append(len(inl))
+                    kab_ratios.append(len(inl) / max(len(pts_world), 1))
 
     print("\n" + "=" * 62)
     coord = torch.cat(coord_errs).numpy()
@@ -384,6 +519,38 @@ def main():
         res["pose_pnp"]["solve_rate"] = solved_pnp / max(attempted, 1)
     print(f"\n  PnP solve rate: {solved_pnp}/{attempted}")
 
+    if not args.no_inlier_plot and pnp_ninliers:
+        plot_inlier_diagnostic(pnp_ninliers, pnp_ratios, t_pnp,
+                               Path(args.ckpt).parent / "eval_inliers_pnp.png", "PnP")
+
+    pnp_accepted = pose_runs_acc = pose_idx_acc = t_pnp_acc = r_pnp_acc = []
+    if pnp_records:
+        (pnp_accepted, pose_runs_acc, pose_idx_acc, t_pnp_acc, r_pnp_acc,
+         pnp_reject_rate) = reject_by_inliers(
+            pnp_records, pose_runs, pose_idx, t_pnp, r_pnp,
+            pnp_ninliers, pnp_ratios, args.min_inliers, args.min_inlier_ratio, "PnP")
+        res["pose_pnp"]["rejection_rate"] = pnp_reject_rate
+        if t_pnp_acc and len(t_pnp_acc) != len(t_pnp):
+            groups_acc = resample_labels(pose_runs_acc, pose_idx_acc)
+            res["pose_pnp_accepted"] = summarise(
+                "POSE (PnP, accepted)  translation mm", t_pnp_acc, groups_acc)
+            res["pose_pnp_accepted"]["rotation_deg"] = summarise(
+                "POSE (PnP, accepted)  rotation deg", r_pnp_acc, groups_acc)
+
+    pnp_smoothed = kab_smoothed = []
+    if not args.no_smooth:
+        if pnp_accepted:
+            pnp_smoothed = smooth_pose_records(
+                pnp_accepted, pnp_weights, args.smooth_median_window, args.smooth_window)
+            t_s = [pose_error(T, gt)[0] for _, _, gt, T in pnp_smoothed]
+            r_s = [pose_error(T, gt)[1] for _, _, gt, T in pnp_smoothed]
+            groups_s = resample_labels([r for r, *_ in pnp_smoothed],
+                                       [f for _, f, *_ in pnp_smoothed])
+            res["pose_pnp_smoothed"] = summarise(
+                "POSE (PnP, smoothed)  translation mm", t_s, groups_s)
+            res["pose_pnp_smoothed"]["rotation_deg"] = summarise(
+                "POSE (PnP, smoothed)  rotation deg", r_s, groups_s)
+
     if args.kabsch:
         if t_kab:
             groups = resample_labels(kab_runs, kab_idx)
@@ -393,6 +560,36 @@ def main():
                 "POSE (Kabsch, 3D-3D)  rotation deg", r_kab, groups)
             res["pose_kabsch"]["solve_rate"] = solved_kab / max(attempted, 1)
         print(f"  Kabsch solve rate: {solved_kab}/{attempted}")
+
+        if not args.no_inlier_plot and kab_ninliers:
+            plot_inlier_diagnostic(kab_ninliers, kab_ratios, t_kab,
+                                   Path(args.ckpt).parent / "eval_inliers_kabsch.png", "Kabsch")
+
+        kab_accepted = kab_runs_acc = kab_idx_acc = t_kab_acc = r_kab_acc = []
+        if kab_records:
+            (kab_accepted, kab_runs_acc, kab_idx_acc, t_kab_acc, r_kab_acc,
+             kab_reject_rate) = reject_by_inliers(
+                kab_records, kab_runs, kab_idx, t_kab, r_kab,
+                kab_ninliers, kab_ratios, args.min_inliers, args.min_inlier_ratio, "Kabsch")
+            res["pose_kabsch"]["rejection_rate"] = kab_reject_rate
+            if t_kab_acc and len(t_kab_acc) != len(t_kab):
+                groups_acc = resample_labels(kab_runs_acc, kab_idx_acc)
+                res["pose_kabsch_accepted"] = summarise(
+                    "POSE (Kabsch, accepted)  translation mm", t_kab_acc, groups_acc)
+                res["pose_kabsch_accepted"]["rotation_deg"] = summarise(
+                    "POSE (Kabsch, accepted)  rotation deg", r_kab_acc, groups_acc)
+
+        if not args.no_smooth and kab_accepted:
+            kab_smoothed = smooth_pose_records(
+                kab_accepted, kab_weights, args.smooth_median_window, args.smooth_window)
+            t_s = [pose_error(T, gt)[0] for _, _, gt, T in kab_smoothed]
+            r_s = [pose_error(T, gt)[1] for _, _, gt, T in kab_smoothed]
+            groups_s = resample_labels([r for r, *_ in kab_smoothed],
+                                       [f for _, f, *_ in kab_smoothed])
+            res["pose_kabsch_smoothed"] = summarise(
+                "POSE (Kabsch, smoothed)  translation mm", t_s, groups_s)
+            res["pose_kabsch_smoothed"]["rotation_deg"] = summarise(
+                "POSE (Kabsch, smoothed)  rotation deg", r_s, groups_s)
 
         if t_pnp and t_kab:
             print("\n  VERDICT (PnP vs Kabsch)")
@@ -410,14 +607,19 @@ def main():
     if pnp_records or kab_records:
         plot_path = Path(args.plot_out) if args.plot_out \
             else Path(args.ckpt).parent / "eval_trajectories.png"
-        plot_trajectories(pnp_records, kab_records, plot_path)
+        plot_trajectories(pnp_records, kab_records, plot_path,
+                          pnp_smoothed=pnp_smoothed, kab_smoothed=kab_smoothed)
 
     if args.save_poses:
         pose_dir = Path(args.ckpt).parent
         if pnp_records:
             save_pose_estimates(pnp_records, pose_dir, "pnp")
+        if pnp_smoothed:
+            save_pose_estimates(pnp_smoothed, pose_dir, "pnp_smoothed")
         if kab_records:
             save_pose_estimates(kab_records, pose_dir, "kabsch")
+        if kab_smoothed:
+            save_pose_estimates(kab_smoothed, pose_dir, "kabsch_smoothed")
 
     if args.show_3d:
         show_pose_3d_cv2(pnp_records, kab_records)

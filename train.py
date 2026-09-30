@@ -1,8 +1,8 @@
 """
 Train the scene coordinate regressor.
 
-  python3 train.py --root data --epochs 50 --hand-eye T_marker_cam.npy  --hand-eye-units mm
-  python3 train.py --root data --epochs 5 --calibration-pending   # debug only
+  python3 train.py   --epochs 50 --hand-eye T_marker_cam.npy  --hand-eye-units mm
+  python3 train.py   --epochs 5 --calibration-pending   # debug only
 
 What is different from the pairwise trainer
 -------------------------------------------
@@ -325,7 +325,7 @@ def validate(net, crit, dl, dev, args, aux_crit=None):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default="data/train")
-    ap.add_argument("--out", default="runs/scr1")
+    ap.add_argument("--out", default="runs/scr2")
     ap.add_argument("--epochs", type=int, default=80)
     ap.add_argument("--sched-epochs", type=int, default=None,
                     help="length of the cosine LR schedule; defaults to  --epochs. E1: tying these together means the LR is "
@@ -354,11 +354,11 @@ def main():
                     help="(H, W), both divisible by 8. 360x640 is exactly  half of the 1280x720 sensor: full FoV, no crop.")
     ap.add_argument("--max-depth", type=float, default=3000.0,  help="millimetres")
     ap.add_argument("--avg-frames", type=int, default=1)
-    ap.add_argument("--seq-len", type=int, default=2,
+    ap.add_argument("--seq-len", type=int, default=4,
                     help="causal window length: the anchor frame plus (seq-len - 1) earlier frames, spaced --seq-stride "
                          "apart, as extra temporal context for the anchor's label. 1 (default) is the original single-frame "
                          "network -- not supported together with --avg-frames > 1.")
-    ap.add_argument("--seq-stride", type=int, default=1, help="frame spacing within the --seq-len window")
+    ap.add_argument("--seq-stride", type=int, default=2, help="frame spacing within the --seq-len window")
     ap.add_argument("--stats-frames", type=int, default=200)
     ap.add_argument("--hand-eye-units", default=None, choices=["mm", "m"],
                     help="units of the translation block in the .npy. There is "
@@ -374,7 +374,12 @@ def main():
     ap.add_argument("--uncertainty", action="store_true", help="predict a per-cell log-variance channel")
 
     # loss / solver
-    ap.add_argument("--huber-delta", type=float, default=0.05)
+    ap.add_argument("--huber-delta", type=float, default=0.008,
+                    help="Huber knee in normalised coordinate units. 0.05 was tuned for the "
+                         "calibration-pending error scale (a ~117mm knee) and left the quadratic "
+                         "branch covering nearly every cell once calibration settled at ~18mm "
+                         "median error (scene_scale ~2337mm); 0.008 sits near that median. Try "
+                         "0.008 and 0.015 and compare against the old 0.05 run, same seed.")
     ap.add_argument("--aux-weight", type=float, default=0.5,
                     help="weight on SequenceAuxLoss, the per-frame auxiliary loss over the whole --seq-len window (not just the "
                          "anchor frame). 0.0 (default) disables it entirely -- existing single-frame runs are unaffected. Only "

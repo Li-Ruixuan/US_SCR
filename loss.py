@@ -50,16 +50,15 @@ class CoordinateLoss(nn.Module):
     metres with radians, and that problem does not arise under SCR.
     """
 
-    def __init__(self, delta: float = 0.05, uncertainty: bool = False):
+    def __init__(self, delta: float = 0.008, uncertainty: bool = False):
         super().__init__()
-        # D3: at scene_scale ~2000mm this normalised delta is a ~100mm knee,
-        # while typical per-cell error is currently 33-56mm (calibration-
-        # pending numbers) -- nearly every cell therefore sits in the
-        # quadratic branch, and the loss behaves as L2 scaled by 1/delta; the
-        # robustness against depth artefacts only engages above ~100mm. Once
-        # calibration is fixed and the error scale settles, delta wants to
-        # sit near the median error -- roughly 0.015-0.02 on current numbers.
-        # Not changed here: the error scale is about to move.
+        # D3 (resolved, see scr_noise_reduction_plan.md item 4): at
+        # scene_scale ~2000mm this normalised delta used to be a ~100mm knee
+        # while calibration was pending. Calibration is no longer pending --
+        # runs/scr2 (real hand-eye) settles at 17.9mm val coordinate error on
+        # scene_scale=2337mm, i.e. delta ~ 18/2337 ~ 0.008 is where the knee
+        # now belongs so Huber's quadratic branch stops covering essentially
+        # every cell. Try 0.008 and 0.015 and compare against the 0.05 run.
         self.delta = delta              # in normalised units (~5% of scene radius)
         self.uncertainty = uncertainty
 
