@@ -1,0 +1,49 @@
+{
+  "root": "data/train",
+  "out": "runs/scr3",
+  "epochs": 50,
+  "sched_epochs": null,
+  "batch_size": 8,
+  "lr": 0.0003,
+  "weight_decay": 0.0001,
+  "workers": 16,
+  "seed": 0,
+  "amp": true,
+  "early_stop_patience": 10,
+  "pose_units": "mm",
+  "hand_eye": "T_marker_cam.npy",
+  "calibration_pending": false,
+  "val_runs": [
+    "room-001",
+    "run-205"
+  ],
+  "val_fraction": 0.2,
+  "image_size": [
+    360,
+    640
+  ],
+  "max_depth": 3000.0,
+  "avg_frames": 1,
+  "seq_len": 4,
+  "seq_stride": 2,
+  "stats_frames": 200,
+  "hand_eye_units": "mm",
+  "backbone": "efficientnet_b0",
+  "head_width": 256,
+  "no_pretrained": false,
+  "no_depth": false,
+  "uncertainty": false,
+  "huber_delta": 0.008,
+  "aux_weight": 0.5,
+  "loss_scale": 100.0,
+  "solve_every": 4,
+  "reproj_threshold": 3.0,
+  "scene_center": [
+    -11.327804395414566,
+    -429.94180261591697,
+    -2374.1298549416547
+  ],
+  "scene_scale": 2079.2090513617204,
+  "baseline_mm": 874.751708984375,
+  "REPORTABLE": true
+}

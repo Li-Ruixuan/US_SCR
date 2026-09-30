@@ -84,21 +84,16 @@ To go further, the hand-eye translation has to improve -- the two sessions
 currently disagree by 16.0 mm, while their rotation agrees to 0.355 deg.
 
 Rotation is the half that dominates the error budget and it is already
-settled. The translation is not observable without large rotations, so a better
-session means **discrete static poses** -- move, hold two seconds, move again,
-30 to 40 times -- with the board filling more of the frame, and 60 to 90
-degrees of orientation spread. That removes motion blur and any camera/tracker
-timing offset by construction.
+settled. The translation is not observable without large rotations, so a better session means **discrete static poses** -- move, hold two seconds, move again, 30 to 40 times -- with the board filling more of the frame, and 60 to 90 degrees of orientation spread. That removes motion blur and any camera/tracker timing offset by construction.
 
-Until then, treat ~16 mm as the floor and do not attribute anything near it to
-the model.
+Until then, treat ~16 mm as the floor and do not attribute anything near it to the model.
 
 ## 4. Pose-space coverage (the generalisation gap)
 
 Train 8.4 mm against val 17.9 mm, a ratio of 2.1. Part of that is the floor,
 but part is genuine: the model is better on views it has seen.
 
-Recorded runs span roughly a 15 cm translation envelope and a 26 degree viewing
+Recorded runs span roughly a 15 cm python3 eval.py --ckpt runs/scr3/best.pttranslation envelope and a 26 degree viewing
 cone. That is not pose-space coverage, and it is the binding constraint on
 everything the project wants to claim. More runs, at varied heights, standing
 positions and paths, will do more for held-out performance than any
