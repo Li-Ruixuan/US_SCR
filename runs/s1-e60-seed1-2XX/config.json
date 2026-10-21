@@ -1,0 +1,55 @@
+{
+  "args": {
+    "cmd": "train",
+    "root": "/data2/u0137815/rgbd-us/data/train_2XX",
+    "scan_runs": [
+      "room-201",
+      "room-202"
+    ],
+    "out": "runs/s1-e60-seed1-2XX",
+    "hand_eye": "/data2/u0137815/rgbd-us/T_marker_cam.npy",
+    "image_size": [
+      360,
+      640
+    ],
+    "frame_step": 1,
+    "epochs": 60,
+    "batch_size": 8,
+    "lr": 0.001,
+    "lr_encoder": 0.0001,
+    "sched": "flatcos",
+    "flat": 0.6,
+    "loss": "dist",
+    "huber_delta": 0.05,
+    "fp32_head": true,
+    "amp": true,
+    "workers": 16,
+    "seed": 1,
+    "check_every": 3,
+    "check_frames": 120,
+    "max_frames": 0,
+    "px": 10.0,
+    "min_inliers": 30,
+    "eval_root": "/data2/u0137815/rgbd-us/data/train_2XX",
+    "eval_runs": [
+      "run-205",
+      "run-211"
+    ]
+  },
+  "centre": [
+    2.031837215741048,
+    -11.154309941750183,
+    -923.6887439776024
+  ],
+  "image_size": [
+    360,
+    640
+  ],
+  "n_frames": 5366,
+  "steps": 40200,
+  "rgbd_us": "/data2/u0137815/rgbd-us",
+  "git": {
+    "US_SCR": "f42f53d",
+    "rgbd-us": "a5bf2ce"
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "args": {
+    "cmd": "train",
+    "root": "/data2/u0137815/rgbd-us/data/test_4XXA",
+    "scan_runs": [
+      "room-401",
+      "room-402"
+    ],
+    "out": "runs/v1-4XXA",
+    "hand_eye": "/data2/u0137815/rgbd-us/T_marker_cam.npy",
+    "image_size": [
+      360,
+      640
+    ],
+    "frame_step": 1,
+    "epochs": 120,
+    "batch_size": 8,
+    "lr": 0.001,
+    "lr_encoder": 0.0001,
+    "sched": "flatcos",
+    "flat": 0.6,
+    "loss": "dist",
+    "huber_delta": 0.05,
+    "fp32_head": true,
+    "amp": true,
+    "workers": 16,
+    "seed": 0,
+    "check_every": 6,
+    "check_frames": 120,
+    "max_frames": 0,
+    "px": 10.0,
+    "min_inliers": 30,
+    "eval_root": "/data2/u0137815/rgbd-us/data/test_4XXA",
+    "eval_runs": null
+  },
+  "centre": [
+    23.33624081036759,
+    -130.5330646812991,
+    -951.4723514598152
+  ],
+  "image_size": [
+    360,
+    640
+  ],
+  "n_frames": 3893,
+  "steps": 58320,
+  "rgbd_us": "/data2/u0137815/rgbd-us",
+  "git": {
+    "US_SCR": "f42f53d",
+    "rgbd-us": "a5bf2ce"
+  }
+}

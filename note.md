@@ -203,40 +203,7 @@ Pass criteria are against classical anchors on the same split. Settings chosen o
 
 
 
-Commands
-On this machine:
 
 
-cd /home/ruixuan/Desktop/US_SCR
-git checkout c1bb9bb -- runs/s1-2XX/history.json     # restore the full 30-epoch history
-git add note.md HANDOFF_SCR.md runs/s1-2XX/history.json
-git commit -m "Merge handoff into note.md; results up to 120 epochs"
-git push
-On the training PC, run each command in its own terminal, at most 2–3 at a time with --workers 16:
 
 
-cd <your US_SCR clone> && git pull
-export RGBD_US=/data2/u0137815/rgbd-us DATA=/data2/u0137815/rgbd-us/data
-
-# Repeat 60 epochs with a different seed, to see how much the validation numbers move between runs (~30 min)
-python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/s1-e60-seed1-2XX \
-  --epochs 60 --seed 1 --workers 16 --eval-root $DATA/train_2XX --eval-runs run-205 run-211
-
-# First test of the 120-epoch recipe on the test splits; nothing gets tuned on these
-python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/v1-3XX \
-  --epochs 120 --check-every 6 --workers 16 --eval-root $DATA/train_3XX
-python scr_anchor.py train --root $DATA/test_4XXA --scan-runs room-401 room-402 --out runs/v1-4XXA \
-  --epochs 120 --check-every 6 --workers 16 --eval-root $DATA/test_4XXA
-python scr_anchor.py train --root $DATA/test_4XXB --scan-runs room-403 room-404 --out runs/v1-4XXB \
-  --epochs 120 --check-every 6 --workers 16 --eval-root $DATA/test_4XXB
-python scr_anchor.py train --root $DATA/test_4XXC --scan-runs room-405 room-406 --out runs/v1-4XXC \
-  --epochs 120 --check-every 6 --workers 16 --eval-root $DATA/test_4XXC
-Once those have finished, run these evals (a few minutes each). They cover blocks D and E, which use C's map, and the scene-change cases:
-
-
-python scr_anchor.py eval --ckpt runs/v1-4XXC/best.pt --test-root $DATA/test_4XXD
-python scr_anchor.py eval --ckpt runs/v1-4XXC/best.pt --test-root $DATA/test_4XXE
-python scr_anchor.py eval --ckpt runs/s1-e120-2XX/best.pt --test-root $DATA/train_3XX   # 2XX map → 3XX
-python scr_anchor.py eval --ckpt runs/v1-4XXA/best.pt --test-root $DATA/test_4XXB       # small change
-python scr_anchor.py eval --ckpt runs/v1-4XXA/best.pt --test-root $DATA/test_4XXC       # large change
-The 3XX and 4XX room scans are shorter than 2XX's, so each 120-epoch training should take roughly 20–40 minutes. Next, while those run, I can write the depth-at-test-time option for eval (step S4) and the check on how consistent the training labels are with each other (step S0d).
