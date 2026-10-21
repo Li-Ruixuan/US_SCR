@@ -8,3 +8,4 @@ data/
 
 # checkpoints stay on the training PC
 *.pt
+__pycache__/
