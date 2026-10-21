@@ -61,18 +61,12 @@ Start by asking me for anything you need from the existing SCR code or the data 
 
 
 
-Commands for the training PC
-I've assumed the rgbd-us repo is at /data2/u0137815/rgbd-us, since the data sits under it. Change RGBD_US if it's elsewhere.
 
 
-cd <your US_SCR clone> && git pull
-(cd /data2/u0137815/rgbd-us && git pull)          # scr.py + dataloader.py must be current
-export RGBD_US=/data2/u0137815/rgbd-us DATA=/data2/u0137815/rgbd-us/data
-mkdir -p runs && nvidia-smi
 
-# 0. Check the evaluator against the old scr-3XX checkpoint (~2 min).
-#    Expect about 9.8 / 22.1 mm. Not exactly, because scr.py's RANSAC wasn't seeded.
-python scr_anchor.py eval --ckpt $RGBD_US/runs/scr-3XX/best.pt --test-root $DATA/train_3XX --out runs/s0a-scr-3XX
+
+
+
 
 # 1. Baseline: the scr.py recipe on 2XX (~25–30 min)
 nohup python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/s1-base-2XX \

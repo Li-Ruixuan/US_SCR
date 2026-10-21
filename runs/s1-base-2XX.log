@@ -1,0 +1,8 @@
+nohup: ignoring input
+  room-201: 3590 rows, 3589 usable (1 skipped), 1 segments (0 time jumps, 0 spikes > 23.16 mm)
+  room-202: 1796 rows, 1777 usable (19 skipped), 2 segments (1 time jumps, 0 spikes > 16.44 mm)
+2684 room-scan frames from room-201, room-202 (every 2); scene centre [2.0, -11.0, -924.0] mm; fit check on 120 of them
+335 steps per epoch, 5025 in all (onecycle, loss huber, fp32 head False)
+/data2/u0137815/rgbd-us/scr.py:114: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:838.)
+  return loss, float(err.median()) * 1000
