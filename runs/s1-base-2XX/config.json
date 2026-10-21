@@ -49,7 +49,7 @@
   "steps": 5025,
   "rgbd_us": "/data2/u0137815/rgbd-us",
   "git": {
-    "US_SCR": "2cda152",
+    "US_SCR": "b2fd821",
     "rgbd-us": "a5bf2ce"
   }
 }
