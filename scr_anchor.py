@@ -171,8 +171,11 @@ def train(args):
     print(f"{len(items)} room-scan frames from {', '.join(args.scan_runs)} (every {args.frame_step}); "
           f"scene centre {np.round(centre).tolist()} mm; fit check on {len(check_items)} of them", flush=True)
 
+    # Decoding two 1280 x 720 PNGs per sample, not the network, limits the speed: keep the workers
+    # between epochs, prefetch, and copy pinned batches asynchronously.
     dl = DataLoader(RoomScanFrames(ds, args.root, items, centre, aug=True, seed=args.seed), args.batch_size,
-                    shuffle=True, num_workers=args.workers, drop_last=True)
+                    shuffle=True, num_workers=args.workers, drop_last=True, pin_memory=device.type == "cuda",
+                    persistent_workers=args.workers > 0, prefetch_factor=4 if args.workers > 0 else None)
     net = (SCRNetFP32Head if args.fp32_head else SCRNet)(pretrained=True).to(device)
     opt = torch.optim.AdamW([{"params": list(net.low.parameters()) + list(net.high.parameters()), "lr": args.lr_encoder},
                              {"params": net.head.parameters(), "lr": args.lr}], weight_decay=1e-4)
@@ -198,7 +201,7 @@ def train(args):
         t0, losses, meds = time.time(), [], []
         pbar = bar(dl, desc=f"epoch {ep + 1}/{args.epochs}")
         for rgb, tgt, ok in pbar:
-            rgb, tgt, ok = rgb.to(device), tgt.to(device), ok.to(device)
+            rgb, tgt, ok = (x.to(device, non_blocking=True) for x in (rgb, tgt, ok))
             with torch.autocast(device.type, enabled=args.amp):
                 pred = net(rgb)
             loss, med = coord_loss(pred.float(), tgt, ok, args.loss, args.huber_delta)
