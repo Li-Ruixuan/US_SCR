@@ -62,19 +62,29 @@ Start by asking me for anything you need from the existing SCR code or the data 
 
 
  
-Commands for the training PC
-No code changes are needed, so git pull isn't required for this. The two runs can share the GPU.
+On this machine (commit and push)
+
+cd /home/ruixuan/Desktop/US_SCR
+
+On the training PC
+If the 60- and 120-epoch runs are already going, leave them alone. git pull is safe while they run. The speed-up only applies to runs started after the pull.
 
 
-cd <your US_SCR clone>
+cd <your US_SCR clone> && git pull
 export RGBD_US=/data2/u0137815/rgbd-us DATA=/data2/u0137815/rgbd-us/data
+nproc; nvidia-smi          # CPU cores, and the GPU-Util column
 
-# S1, 60 epochs (~35 min)
+# Only if the 60/120-epoch runs have NOT started yet: same commands, with more workers
 nohup python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/s1-e60-2XX \
-  --epochs 60 --eval-root $DATA/train_2XX --eval-runs run-205 run-211 > runs/s1-e60-2XX.log 2>&1 &
-
-# S1, 120 epochs (~70 min)
+  --epochs 60 --workers 16 --eval-root $DATA/train_2XX --eval-runs run-205 run-211 > runs/s1-e60-2XX.log 2>&1 &
 nohup python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/s1-e120-2XX \
-  --epochs 120 --check-every 6 --eval-root $DATA/train_2XX --eval-runs run-205 run-211 > runs/s1-e120-2XX.log 2>&1 &
+  --epochs 120 --check-every 6 --workers 16 --eval-root $DATA/train_2XX --eval-runs run-205 run-211 > runs/s1-e120-2XX.log 2>&1 &
+Keep the total number of workers across all running jobs at or below about nproc. More workers than cores just compete with each other. With 16 or fewer cores, use --workers 6 per run instead.
 
-tail -f runs/s1-e60-2XX.log
+Using the spare GPU: an optional third run
+Full resolution is the experiment that actually needs the GPU, and it needs no new code. It is the resolution step (S3) from the plan, run early, and compares directly with S1 at 30 epochs:
+
+
+nohup python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/s3-full-2XX \
+  --image-size 720 1280 --workers 16 --eval-root $DATA/train_2XX --eval-runs run-205 run-211 > runs/s3-full-2XX.log 2>&1 &
+The input becomes the full 1280 × 720 frame with no downscaling, so the grid goes from 45 × 80 to 90 × 160 ce
