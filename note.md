@@ -61,34 +61,20 @@ Start by asking me for anything you need from the existing SCR code or the data 
 
 
 
-
-On the training PC:
+ 
+Commands for the training PC
+No code changes are needed, so git pull isn't required for this. The two runs can share the GPU.
 
 
 cd <your US_SCR clone>
-git pull
 export RGBD_US=/data2/u0137815/rgbd-us DATA=/data2/u0137815/rgbd-us/data
 
-# start S1 if it isn't running yet (check first: ps -eo pid,etime,cmd | grep "[s]cr_anchor")
-nohup python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/s1-2XX \
-  --eval-root $DATA/train_2XX --eval-runs run-205 run-211 > runs/s1-2XX.log 2>&1 &
+# S1, 60 epochs (~35 min)
+nohup python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/s1-e60-2XX \
+  --epochs 60 --eval-root $DATA/train_2XX --eval-runs run-205 run-211 > runs/s1-e60-2XX.log 2>&1 &
 
-tail -f runs/s1-2XX.log       # progress bar plus one line per epoch
+# S1, 120 epochs (~70 min)
+nohup python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/s1-e120-2XX \
+  --epochs 120 --check-every 6 --eval-root $DATA/train_2XX --eval-runs run-205 run-211 > runs/s1-e120-2XX.log 2>&1 &
 
-
-
-
-
-# 1. Baseline: the scr.py recipe on 2XX (~25–30 min)
-nohup python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/s1-base-2XX \
-  --frame-step 2 --epochs 15 --sched onecycle --loss huber --no-fp32-head \
-  --eval-root $DATA/train_2XX --eval-runs run-205 run-211 > runs/s1-base-2XX.log 2>&1 &
-
-# 2. S1 (~1.5–2 h; can run alongside the baseline on the 20 GB card)
-nohup python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/s1-2XX \
-  --eval-root $DATA/train_2XX --eval-runs run-205 run-211 > runs/s1-2XX.log 2>&1 &
-
-# 3. When both finish
-git add runs && git commit -m "S0a + S1 results" && git push
-The run times are estimates scaled from scr.py's 15–20 minutes on 3XX; 2XX has 1.5× as much room scan.
-
+tail -f runs/s1-e60-2XX.log
