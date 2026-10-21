@@ -1,158 +1,62 @@
-## 2. Settled decisions
+Context. I'm working on markerless pose estimation of a freehand ultrasound (US) probe, using an RGB-D camera (Intel RealSense, 1280 × 720) mounted on the probe and looking at the room. An NDI Polaris marker on the probe gives ground truth (~0.25 mm). The goal is the probe pose of every US frame with nothing outside the probe. The accuracy target is ~2 mm at the US image, which sits about 16 cm from the camera; 1° of rotation moves the bottom of the image by ~1.6 mm.
 
-| Decision | Choice | Reason |
-|---|---|---|
-| Reference frame | Room frame | Rigid anatomy + still patient ⇒ room and patient frames differ by one fixed unknown transform |
-| Camera direction | Outward, at the room | Room is textured and static; skin is textureless, curved, gelled |
-| Method family | Scene coordinate regression | §3 |
-| Backbone | EfficientNet-B0, truncated at stride 8 | The contribution is the formulation, not the block design |
-| Anatomy | Spine, arm, leg — rigid bone | Removes deformation and breathing from the problem |
-| Patient motion | Assumed away by protocol | Valid within a sweep; state as an explicit assumption |
-| Hardware | One probe-mounted RealSense; NDI Polaris Vicra for GT only | More cameras possible later for occlusion resilience |
-| Network input | Single frame — RGB + depth. No US, no IMU, no sequence | §7 |
-| Temporal handling | Post-solver trajectory smoothing | Keeps the stateless-occlusion claim; per-frame estimates survive as fallback |
+The system has three parts:
 
-## 3. Why SCR, not pose regression
+odometry between frames;
+anchors: absolute poses against a room scan recorded with the same camera before the exam;
+an offline pose graph that combines them.
+In a previous project (rgbd-us) I compared learned and classical components. I now want to work on a scene coordinate regression (SCR) approach in this project.
 
-Both are supervised and EfficientNet-backed. The difference is where the six numbers come from.
+What we found before (same data, Polaris ground truth):
 
-**APR** — image in, pose out. Sattler et al. (CVPR 2019): behaves closer to image retrieval with interpolation than to geometric reasoning, bounded by training poses, decimetre-scale indoors. The target is ~1 mm. Not a tuning gap.
+Best system: classical odometry + classical anchors (SIFT + PnP-RANSAC with the depth). Mean error at the US image: 3.3 mm on the test set 3XX, 3.6–7.0 mm on a harder held-out session 4XX (new session, room changes, second subject, occlusion). Camera position error of the anchors: 2.6 mm (3XX), 3–7 mm (4XX).
 
-**SCR** — per-pixel 3D coordinates in the room frame; pose from PnP or Kabsch with RANSAC. Fully learned, no descriptors, no map database, no tracking loop, but geometry is *solved* rather than regressed. References: DSAC*, ACE, GLACE, R-SCoRe, unified in SCRStudio (CVPR 2025).
+Direct pose-regression networks failed to generalise to a new session; they learn the session, not the geometry. This held for relative pose regression (odometry) and for keyframe-to-frame regression (anchors): 13.9 mm on 3XX (8.5 mm after per-session fine-tuning), 26–58 mm on 4XX. A saliency and masking test showed they can't reject outliers (moved objects, hands).
 
-**Depth is not incidental.** Standard SCR regresses 3D from RGB alone and fights scale ambiguity. With metric depth the question becomes "where in the room does this measured 3D point belong" — easier regression, and a principled reason for the RGB-D sensor. Under-explored in the medical context.
+Our first SCR attempt gave anchors of 9.8 mm (3XX) and 16–26 mm (4XX), every frame solved, but 3–5× worse than classical anchors. The setup:
 
-**Occlusion advantage.** SCR is stateless. An occluded frame fails and the next recovers, with no tracker to lose lock; SLAM and render-and-compare both need explicit failure detection and re-initialisation. Report solve rate as a metric.
+EfficientNet-B0 with stride-8 and stride-16 features fused, plus a 1×1-conv head predicting room coordinates on a 45 × 80 grid from 360 × 640 RGB;
+trained per room scan for 15 epochs, with targets from room-scan depth + Polaris poses and a Huber loss;
+pose by PnP-RANSAC (10 px, ≥ 30 inliers).
+It underfits: the coordinate error is still 24–28 mm even on its own training frames.
 
-## 4. Literature and positioning
+Our motion is very small: 2–5 mm per step, a sweep path of ~0.3–1 m within a few tens of cm, the camera 0.5–2.5 m from the scene. A learned regressor's error floor (~1–2 mm, 0.1–0.2° per step) is as large as the motion itself. Only methods ending in a geometric solve over many precise correspondences resolve it. Public benchmarks (7-Scenes, TUM, KITTI) work at cm–m scale and can't show this.
 
-**Probe-mounted:** Buchanan 2024 (stereo VIO + deep inertial odometry, errors comparable to motion capture); He 2024 (binocular + IMU, UKF on Lie groups, 3.78 mm / 0.36°); Zhang 2025 (monocular visual servoing against a *prepared textured* workspace, Hausdorff 0.359–1.171 mm — not markerless in our sense); ProbeSight (camera on skin, inverse rendering against a surface atlas).
+Room-scan coverage matters: the 4XX room scans covered only 0–14 % of the sweep viewpoints (a room-scan pose within 30 mm and 10° of the sweep frame), against 93 % in 3XX.
 
-**External RGB-D, markerless:** MLRecon 2026 — the closest competitor. Commodity RGB-D on a tripod, FoundationPose render-and-compare against a probe CAD model, SAM2 divergence detection, temporal refinement. 0.88 mm / 0.48° back-and-forth, 1.44 mm spiral; beat ORB-SLAM (2.65 mm) and Zhang (1.46 mm) on matched trajectories.
+Anchors and odometry are both needed: odometry alone drifts (2–7 % of path for classical, 13–23 % for learned); anchors alone are accurate but jittery from step to step.
 
-**Sensorless:** RecON, MoNet/MoNetV2, DualTrack, Li et al., ~5% normalized drift. Dai 2024 uses nylon fiducials in a hydrogel pad — reduces drift, constrains the scanning surface, linear probes only.
+Data. The full guide is HANDOFF_SCR.md in the rgbd-us repo. The data is on the training PC at /data2/u0137815/rgbd-us/data/train_<NXX>/. Per run, frames.csv holds:
 
-**Positioning.** MLRecon explicitly frames probe-mounted sensors as intrusive; we need an answer. The differentiator is **infrastructure**: MLRecon needs an unobstructed external camera with the probe in view, this needs nothing outside the probe. Point-of-care, bedside, ambulance, cramped rooms.
+rgb: path to a 1280 × 720 PNG;
+depth: path to the aligned depth, uint16 in mm, 0 = invalid;
+tx, ty, tz (mm) and qx, qy, qz, qw (scalar last) = T_world_marker; empty = marker lost.
+T_world_cam = T_world_marker @ T_marker_cam, with T_marker_cam.npy (mm) in the rgbd-us repo root; intrinsics are in camera_info.json.
 
-## 5. Accuracy: a constraint, not the contribution
+Sessions:
 
-Set by physics, not chosen. Elevational beam width is 1–2 mm, so error much beyond 1 mm blurs the reconstruction and there is little value in being much better. Pass/fail gate.
+room scans room-NXX are the mapping data; sweeps run-NXX are the test data;
+2XX and 3XX: good room scans; 3XX is the clean test;
+4XX blocks A–E: a hard case with short room scans, a small and a large room change, a second subject, occlusion;
+do not use 1XX: its depth is broken.
+Protocol for comparable numbers.
 
-Rotation dominates: at the 9 cm imaging depth in use, 1° puts 1.6 mm at the bottom of the image.
+Train (map) on a session's room scans.
+Test on its sweeps: one frame every 1 s (30 rows), only frames with a pose and us_air = 0.
+Report the camera position error (mm) and rotation error (°) against the Polaris: median and p90, plus the share of frames solved.
+Scene-change tests: map on the 2XX room scans and test on 3XX; map on 4XX A's scans and test on B and C.
+What I want from you.
 
-Reference points: optical ~0.5 mm; MLRecon 0.88 mm; Zhang 1.46 mm; He 3.78 mm; US-only ~1 cm over a 20 cm sweep. Landing among these is the aim, not ahead of them.
-
-## 6. Ground truth and calibration
-
-The Vicra changes **supervision**, not just evaluation. Dense SCR labels come straight from pose and depth, with no reconstruction step:
-
-```
-T_world_cam = T_world_marker · T_marker_cam
-xyz_world   = T_world_cam · backproject(depth, K)
-```
-
-Most SCR work bootstraps labels from SfM; we get them metrically, per-pixel, per-frame. COLMAP / RTAB-Map pseudo-GT is now only a fallback. Tracker poses are supervision and evaluation only, never a runtime input.
-
-**Units.** The tracker node publishes millimetres, and the pipeline now works internally in millimetres throughout (geometry, dataset, model, solver — an earlier metres-internally version was refactored away). `pose_units` defaults to `"mm"`, matching `record.py`'s own `--pose-units` default; the actual safety net is per-run rather than the default itself — `SCRDataset.__init__` reads each run's own `record_config.json` and raises if its recorded `pose.units` disagrees with what the dataset was configured for, so a wrong guess does not train silently even though the flag has a default.
-
-**Hand-eye: translation measured, rotation not yet estimated.** 
-
-The guess of calibration matrix si around 110, 20, 75 mm, not direction sign.
-
-The calculated is : 
-[[-4.27548383e-02  1.52818278e-02 -9.98968713e-01 -9.92511959e+01]
- [ 1.04557840e-01 -9.94323956e-01 -1.96857427e-02  2.24692641e+01]
- [-9.93599357e-01 -1.05291672e-01  4.09143251e-02  7.53086948e+01]
- [ 0.00000000e+00  0.00000000e+00  0.00000000e+00  1.00000000e+00]]
+Review my SCR design against the literature: Shotton et al. CVPR 2013 (RGB-D SCR forests, 7-Scenes), DSAC* (TPAMI 2022, RGB and RGB-D), ACE (CVPR 2023), GLACE (CVPR 2024), ACE0 (ECCV 2024). Tell me which design choices most likely caused the 24–28 mm underfitting, and how to fix them. In particular:
+a frozen pretrained encoder with ACE-style training on shuffled pixel buffers, against whole-image batches;
+grid resolution and image resolution;
+using the depth (as an input, as a 3D–3D RANSAC, or for refinement);
+per-pixel confidence or uncertainty;
+the reprojection loss against a 3D-coordinate loss;
+the amount and coverage of mapping data.
+Propose a step-by-step experiment plan that starts with the cheapest checks. For example: can the model fit its own training frames to a few mm? Does adding depth close most of the gap? Each step should have a clear pass/fail criterion against the classical anchors (2.6 mm on 3XX, 3–7 mm on 4XX).
+Be honest about whether SCR can plausibly match SIFT + depth + PnP-RANSAC at this mm scale in an unchanged room, and where it could beat it: large room changes (classical anchors failed there with 80 mm), low texture, speed, no keyframe retrieval needed.
+Keep the evaluation exactly comparable with the protocol above.
+Start by asking me for anything you need from the existing SCR code or the data before proposing changes.
 
 
-## 7. Inputs deliberately not used
-
-**US is payload.** Camera-only pose estimation; US frames compounded afterwards. As a pose *input* it has a specific failure mode: US sees anatomy, the room frame is defined by the room, so on a single subject the model learns "this anatomical view implies this probe pose", validation looks excellent because train and validation come from the same body, and it transfers to nobody. If US returns, it returns as a geometric constraint between overlapping sweeps.
-
-**IMU is out of scope.** Keep recording `imu.csv` — it costs nothing and cannot be retrofitted — but nothing reads it.
-
-**Temporal structure goes after the solver.** The probe has mass and a hand on it, so the true trajectory is band-limited while per-frame jitter is not physical. Smooth the per-frame poses weighted by inlier count (SE(3) RTS, B-spline, or Savitzky-Golay with SLERP on rotation) — the same role as MLRecon's temporal refinement. State which downstream use a smoothed number applies to: offline reconstruction may use a non-causal smoother, live navigation may not.
-
-## 8. Known challenges
-
-- **Occlusion** by hand and body — constant, moving, probably the dominant practical failure mode. Statelessness helps; report solve rate and inlier counts. Needs a reproducible protocol, since it is now a headline result rather than a robustness check.
-- **Scene specificity.** SCR regressors overfit to training views by design. Partly a feature — an exam room is fixed infrastructure and ACE-style mapping takes minutes, so "train once per room at installation" is plausible — but it must be tested: room A → room B, moved furniture, drawn curtains, people in the way, morning vs evening lighting. ACE-G addresses this via query pre-training.
-- **Room-to-anatomy transform unknown.** Room-frame pose alone is not usable for reconstruction; one registration to anatomy is needed. Fine for a single sweep with an arbitrary origin, not for cross-session navigation. Be clear which claim is being made. 
-- **Depth noise sets the label floor.** RealSense error grows with the square of range, reaching centimetres at a few metres. Coordinate error will floor there; pose error will not, per §3. Do not mistake one for the other.
-- **Lock the capture settings** before the real dataset: RGB exposure and white balance, *and* scanner Depth, Sector Ext, Zoom. Changing scanner depth mid-dataset silently changes mm-per-pixel.
-
-## 9. Data and recording
-
-Runs are now being recorded with `record.py` with the marker pose stream live, so `frames.csv` carries interpolated pose columns per frame. The five original pilot runs predate the tracker, carry no pose, and are unusable for supervised training.
-
-SCR needs pose-space coverage, not frame count. Plan many runs with varied paths, heights and orientations through the same room. Validate on held-out **trajectories**, not held-out frames, and not on runs retracing training paths.
-
-**RGB/depth: full sensor, no crop.** `camera_info.json` reports 1280×720. The network input resolution (360×640 by default) is a same-aspect-ratio downsample, not a crop — 640/360 exactly matches 1280/720, so the crop box computed at load time equals the full frame before resizing. Fixed-box cropping is reserved for US only, for the reason above (a stable pixel→mm sector origin); RGB/depth have no equivalent constraint and lose field of view for nothing if cropped.
-
-## 10. Pipeline status
-
-Implemented, running end to end:
-
-- `geometry.py` — `T_a_b` convention, SE(3) exp/log, pose loading with occlusion masking, dense scene-coordinate labels, target-free hand-eye consistency check
-- `dataset.py` — per-frame SCR dataset; geometric augmentation with regenerated labels; stride-aligned label sampling; scene normalisation from the training split only; skips ineligible run directories (no pose columns, or no `camera_info.json`) with a printed reason instead of crashing; per-run `pose_units` cross-check against `record_config.json`
-- `model.py` — EfficientNet-B0 to stride 8, depth fused at the stem with zero-initialised new channels, dilated fully-convolutional head, no pooling anywhere; Huber or Gaussian-NLL coordinate loss in fp32
-- `solver.py` — PnP+RANSAC and Kabsch+RANSAC with inlier reporting
-- `train.py` — coordinate loss, solver in the validation loop, epoch-level metric reduction, predict-the-centroid baseline printed before training; hand-eye loading (`load_hand_eye`) with unit conversion, rotation orthonormality/determinant checks, and a lever-arm plausibility bound; `--hand-eye-units` is required whenever `--hand-eye` is passed, with no default 
-
-## 11. Baselines
-
-| Baseline | Purpose |
-|---|---|
-| ORB-SLAM3 / RTAB-Map on the same stream | The SLAM comparison — must be beaten *under occlusion*, since SLAM is also infrastructure-free |
-| APR head on the same encoder | Shows why pooled regression fails |
-| ACE or DSAC* off the shelf | SCR reference; isolates what our adaptation adds |
-| PnP vs Kabsch | Whether measured depth helps or hurts on the query side |
-| Per-frame vs smoothed | How much accuracy is temporal, and at what latency cost |
-| A US-only sensorless method | Drift comparison | 
-
-
- 
-### 2.1 `geometry.py`
-
-**POSE_UNITS** — the table now scales *to* millimetres.  
-
-Leave the exp/log, inverse, and quaternion round-trip assertions alone — they are unit-free.
-
-### 2.2 `dataset.py`
- 
-
-### 2.3 `model.py`
-
-**`coordinate_metrics` final line** — `scene_scale` is now already in mm. 
-
-The docstring ("Per-pixel coordinate error in millimetres") stays correct.
-
-### 2.4 `solver.py`
-
-**`kabsch_ransac` threshold** 
-
-**`pose_error`**
-
-**Comments only**, no code change: the `xyz_world` parameter annotations in `pnp_ransac` and `kabsch_ransac` say "metres"; change to "millimetres". PnP itself is unit-agnostic as long as the inputs are consistent — `tvec` comes out in whatever unit went in.
-
-### 2.5 `train.py`
-
-**`centroid_baseline`**
-
-**`--max-depth` default** 
-
-### 2.6 Do NOT change these
-
-They are already dimensionless or in non-length units. Touching them is the most likely way to break this refactor.
-
-| Location | Quantity | Why it is unit-free |
-|---|---|---|
-| `model.py`, `CoordinateLoss(delta=0.05)` | Huber knee | Normalised units (fraction of `scene_scale`). At a ~2000 mm scene radius this is a ~100 mm knee, comparable to the ~75 mm it was before. |
-| `dataset.py`, `inv = inv * valid / (1.0 / cfg.min_depth)` | inverse-depth normalisation | Evaluates to `min_depth / depth`, a ratio. |
-| `dataset.py`, `xyz_n = (xyz_l - scene_center) / scene_scale` | label normalisation | Numerator and denominator are both mm. |
-| `train.py`, `--reproj-threshold` | PnP inlier threshold | Pixels. |
-| `dataset.py`, `scale_range`, `brightness`, `contrast`, `noise_std` | augmentation | Fractions. |
-| `record.py` | entire file | Already writes mm. **No change at all.** |
- 
- 
