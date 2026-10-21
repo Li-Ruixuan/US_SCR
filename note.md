@@ -60,3 +60,30 @@ Keep the evaluation exactly comparable with the protocol above.
 Start by asking me for anything you need from the existing SCR code or the data before proposing changes.
 
 
+
+Commands for the training PC
+I've assumed the rgbd-us repo is at /data2/u0137815/rgbd-us, since the data sits under it. Change RGBD_US if it's elsewhere.
+
+
+cd <your US_SCR clone> && git pull
+(cd /data2/u0137815/rgbd-us && git pull)          # scr.py + dataloader.py must be current
+export RGBD_US=/data2/u0137815/rgbd-us DATA=/data2/u0137815/rgbd-us/data
+mkdir -p runs && nvidia-smi
+
+# 0. Check the evaluator against the old scr-3XX checkpoint (~2 min).
+#    Expect about 9.8 / 22.1 mm. Not exactly, because scr.py's RANSAC wasn't seeded.
+python scr_anchor.py eval --ckpt $RGBD_US/runs/scr-3XX/best.pt --test-root $DATA/train_3XX --out runs/s0a-scr-3XX
+
+# 1. Baseline: the scr.py recipe on 2XX (~25–30 min)
+nohup python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/s1-base-2XX \
+  --frame-step 2 --epochs 15 --sched onecycle --loss huber --no-fp32-head \
+  --eval-root $DATA/train_2XX --eval-runs run-205 run-211 > runs/s1-base-2XX.log 2>&1 &
+
+# 2. S1 (~1.5–2 h; can run alongside the baseline on the 20 GB card)
+nohup python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/s1-2XX \
+  --eval-root $DATA/train_2XX --eval-runs run-205 run-211 > runs/s1-2XX.log 2>&1 &
+
+# 3. When both finish
+git add runs && git commit -m "S0a + S1 results" && git push
+The run times are estimates scaled from scr.py's 15–20 minutes on 3XX; 2XX has 1.5× as much room scan.
+

@@ -9,13 +9,35 @@ ultrasound. That also means no cross-stream synchronizer is needed: there is
 only one image stream, matched against pose by interpolation, not against a
 second image stream by timestamp.
 
+
+cd ~/Polaris_Vega_VT
+python3 vega_rtsp_overlay_ros.py
+
+ros2 launch usb_cam demo_launch.py
+
+ros2 launch realsense2_camera rs_launch.py \
+    align_depth.enable:=true \
+    enable_gyro:=true enable_accel:=true unite_imu_method:=2 \
+    rgb_camera.enable_auto_exposure:=false \
+    rgb_camera.exposure:=166 \
+    rgb_camera.white_balance:=4600
+
 Usage:
-  python3 tools/record_calibration.py --run calib_001 --root ./data \
+  python3 tools/record_calibration.py --run calib_201 --root ./data \
       --duration 90 --pose-topic /marker_pose
 
 Fix the ChArUco board rigidly somewhere in the room, keep it in view, and
 sweep the probe through wide, varied rotations -- calibrate_hand_eye.py's
 own self-test and rotational-diversity check both depend on that.
+
+Recording protocol (Oct 2026, from validate_hand_eye.py: the residual grows with speed,
+i.e. a camera-tracker time offset and/or motion blur):
+  * move SLOWLY, and pause ~1 s still at each of many different orientations
+    (validate_hand_eye.py --stationary-deg-s can then solve on still frames only);
+  * fixed, short RGB exposure (less blur), the same values as for the dataset;
+  * calibrate on the same day as the recordings, without remounting the marker or camera;
+  * afterwards check the time offset: tools/validate_hand_eye.py --time-offset-sweep.
+frames.csv also has an `rx` column (host receive time), to diagnose clock offsets.
 """
 
 import argparse
@@ -60,7 +82,7 @@ class CalibrationRecorder(Node):
         self.csv_file = open(self.csv_path, "w", newline="")
         self.csv_writer = csv.writer(self.csv_file)
         self.csv_writer.writerow(
-            ["timestamp", "rgb", "tx", "ty", "tz", "qx", "qy", "qz", "qw"])
+            ["timestamp", "rgb", "tx", "ty", "tz", "qx", "qy", "qz", "qw", "rx"])
         self.csv_lock = threading.Lock()
 
         # Ring buffer of recent pose samples, used to interpolate the pose
@@ -195,7 +217,7 @@ class CalibrationRecorder(Node):
             self.n_pose_filled += 1
 
         try:
-            self.q.put_nowait((self.idx, stamp, color.copy(), pose_vals))
+            self.q.put_nowait((self.idx, stamp, color.copy(), pose_vals, time.time()))
             self.idx += 1
         except queue.Full:
             self.dropped += 1
@@ -207,7 +229,7 @@ class CalibrationRecorder(Node):
     def _writer_loop(self):
         while not self.stop_evt.is_set():
             try:
-                idx, stamp, color, pose_vals = self.q.get(timeout=0.2)
+                idx, stamp, color, pose_vals, rx = self.q.get(timeout=0.2)
             except queue.Empty:
                 continue
             rel_rgb = f"rgb/{idx:06d}.png"
@@ -220,7 +242,7 @@ class CalibrationRecorder(Node):
                              [f"{v:.9f}" for v in pose_vals[3:]]
 
             with self.csv_lock:
-                self.csv_writer.writerow([f"{stamp:.9f}", rel_rgb] + pose_cells)
+                self.csv_writer.writerow([f"{stamp:.9f}", rel_rgb] + pose_cells + [f"{rx:.9f}"])
             self.q.task_done()
 
     def _report(self):

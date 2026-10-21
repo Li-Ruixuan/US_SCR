@@ -751,12 +751,12 @@ def main():
                     help="method whose solution is carried into the residual, "
                          "reprojection and cross-session sections")
 
-    ap.add_argument("--squares-x", type=int, default=7)
-    ap.add_argument("--squares-y", type=int, default=5)
-    ap.add_argument("--square-mm", type=float, default=24.0,
+    ap.add_argument("--squares-x", type=int, default=12)
+    ap.add_argument("--squares-y", type=int, default=9)
+    ap.add_argument("--square-mm", type=float, default=15.0,
                     help="measured, not the PDF design value")
-    ap.add_argument("--marker-mm", type=float, default=17.0)
-    ap.add_argument("--dict", default="DICT_6X6_250")
+    ap.add_argument("--marker-mm", type=float, default=11.25)
+    ap.add_argument("--dict", default="DICT_5X5_1000")
     ap.add_argument("--min-corners", type=int, default=12)
     ap.add_argument("--max-reproj-error", type=float, default=1.0)
 
