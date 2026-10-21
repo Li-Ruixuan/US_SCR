@@ -62,7 +62,18 @@ Start by asking me for anything you need from the existing SCR code or the data 
 
 
 
+On the training PC:
 
+
+cd <your US_SCR clone>
+git pull
+export RGBD_US=/data2/u0137815/rgbd-us DATA=/data2/u0137815/rgbd-us/data
+
+# start S1 if it isn't running yet (check first: ps -eo pid,etime,cmd | grep "[s]cr_anchor")
+nohup python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/s1-2XX \
+  --eval-root $DATA/train_2XX --eval-runs run-205 run-211 > runs/s1-2XX.log 2>&1 &
+
+tail -f runs/s1-2XX.log       # progress bar plus one line per epoch
 
 
 
