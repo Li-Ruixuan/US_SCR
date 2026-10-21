@@ -47,10 +47,16 @@ import numpy as np                                                      # noqa: 
 import torch                                                            # noqa: E402
 import torch.nn.functional as F                                         # noqa: E402
 from torch.utils.data import DataLoader                                 # noqa: E402
+from tqdm import tqdm                                                   # noqa: E402
 
 from dataloader import RPRConfig, RPRDataset, load_hand_eye, test_sweeps   # noqa: E402
 from scr import (STRIDE, RoomScanFrames, SCRNet, coord_targets, load_depth_mm,   # noqa: E402
                  load_scr, localize, robust_loss)
+
+
+def bar(it, **kw):
+    """Progress bar on stderr; in a log file (nohup) it refreshes every 10 s so the log stays short."""
+    return tqdm(it, mininterval=0.5 if sys.stderr.isatty() else 10, dynamic_ncols=True, leave=False, **kw)
 
 
 class SCRNetFP32Head(SCRNet):
@@ -123,7 +129,7 @@ def fit_check(net, ck, ds, root, items, device, args):
     H, W = ds.cfg.image_size
     h, w = H // STRIDE, W // STRIDE
     coord, resid, t_err, r_err, solved = [], [], [], [], 0
-    for name, row in items:
+    for name, row in bar(items, desc="fit check"):
         r = ds.runs[name]
         K = np.asarray(r["K"], float)
         rgb = ds.load_frame(name, row)[0]
@@ -190,7 +196,8 @@ def train(args):
     for ep in range(args.epochs):
         net.train()
         t0, losses, meds = time.time(), [], []
-        for rgb, tgt, ok in dl:
+        pbar = bar(dl, desc=f"epoch {ep + 1}/{args.epochs}")
+        for rgb, tgt, ok in pbar:
             rgb, tgt, ok = rgb.to(device), tgt.to(device), ok.to(device)
             with torch.autocast(device.type, enabled=args.amp):
                 pred = net(rgb)
@@ -200,8 +207,9 @@ def train(args):
             scaler.step(opt)
             scaler.update()
             sched.step()
-            losses.append(float(loss))
+            losses.append(loss.item())
             meds.append(med)
+            pbar.set_postfix(loss=f"{losses[-1]:.4f}", err=f"{med:.0f} mm", refresh=False)
         h = {"epoch": ep + 1, "loss": float(np.mean(losses)), "coord_err_mm_median": float(np.nanmedian(meds)),
              "lr_head": opt.param_groups[1]["lr"], "epoch_s": round(time.time() - t0)}
         line = (f"epoch {ep + 1}/{args.epochs}: loss {h['loss']:.4f}, train-mode coordinate error "
@@ -236,7 +244,7 @@ def evaluate(args):
     for sw in sweeps:
         r = ds.runs[sw]
         K = np.asarray(r["K"], float)
-        for row in np.concatenate(r["segments"])[:: args.every]:
+        for row in bar(np.concatenate(r["segments"])[:: args.every], desc=f"eval {sw}"):
             rgb = ds.load_frame(sw, int(row))[0]
             cv2.setRNGSeed(args.seed + int(row))
             t0 = time.perf_counter()
