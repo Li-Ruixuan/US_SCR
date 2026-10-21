@@ -5,3 +5,6 @@
 #Cache folder
 .alcache/ 
 data/
+
+# checkpoints stay on the training PC
+*.pt
