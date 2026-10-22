@@ -201,5 +201,66 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
 
  
  
- 
+ Everything runs on the training PC. Start with:
+
+
+cd <your US_SCR clone> && git pull
+export RGBD_US=/data2/u0137815/rgbd-us DATA=/data2/u0137815/rgbd-us/data
+U=$(pwd)
+Trainings (about 1 h each, separate terminals)
+Together with the bigclean-seed1-2XX rerun that's 5 trainings. If nproc is under about 60, run them in two batches: A + B first, then E.
+
+
+# A. coverage curve on 4XX A: + 1 sweep, + 2 sweeps (the + 4 sweeps run exists: runs/v1-4XXA-plus4)
+python scr_anchor.py train --root $DATA/test_4XXA --scan-runs room-401 room-402 run-401 \
+  --out runs/v1-4XXA-plus1 --epochs 120 --check-every 6 --workers 12 --eval-root $DATA/test_4XXA --eval-runs run-405 run-406 run-407 run-408
+python scr_anchor.py train --root $DATA/test_4XXA --scan-runs room-401 room-402 run-401 run-402 \
+  --out runs/v1-4XXA-plus2 --epochs 120 --check-every 6 --workers 12 --eval-root $DATA/test_4XXA --eval-runs run-405 run-406 run-407 run-408
+
+# B. second block: 4XX D (second subject), C's room scans + sweeps 418-420, test 421, 423, 424
+python scr_anchor.py train --root $DATA/test_4XXD --scan-runs room-405 room-406 run-418 run-419 run-420 \
+  --out runs/v1-4XXD-plus3 --epochs 120 --check-every 6 --workers 12 --eval-root $DATA/test_4XXD --eval-runs run-421 run-423 run-424
+
+# E. big head + clean labels + the 4 extra sweeps on 4XX A
+python scr_anchor.py train --root $DATA/test_4XXA --scan-runs room-401 room-402 run-401 run-402 run-403 run-404 \
+  --out runs/bigclean-4XXA-plus4 --head big --label-max-depth 2000 --drop-depth-edges \
+  --epochs 120 --check-every 6 --workers 12 --eval-root $DATA/test_4XXA --eval-runs run-405 run-406 run-407 run-408
+When each one finishes, run its Kabsch eval:
+
+
+python scr_anchor.py eval --ckpt runs/v1-4XXA-plus1/best.pt --test-root $DATA/test_4XXA --test-runs run-405 run-406 run-407 run-408 --solver kabsch
+python scr_anchor.py eval --ckpt runs/v1-4XXA-plus2/best.pt --test-root $DATA/test_4XXA --test-runs run-405 run-406 run-407 run-408 --solver kabsch
+python scr_anchor.py eval --ckpt runs/v1-4XXD-plus3/best.pt --test-root $DATA/test_4XXD --test-runs run-421 run-423 run-424 --solver kabsch
+python scr_anchor.py eval --ckpt runs/bigclean-4XXA-plus4/best.pt --test-root $DATA/test_4XXA --test-runs run-405 run-406 run-407 run-408 --solver kabsch
+Full-system evals (minutes each, from the rgbd-us folder)
+C. Classical anchors with the same extra keyframes, for a fair comparison with T4:
+
+
+cd $RGBD_US
+python anchoring.py evaluate --anchor classical --root data/test_4XXA --scan-runs room-401 room-402 \
+  --map-root data/test_4XXA --map-scans room-401 room-402 run-401 run-402 run-403 run-404 \
+  --test-root data/test_4XXA --test-runs run-405 run-406 run-407 run-408 \
+  --odometry-source classical-vo-test_4XXA --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXA.json \
+  --pgo --out $U/runs/sys-classical-4XXA-plus4
+D. SCR (Kabsch) with the T4 model in the full system:
+
+
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXA-plus4/best.pt \
+  --root data/test_4XXA --scan-runs room-401 room-402 --test-root data/test_4XXA --test-runs run-405 run-406 run-407 run-408 \
+  --odometry-source classical-vo-test_4XXA --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXA.json \
+  --pgo --out $U/runs/sys-kabsch-4XXA-plus4
+After B has finished, C and D again for block D:
+
+
+python anchoring.py evaluate --anchor classical --root data/test_4XXD --scan-runs room-405 room-406 \
+  --map-root data/test_4XXD --map-scans room-405 room-406 run-418 run-419 run-420 \
+  --test-root data/test_4XXD --test-runs run-421 run-423 run-424 \
+  --odometry-source classical-vo-test_4XXD --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXD.json \
+  --pgo --out $U/runs/sys-classical-4XXD-plus3
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXD-plus3/best.pt \
+  --root data/test_4XXD --scan-runs room-405 room-406 --test-root data/test_4XXD --test-runs run-421 run-423 run-424 \
+  --odometry-source classical-vo-test_4XXD --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXD.json \
+  --pgo --out $U/runs/sys-kabsch-4XXD-plus3
+cd $U
+What I'll compare (same test sweeps throughout)
    
