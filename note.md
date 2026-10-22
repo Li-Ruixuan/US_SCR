@@ -202,74 +202,10 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
  
  
  
+  
  
 
 
-
-
-On the training PC
-
-cd <your US_SCR clone> && git pull
-export RGBD_US=/data2/u0137815/rgbd-us DATA=/data2/u0137815/rgbd-us/data
-U=$(pwd)
-Group 1: no training (start now, minutes each)
-E1, rotation refinement. 2XX decides; the other splits only report.
-
-
-python scr_anchor.py eval --ckpt runs/s1-e120-2XX/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --solver kabsch --kabsch-refine weighted
-python scr_anchor.py eval --ckpt runs/s1-e120-2XX/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --solver kabsch --kabsch-refine joint
-
-for refine in weighted joint; do
-  python scr_anchor.py eval --ckpt runs/v1-3XX/best.pt  --test-root $DATA/train_3XX --solver kabsch --kabsch-refine $refine
-  python scr_anchor.py eval --ckpt runs/v1-4XXA/best.pt --test-root $DATA/test_4XXA --solver kabsch --kabsch-refine $refine
-  python scr_anchor.py eval --ckpt runs/v1-4XXB/best.pt --test-root $DATA/test_4XXB --solver kabsch --kabsch-refine $refine
-  python scr_anchor.py eval --ckpt runs/v1-4XXC/best.pt --test-root $DATA/test_4XXC --solver kabsch --kabsch-refine $refine
-  python scr_anchor.py eval --ckpt runs/v1-4XXC/best.pt --test-root $DATA/test_4XXD --solver kabsch --kabsch-refine $refine
-  python scr_anchor.py eval --ckpt runs/v1-4XXC/best.pt --test-root $DATA/test_4XXE --solver kabsch --kabsch-refine $refine
-done
-Rule, fixed now: this compares the same model's predictions, so there's no seed noise. Adopt the mode that lowers the rotation error on 2XX (currently 0.33°) without raising the position error (currently 3.4 mm).
-
-E3, SCR-only system with no classical odometry. Run from the rgbd-us folder:
-
-
-cd $RGBD_US
-python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/s1-e120-2XX/best.pt \
-  --root data/train_2XX --scan-runs room-201 room-202 --test-root data/train_2XX --test-runs run-205 run-211 \
-  --odometry-source zero --odometry runs/rpr-rgb-gap8-12XX-gru8 --pairs runs/anchor-pairs/pairs_2XX.json \
-  --interval 0.25 --pgo --out $U/runs/sys-scronly-2XX
-python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-3XX/best.pt \
-  --root data/train_3XX --scan-runs room-301 room-302 --test-root data/train_3XX \
-  --odometry-source zero --odometry runs/rpr-rgb-gap8-12XX-gru8 --pairs runs/anchor-pairs/pairs_3XX.json \
-  --interval 0.25 --pgo --out $U/runs/sys-scronly-3XX
-python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXA/best.pt \
-  --root data/test_4XXA --scan-runs room-401 room-402 --test-root data/test_4XXA \
-  --odometry-source zero --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXA.json \
-  --interval 0.25 --pgo --out $U/runs/sys-scronly-4XXA
-cd $U
-Group 2: training (separate terminals, about 1 h each)
-Running four trainings at once needs about 48 CPU cores at --workers 12. With fewer cores, run two at a time.
-
-T1 / T3 on 2XX validation. Big head, clean labels, and both together, so each effect can be attributed:
-
-
-python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/big-2XX \
-  --head big --epochs 120 --check-every 6 --workers 12 --eval-root $DATA/train_2XX --eval-runs run-205 run-211
-python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/clean-2XX \
-  --label-max-depth 2000 --drop-depth-edges --epochs 120 --check-every 6 --workers 12 --eval-root $DATA/train_2XX --eval-runs run-205 run-211
-python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/bigclean-2XX \
-  --head big --label-max-depth 2000 --drop-depth-edges --epochs 120 --check-every 6 --workers 12 --eval-root $DATA/train_2XX --eval-runs run-205 run-211
-T4, more mapping data, as a separately labelled experiment: 4XX A mapped on the room scans plus sweeps 401–404, tested on sweeps 405–408:
-
-
-python scr_anchor.py train --root $DATA/test_4XXA --scan-runs room-401 room-402 run-401 run-402 run-403 run-404 \
-  --out runs/v1-4XXA-plus4 --epochs 120 --check-every 6 --workers 12 --eval-root $DATA/test_4XXA --eval-runs run-405 run-406 run-407 run-408
-When the trainings finish, run their Kabsch evals:
-
-
-for r in big-2XX clean-2XX bigclean-2XX; do
-  python scr_anchor.py eval --ckpt runs/$r/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --solver kabsch
-done
-python scr_anchor.py eval --ckpt runs/v1-4XXA-plus4/best.pt --test-root $DATA/test_4XXA --test-runs run-405 run-406 run-407 run-408 --solver kabsch
 
 
 
