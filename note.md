@@ -1,77 +1,106 @@
 # US_SCR: scene coordinate regression anchors for markerless US probe tracking
 
-Status 21 Oct 2026. Merges the project brief (old `note.md`) and the data guide (`HANDOFF_SCR.md`, from rgbd-us) and adds the SCR results so far. Source project: `rgbd-us` (`note_RPR.md` there has every detail).
+Status 22 Oct 2026. Source project: `rgbd-us` (`note_RPR.md` there has every detail of the earlier work).
 
 ## 1. Problem and goal
 
-A probe-mounted RGB-D camera (Intel RealSense D435i, colour 1280 × 720) looks at the room; an NDI Polaris marker on the probe gives ground truth (~0.25 mm). The goal is the probe pose of every US frame with nothing outside the probe. Target: **~2 mm at the US image**, which lies ~16 cm from the camera (1° of rotation ≈ 1.6 mm at the image bottom).
+A probe-mounted RGB-D camera (Intel RealSense D435i, colour 1280 × 720) looks at the room; an NDI Polaris marker on the probe gives ground truth (~0.25 mm). The goal is the probe pose of every US frame with nothing outside the probe. Target: **~2 mm at the US image**, ~16 cm from the camera (1° of rotation ≈ 1.6 mm at the image bottom).
 
-The system has three parts: **odometry** between frames; **anchors**: absolute poses against a room scan recorded with the same camera before the exam; an offline **pose graph** that combines them. Both are needed: odometry alone drifts (2–7 % of the path for classical, 13–23 % for learned); anchors alone are accurate but jump from step to step. With good odometry, an anchor every 1–2 s is enough.
+The system: **odometry** between frames + **anchors** (absolute poses against a room scan recorded before the exam), combined in an offline **pose graph**. Both are needed: odometry alone drifts; anchors alone jump from step to step; with good odometry an anchor every 1–2 s is enough. Best rgbd-us system: classical odometry + classical anchors (SIFT + PnP-RANSAC with depth), **3.3 mm at the US image on 3XX, 3.6–7.0 mm on 4XX**.
 
-This project replaces the anchors with **scene coordinate regression (SCR)**: a network predicts the room coordinate of every image cell, and PnP-RANSAC turns those correspondences into a pose. Questions it has to answer:
-- why the first SCR underfit, and how far fixing it closes the gap to classical anchors;
-- whether SCR can match SIFT + depth + PnP-RANSAC at the mm scale in an unchanged room;
-- where it could beat it: large room changes, low texture, speed, no keyframe retrieval or pose prior.
+This project replaces the anchors with **scene coordinate regression (SCR)**: a network predicts the room coordinate of every image cell; a geometric solve turns those correspondences into a pose.
 
-## 2. What rgbd-us found
+## 2. Current state
 
-| mean error at the US image | 3XX (5 sweeps) | 4XX (blocks A–E) |
-|---|---|---|
-| classical odometry + classical anchors (SIFT + PnP-RANSAC with depth) | **3.3 mm** | **3.6–7.0 mm** |
-| classical odometry only | 10.1 mm | 9.9–14.5 mm |
-| classical odometry + first SCR anchors | 6.5 mm | 12.0–21.4 mm |
-| learned odometry + learned anchor network (pose regression) | 13.9 (8.5 adapted) mm | failed: 26–58 mm |
+**Best SCR anchor: v1 + Kabsch** — the rgbd-us `scr.py` network trained with the S1 recipe for 120 epochs on the session's room scans (section 4), pose by 3D–3D RANSAC between the measured depth and the predicted room coordinates (`eval --solver kabsch`).
 
-**Anchor accuracy** (camera position error, one frame every 1 s; the number SCR competes on):
+Anchor accuracy: camera position error against Polaris, one frame per second, **mean of per-sweep medians / p90 (mm)**, rotation median. SCR solves every frame (no gate yet); classical and the anchor network report the share of anchors their 50 mm gate accepted.
 
-| | 2XX val (run-205, 211) | 3XX | 4XX A / B / C | 4XX D / E (C's map) | outdated map: 2XX→3XX / A→B / A→C |
+| split | **SCR v1 + Kabsch** | SCR v1 + PnP | classical anchors | RPR anchor network (adapted) | first SCR (`scr.py`) |
 |---|---|---|---|---|---|
-| classical anchors (median / p90) | 5.2 / 11.9 mm, 0.33° | 2.6 / 6.9 mm, 0.34° | 5.3 / 3.2 / 5.9 | 7.1 / 5.2 | 10 / 8 / 80 mm (C: 21 % accepted) |
-| first SCR (`rgbd-us/scr.py`) | 15.8 / 31.3 mm (rerun here) | 9.8 / 22.1 mm | 17.7 / 16.0 / 21.8 | 26.0 / 22.1 | — / 50.3 / 55.3 |
-| anchor network (pose regression) | | 15 mm | 25–100 mm | | |
+| 2XX val (settings chosen here) | **3.4 / 8.7, 0.33°** | 5.1 / 11.3 | 5.2 / 11.9, 0.33° | — | 15.8 / 31.3 |
+| 3XX, clean test | **2.0 / 3.3, 0.19°** | 2.5 / 5.4 | 2.6 / 6.9, 0.34° | 15.3 / 27.5 (93 %) | 9.8 / 22.1 |
+| 4XX A, new session | 5.9 / 10.1, 0.48° | 9.9 / 17.6 | **5.3 / 10.1, 0.48°** | 40.3 / 78.2 (73 %) | 17.7 |
+| 4XX B, small change | 5.9 / 9.2, 0.40° | 8.6 / 17.8 | **3.2 / 5.0, 0.25°** | 25.4 / 51.5 (92 %) | 16.0 |
+| 4XX C, large change | **5.2 / 10.1**, 0.74° | 11.2 / 17.0 | 5.9 / 11.1, 0.39° | 67.0 / 120.5 (66 %) | 21.8 |
+| 4XX D, subject 2 (C's map) | 9.3 / 18.9, 0.73° | 15.4 / 29.2 | **7.1 / 18.3, 0.41°** (98 %) | 54.5 / 89.2 (58 %) | 26.0 |
+| 4XX E, occlusion (C's map) | 5.9 / 13.9, 0.46° (99 %) | 10.2 / 20.5 | **5.2 / 8.5, 0.35°** | 57.9 / 124.6 (37 %) | 22.1 |
+| outdated map 2XX → 3XX | **6.5 / 11.8, 0.44°** | 21.2 / 47.8 | 10.4 / 20.3, 0.55° | 39.8 / 71.1 (82 %) | — |
+| outdated map A → B | 14.0 / 25.4, 0.56° | 31.7 / 47.3 | **7.9 / 12.9** (92 %) | 81.6 / 103.9 (50 %) | 50.3 |
+| outdated map A → C | **13.4** / 113.0, 1.30° | 47.4 / 65.2 | 80.1 / 98.3 (21 %) | 51.8 / 108.8 (64 %) | 55.3 |
 
-Per sweep, classical: run-205 6.5 / 15.6, run-211 3.9 / 8.3 mm; 3XX run-313…317 3.1, 2.7, 2.5, 1.9, 3.0 mm.
+Time per frame on the training PC: PnP ~10 ms, Kabsch ~50–70 ms (numpy RANSAC). Run-to-run noise ~1 mm (seed repeat), so differences below ~1 mm are not meaningful. The comparison with classical is close but not identical: classical is evaluated at the odometry chain's anchor times (28 per sweep, vs 29 here) and retrieves keyframes near the odometry pose, i.e. it has a pose prior; SCR has none.
 
-Note on comparing with classical: classical anchors are evaluated at the anchor times of the odometry chain (28 per 3XX sweep), retrieve 3 room-scan keyframes **near the odometry pose** (median 28–31 mm away) and average them; the numbers are the mean of per-sweep medians. SCR is evaluated every 30 usable rows (29 per sweep), with no prior, pooled. For classical the two aggregations agree (3XX pooled 2.64 vs mean 2.6 mm), the frame sets differ slightly.
+**In short**
+- **Unchanged room, good coverage (3XX): SCR beats classical** (2.0 / 3.3 vs 2.6 / 6.9 mm, rotation 0.19 vs 0.34°) without keyframes or a pose prior.
+- **New session with short room scans (4XX): on par on A, C, E; behind on B (5.9 vs 3.2) and D (9.3 vs 7.1); rotation worse throughout** (0.40–0.74 vs 0.25–0.48°).
+- **Outdated maps:** better than classical on 2XX → 3XX and on the large change A → C (13.4 mm median at 100 % solved, where classical breaks), worse on A → B. A → C has a heavy tail (p90 113 mm) that an inlier gate removes (section 3, finding 7).
+- **3–6× better than the RPR anchor network everywhere.** The error at the US image (SCR anchors + classical odometry) is not measured yet.
 
-**Lessons**
-- **Direct pose regression does not generalise to a new session.** The networks learn the session, not the geometry, and cannot reject outliers (moved objects, hands).
-- **The motion is tiny:** 2–5 mm per step, a sweep path of ~0.3–1 m within a few tens of cm, the camera 0.5–2.5 m from the scene. A learned regressor's error floor (~1–2 mm, 0.1–0.2° per step) is as large as the motion. Precision has to come from a geometric solve over many accurate correspondences. Public benchmarks (7-Scenes, TUM, KITTI) work at the cm–m scale and cannot show this.
-- **Anchors need room-scan coverage of the sweep viewpoints:** 3XX covers 93 % of the sweep frames (a room-scan pose within 30 mm and 10°), 4XX only 0–14 % (`rgbd-us/tools/check_coverage.py`).
-- **Room changes:** classical anchors survive a small change (8 mm) but fail on a large one (80 mm). The first SCR failed on both (50–55 mm).
+## 3. What we learned
 
-## 3. Data
+1. **The first SCR's gap came from training, not from SCR.** Same network and data, 2XX validation 15.8 → 5.1 mm (PnP) by fixing the optimisation: all frames, 3D-distance loss instead of a 50 mm Huber knee, 4× and then 16× the steps with a flat-then-cosine schedule instead of OneCycle to zero, fp32 head output.
+2. **More steps stopped paying after ~60 epochs on validation** (30 → 60 → 120 epochs: 6.3 → 5.3 → 5.1 mm) while the training frames kept improving (pose 5.6 → 4.0 → 2.7 mm): the limit is generalisation, not fitting.
+3. **Coverage explains most of the 4XX gap** (`runs/coverage_error.md`): frames with a room-scan pose within 30 mm and 10° have 4.1 mm median error, the others 13.4 mm (PnP); in 4XX A the error grows from 8 to 14 mm as the nearest room-scan pose goes from < 30 to 60–100 mm. The 4XX room scans (40–90 s) cover 0–14 % of the sweep frames, 3XX's 93–96 %. SCR does not extrapolate to unseen viewpoints; SIFT copes better.
+4. **Depth at test time (Kabsch) is the largest gain after the training fix:** −1.7 mm on 2XX validation (passes the pre-set > 1 mm rule), 20–55 % on every test split, and it rescues outdated maps (2XX → 3XX 21.2 → 6.5 mm, A → C 47.4 → 13.4 mm): PnP is fooled by the changed appearance, a 3D–3D fit on measured geometry much less.
+5. **Viewpoint augmentation (ACE: zoom 0.67–1.5, ±15°) is not adopted.** With PnP it helped 4XX A (9.9 → 6.1 mm) but cost 1.5 mm on 2XX validation; with Kabsch the gain on 4XX A shrinks to noise (5.9 → 5.1 mm) and it costs 3.1 mm on 2XX validation and 2.0 mm on the low-coverage validation split (room-202 only: 16.2 vs 18.2 mm). It also loosens the fit on the room scans (2XX training-frame pose 2.7 → 6.3 mm): the 0.17 M-parameter head lacks the capacity. Revisit with a bigger head.
+6. **Full resolution (720 × 1280) did not help** at equal steps (7.1 vs 6.3 mm, 2× slower) despite 4× the correspondences: neighbouring cells make correlated errors that do not average out.
+7. **A Kabsch inlier gate is the obvious reject rule:** ≥ 400 inliers keeps 94–100 % of the frames on every unchanged-room split (100 % on 2XX validation, where the threshold must be set) and cuts A → C from 13.4 / 113.0 to 8.2 / 16.6 mm at 49 % kept. Not applied yet.
+8. **The residual error is scatter, not per-frame misalignment** (removing the best rigid fit barely changes it): RANSAC averages it, which is why ~12 mm coordinates give 2–5 mm poses.
+9. **The low-coverage validation split (2XX mapped on room-202 only) is a weak proxy:** errors are much larger than on 4XX (16 vs 6 mm with Kabsch) and do not grow with pose distance, i.e. room-202 alone sees a different part of the room. Distance to the nearest room-scan pose is a rough coverage measure; view overlap would be better.
 
-**Where**
-- Training PC (RTX A4500, 20 GB): `/data2/u0137815/rgbd-us/data/train_<NXX>/`, all collections matched; rgbd-us repo at `/data2/u0137815/rgbd-us`. `data/test_4XXA` … `test_4XXE` are folders of links into `train_4XX`.
-- This machine (RTX 3050, 4 GB): `~/Desktop/rgbd-us/data/`, mostly unmatched raw data; only `train_3XX/run-316` has a `frames.csv`. Use `~/anaconda3/envs/gpu/bin/python` (the default `python3` has torch 1.5).
+## 4. Model, training, evaluation
+
+Network = `rgbd-us/scr.py` SCRNet, unchanged: RGB 360 × 640 → ImageNet EfficientNet-B0 to stride 16; stride-8 (40 ch) and upsampled stride-16 (112 ch) features concatenated → 1×1-conv head 152 → 256 → 256 → 256 → 3 (0.17 M parameters) → room coordinate per cell of a 45 × 80 grid (one per 16 × 16 full-resolution pixels). No depth input.
+
+| | `scr.py` (first SCR) | **current** (`scr_anchor.py train` defaults + `--epochs 120`) |
+|---|---|---|
+| training data | session room scans, every 2nd frame | session room scans, all frames |
+| targets | room-scan depth at each cell centre, back-projected with the Polaris pose | same |
+| loss | Huber on the 3D error, 50 mm knee | 3D distance |
+| schedule | OneCycle, 15 epochs | flat lr for 60 %, then cosine to 0; 120 epochs |
+| head output | fp16 under autocast | fp32 |
+| augmentation | photometric | photometric (viewpoint augmentation available: `--aug-scale`, `--aug-rot`, off) |
+| optimiser | AdamW, head lr 1e-3, encoder lr 1e-4, batch 8 | same |
+| pose | PnP-RANSAC 10 px, ≥ 30 inliers | **Kabsch: 3D–3D RANSAC, 20 mm, cells < 2 m, ≥ 30 inliers** (`--solver kabsch`); PnP still the default |
+
+**Test protocol** (identical to `rgbd-us/scr.py eval`): map on a session's **room scans only**; test on its sweeps, **one frame every 30 usable rows** (Polaris pose, not in the air, US frame and full-size depth present); report position (mm) and rotation (°) median and p90 and the share solved (`scr_anchor.py` adds the mean of per-sweep medians, inliers and ms, with a fixed RANSAC seed per frame). **Settings are chosen on 2XX validation only** (room-201/202 → run-205, run-211); 3XX and 4XX only report. Splits: 3XX → 3XX; 4XX A–E on their own scans (D, E use C's); outdated maps 2XX → 3XX, A → B, A → C.
+
+## 5. Code and workflow
+
+- **`scr_anchor.py`**: `train` and `eval`. Imports `rgbd-us/scr.py` and `dataloader.py` from `$RGBD_US` (default `../rgbd-us`), so network, labels and frame selection are the rgbd-us ones; checkpoints keep the `scr.py` format (`anchoring.py evaluate --anchor scr --scr-ckpt` takes them, PnP only for now). Every `--check-every` epochs a **fit check** on 120 fixed training frames (eval mode, no augmentation): coordinate error, the same after the best rigid fit, PnP pose of those frames.
+- **`tools/coverage_error.py`**: anchor error against the distance to the nearest room-scan pose, per eval file.
+- **`tools/draw_scr_anchor_diagram.py`** → `tools/scr_anchor_diagram.png/.pdf`: block diagram (its results box still shows PnP numbers).
+- Old code (`dataset.py`, `model.py`, `train.py`, `eval.py`, `loss.py`, `solver.py`, `smoothing.py`, `geometry.py`) is the earlier scr1–4 attempt (pooled data incl. 1XX); not used, not comparable.
+- The user runs everything on the training PC and does all git push / pull; checkpoints (`*.pt`) are git-ignored.
+
+```bash
+export RGBD_US=/data2/u0137815/rgbd-us DATA=/data2/u0137815/rgbd-us/data
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/v1-3XX \
+  --epochs 120 --check-every 6 --workers 16 --eval-root $DATA/train_3XX
+python scr_anchor.py eval --ckpt runs/v1-3XX/best.pt --test-root $DATA/train_3XX --solver kabsch
+python tools/coverage_error.py runs/v1-*/eval_*/scr_eval.json
+```
+
+## 6. Data
+
+- Training PC (RTX A4500, 20 GB): `/data2/u0137815/rgbd-us/data/train_<NXX>/`, all collections matched; rgbd-us at `/data2/u0137815/rgbd-us`; `data/test_4XXA` … `test_4XXE` are folders of links into `train_4XX`.
+- This machine (RTX 3050, 4 GB): only `~/Desktop/rgbd-us/data/train_3XX/run-316` is matched; use `~/anaconda3/envs/gpu/bin/python`.
 
 | collection | room scans | sweeps | role |
 |---|---|---|---|
-| 1XX (8 Oct) | room-101, 102 | run-101…112 | **do not use**: depth wrong (cable in front of the sensor), marker often lost |
-| 2XX (9 Oct) | room-201, 202 (3.0 min; 5,366 usable frames) | run-201…212 (9.9 min) | main session; **validation sweeps run-205, run-211** |
-| 3XX (9 Oct) | room-301, 302 (2.0 min) | run-313…317 (2.5 min) | **the clean test:** same room as 2XX, a few small objects moved |
+| 1XX (8 Oct) | room-101, 102 | run-101…112 | **do not use**: depth wrong, marker often lost |
+| 2XX (9 Oct) | room-201, 202 (3.0 min, 5,366 frames) | run-201…212 | main session; **validation run-205, run-211** |
+| 3XX (9 Oct) | room-301, 302 (2.0 min, 3,356 frames) | run-313…317 | **clean test**: same room as 2XX, a few small objects moved |
 | 4XX A (14 Oct) | room-401 (90 s), 402 (40 s) | run-401…408 | new session |
 | 4XX B | room-403, 404 (40 s each) | run-409…412 | small rearrangement |
 | 4XX C | room-405, 406 (40 s each) | run-413…416 | large rearrangement |
 | 4XX D | C's scans | run-418…421, 423, 424 | second subject |
 | 4XX E | C's scans | run-425…428 | occlusion (arm in view) |
 
-**Files per run**
+Per run: `frames.csv` (one row per RGB frame, ~30 Hz: `timestamp`; `rgb`, `depth`, `us` paths; `tx, ty, tz` mm and `qx, qy, qz, qw` scalar last = `T_world_marker`, clock offset already applied, **empty = marker lost**; `us_air` = 1 probe not on the skin; `us_repeat`), `rgb/` 1280 × 720, `depth/` aligned to RGB, uint16 mm, 0 = invalid, reliable 100–3000 mm, `camera_info.json` (fx ≈ 919.8, fy ≈ 919.5, cx ≈ 652.9, cy ≈ 373.6, no distortion), `us/` + `us_roi.json` (sweeps), `match_report.json`; ignore `depth_raw/`.
 
-| file | content |
-|---|---|
-| `frames.csv` | one row per RGB frame (~30 Hz); use this table |
-| `rgb/NNNNNN.png` | colour 1280 × 720 (OpenCV reads BGR) |
-| `depth/NNNNNN.png` | depth **aligned to the RGB image**, uint16, 1280 × 720, **mm**, 0 = invalid; reliable ~100–3000 mm |
-| `depth_raw/` | the depth sensor's own 848 × 480 images; ignore |
-| `camera_info.json` | RGB intrinsics `K` (fx ≈ 919.8, fy ≈ 919.5, cx ≈ 652.9, cy ≈ 373.6), no distortion; the same camera for all runs |
-| `us/`, `us_roi.json` | US screen grabs 800 × 600, crop [121, 80]–[619, 440] (sweeps only) |
-| `match_report.json` | matching quality: `pose_offset_ms` (already applied), `pose_lost`, `us_air_s` |
-
-`frames.csv` columns: `timestamp` (RGB time, s); `rgb`, `depth`, `us` (paths relative to the run folder); **`tx, ty, tz`** (mm) and **`qx, qy, qz, qw`** (scalar last) = `T_world_marker` in the Polaris frame, interpolated at the RGB time with the clock offset corrected — **empty = marker lost, skip the row**; `us_air` = 1: probe not yet on the skin; `us_repeat`: the US frame repeats the previous one.
-
-**Camera pose:** `T_world_cam = T_world_marker @ T_marker_cam`, world = Polaris frame (it did not move between 2XX and 3XX). **`T_marker_cam.npy` must be the rgbd-us one** (4 × 4, mm, valid for 1XX–4XX, board-corner error 3.5 mm); this repo's copy was replaced on 21 Oct — the old one was 17.7 mm / 3.6° off.
+**Camera pose:** `T_world_cam = T_world_marker @ T_marker_cam`, world = Polaris frame (not moved between 2XX and 3XX). **`T_marker_cam.npy` must be the rgbd-us one** (mm, board-corner error 3.5 mm; this repo's old copy was 17.7 mm / 3.6° off and was replaced).
 
 ```python
 import json, cv2, numpy as np, pandas as pd
@@ -81,127 +110,35 @@ run = "/data2/u0137815/rgbd-us/data/train_3XX/room-301"
 df = pd.read_csv(f"{run}/frames.csv").dropna(subset=["tx"])          # rows with a Polaris pose
 K = np.array(json.load(open(f"{run}/camera_info.json"))["K"]).reshape(3, 3)
 T_mc = np.load("T_marker_cam.npy")                                    # marker -> camera, mm
-
 r = df.iloc[0]
 T_wm = np.eye(4); T_wm[:3, :3] = R.from_quat([r.qx, r.qy, r.qz, r.qw]).as_matrix(); T_wm[:3, 3] = [r.tx, r.ty, r.tz]
 T_wc = T_wm @ T_mc                                                    # camera pose in the room (mm)
-
 z = cv2.imread(f"{run}/{r.depth}", cv2.IMREAD_UNCHANGED).astype(np.float64)   # mm, aligned to rgb
 v, u = np.nonzero((z > 100) & (z < 3000))
 X = np.stack([(u - K[0, 2]) / K[0, 0] * z[v, u], (v - K[1, 2]) / K[1, 1] * z[v, u], z[v, u], np.ones(len(u))])
-scene_coords = (T_wc @ X)[:3].T                                       # SCR labels: room coordinate (mm) of pixel (u, v)
+scene_coords = (T_wc @ X)[:3].T                                       # room coordinate (mm) of pixel (u, v)
 ```
 
-**Camera: D435i** (inferred: colour FoV 69.7° × 42.8°, depth 848 × 480 at ~90°, depth-to-colour offset 14.6 mm, IMU stream). 50 mm stereo baseline, so depth noise grows ~ with distance²: under ~2 % at 2 m by spec, mostly along the ray.
+**Sensor and labels:** D435i, 50 mm stereo baseline, depth noise ~ distance² (under ~2 % at 2 m), mostly along the ray. Room points re-projected across frames 1 s apart agree within 7.9 mm (median) at 1–1.5 m, ~5–6 mm per label. The 3.5 mm hand-eye error makes labels view-dependent; classical anchors cancel this by chaining off a keyframe ~30 mm away, a global SCR map has to average it. Not applied yet: down-weight far pixels or cap at ~2 m; drop depth edges; never train on hands/arms, the sleeve (4XX D/E) or the subject.
 
-**Label quality:** room points from one frame re-projected into a frame 1 s later agree with that frame's depth within 7.9 mm (median) at 1–1.5 m, i.e. ~5–6 mm per label. The 3.5 mm hand-eye error makes labels **view-dependent** (the same wall point gets slightly different coordinates from different probe orientations). Classical anchors largely cancel this by chaining off a keyframe ~30 mm away; a single global SCR map has to average it — a likely floor for SCR.
+**Quirks:** `record_config.json` in 3XX carries old run names (run-316 says `run-216`), trust the folder name; in 4XX, run-427 was run-422 and run-428 was run-417.
 
-**Label hygiene (not applied yet):** use 100 < depth < 3000 mm; down-weight far pixels (1/z²) or cap at ~2 m; drop depth edges (3×3 neighbourhood spanning > ~3 % of the depth); never train on hands/arms (< 300 mm), the operator's sleeve (4XX D/E) or the subject.
+## 7. Experiment log (`runs/`)
 
-**Quirks:** `record_config.json` in 3XX still carries old run names (run-316 says `run-216`), trust the folder name; in 4XX, run-427 was run-422 and run-428 was run-417.
+All 2XX runs map room-201/202 and test run-205/211; numbers are mean of per-sweep medians / p90 (mm), PnP unless marked.
 
-## 4. Test protocol (identical to `rgbd-us/scr.py eval`)
-
-- Map on a session's **room scans only** (the deployment case). Extra mapping data (other sweeps of the same session, never the test sweep) only as a separately labelled experiment.
-- Test on the sweeps: **one frame every 30 usable rows** of `RPRDataset` (Polaris pose, not in the air, US frame and full-size depth present).
-- PnP-RANSAC 10 px (full resolution), ≥ 30 inliers. Report camera position error (mm) and rotation (°), median and p90, share solved; `scr_anchor.py` also gives the mean of per-sweep medians, inliers and ms per frame, with a fixed RANSAC seed per frame.
-- **Settings are chosen on 2XX validation only** (map room-201/202 → run-205, run-211). 3XX and 4XX only report.
-- Splits: clean 3XX→3XX; new sessions 4XX A–E (D, E use C's map); scene change 2XX→3XX, A→B (small), A→C (large).
-- Report room-scan coverage next to 4XX results.
-
-## 5. Code and workflow
-
-- **`scr_anchor.py`** (this repo): `train` and `eval`. It imports `rgbd-us/scr.py` and `dataloader.py` from `$RGBD_US` (default `../rgbd-us`), so network, labels, solver and frame selection are the rgbd-us ones. Checkpoints keep the `scr.py` format (`anchoring.py evaluate --anchor scr --scr-ckpt` takes them). Every `--check-every` epochs a **fit check** runs on 120 fixed training frames in eval mode, fp32, no augmentation: coordinate error per frame, the same after the best rigid fit, and the PnP pose of those frames.
-- Old code (`dataset.py`, `model.py`, `train.py`, `eval.py`, `loss.py`, `solver.py`, `smoothing.py`, `geometry.py`) belongs to the earlier scr1–4 attempt (pooled data incl. 1XX, validated on a deleted collection); not used, not comparable. Its runs were removed.
-- The user runs everything on the training PC and does all git push / pull; checkpoints (`*.pt`) are git-ignored.
-
-```bash
-export RGBD_US=/data2/u0137815/rgbd-us DATA=/data2/u0137815/rgbd-us/data
-python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/s1-e120-2XX \
-  --epochs 120 --check-every 6 --workers 16 --eval-root $DATA/train_2XX --eval-runs run-205 run-211
-python scr_anchor.py eval --ckpt runs/s1-e120-2XX/best.pt --test-root $DATA/train_3XX
-```
-
-## 6. SCR model and training (current)
-
-Model = `rgbd-us/scr.py` SCRNet, unchanged: RGB 360 × 640 → ImageNet EfficientNet-B0 to stride 16, stride-8 (40 ch) and upsampled stride-16 (112 ch) features concatenated → 1×1-conv head 152 → 256 → 256 → 256 → 3 (0.17 M parameters) → room coordinate per cell of a 45 × 80 grid (one per 16 × 16 full-resolution pixels). No depth input. Photometric augmentation only.
-
-| | `scr.py` (baseline) | **S1** (`scr_anchor.py` defaults) |
+| run | what | result |
 |---|---|---|
-| room-scan frames | every 2nd | all |
-| loss | Huber on the 3D error, 50 mm knee | plain 3D distance |
-| schedule | OneCycle, 15 epochs (2XX: 5,025 steps) | flat lr for 60 %, then cosine to 0; 30 epochs (20,100 steps) |
-| head output | fp16 under autocast (~1–2 mm spacing at 1–2 m) | fp32 |
-| lr | head 1e-3, encoder 1e-4, AdamW, batch 8 | same |
-
-## 7. Results (21 Oct, map 2XX room scans → run-205, run-211)
-
-| run | input | epochs (steps) | **anchor error mm, median / p90** | mean of sweep medians | rotation ° median / p90 | run-205 / run-211 | fit check: coordinates (after rigid) | pose of training frames | s / epoch |
-|---|---|---|---|---|---|---|---|---|---|
-| `s1-base-2XX` (scr.py recipe) | 360 × 640 | 15 (5,025) | 15.8 / 31.3 | 15.8 | 0.55 / 1.10 | 14.0 / 17.7 | 28.0 (26.7) mm | 13.2 mm | 18 |
-| `s1-2XX` | 360 × 640 | 30 (20,100) | 6.3 / 13.1 | 6.3 | 0.34 / 0.55 | 6.5 / 6.0 | 14.5 (13.7) mm | 5.6 mm | 33 |
-| `s1-e60-2XX` | 360 × 640 | 60 (40,200) | 5.3 / 11.3 | 5.4 | 0.26 / 0.47 | 4.9 / 6.0 | 13.0 (12.3) mm | 4.0 mm | 30 |
-| `s1-e60-seed1-2XX` (seed 1) | 360 × 640 | 60 (40,200) | 6.3 / 12.9 | 6.3 | 0.31 / 0.61 | 6.2 / 6.5 | 12.7 (11.9) mm | 3.8 mm | 19 |
-| **`s1-e120-2XX`** | 360 × 640 | 120 (80,400) | **5.1 / 11.3** | **5.1** | 0.31 / 0.53 | 5.3 / 4.9 | 11.5 (11.3) mm | 2.7 mm | 26 |
-| `s3-full-2XX` | 720 × 1280 | 30 (20,100) | 7.1 / 14.5 | 7.3 | 0.33 / 0.55 | 6.6 / 7.9 | 15.7 (14.8) mm | 6.6 mm | 67 |
-| classical anchors | | | 5.2 / 11.9 | 5.2 | 0.33 | 6.5 / 3.9 | | | |
-
-All 100 % solved; 9–10 ms per frame (forward + RANSAC) at 360 × 640 on the training PC, 30 ms at full resolution. S0a: `scr_anchor.py eval` on the old `scr-3XX` checkpoint reproduces 9.8 / 22.1 mm exactly (`runs/s0a-scr-3XX`). Note: `runs/s1-2XX/history.json` was overwritten by a partial rerun (15 epochs, commit 22f576a); the full 30-epoch history is in commit c1bb9bb.
-
-**Findings**
-1. **The first SCR's gap came mostly from training, not from SCR.** Same network and data: 15.8 → 5.1 mm on 2XX validation. On this split SCR now matches classical anchors on the median (5.1 vs 5.2 mm) and p90 (11.3 vs 11.9), rotation alike; per sweep it is better on run-205 (5.3 vs 6.5) and worse on run-211 (4.9 vs 3.9).
-2. **More steps have stopped paying on validation:** 30 → 60 epochs −1.0 mm, 60 → 120 −0.2 mm, while the training frames keep improving (pose 5.6 → 4.0 → 2.7 mm). The train/validation gap is opening, so the next gains must come from generalisation (viewpoint coverage, label consistency, augmentation) and capacity, not more steps.
-3. **The residual error is scatter, not per-frame misalignment:** removing the best rigid fit hardly changes it (11.5 → 11.3 mm). RANSAC averages it, which is why ~12 mm coordinates give ~3–5 mm poses.
-4. **Full resolution is not the lever now:** at the same steps it is worse (7.1 vs 6.3 mm) and 2× slower, despite 4× the inliers (9,573 vs 2,610) — the errors are correlated across neighbouring cells, so more cells do not average them out. Possibly also less context per cell (the receptive field is fixed in pixels).
-5. **Run-to-run noise is ~1 mm:** the same 60-epoch recipe gives 5.3 (seed 0) and 6.3 mm (seed 1) on 2XX validation, with nearly the same fit (13.0 vs 12.7 mm). So 60 vs 120 epochs (5.3 vs 5.1) is within noise, and differences below ~1 mm on these 77 frames should not drive decisions.
-
-### 7b. v1: the 120-epoch recipe on the test splits (21 Oct)
-
-Recipe frozen from 2XX validation (`s1-e120`), mapped on each session's room scans (`runs/v1-*`); nothing tuned on these. Anchor accuracy, camera position error every 1 s, **mean of per-sweep medians / p90** (SCR p90 pooled, classical p90 mean of per-sweep p90s), rotation median. SCR solves 100 % of the frames everywhere (no gate); classical and the anchor network report the share of anchors accepted by their 50 mm gate.
-
-| split | **SCR v1** | classical anchors (+ classical odometry) | first SCR (`scr.py`) | anchor network (RPR, adapted) | room-scan coverage |
-|---|---|---|---|---|---|
-| 3XX | **2.5 / 5.4 mm, 0.18°** (pooled 2.3) | 2.6 / 6.9 mm, 0.34° | 9.8 / 22.1 | 15.3 / 27.5 (93 %) | 93 % |
-| 4XX A, new session | 9.9 / 17.6, 0.60° | **5.3 / 10.1, 0.48°** | 17.7 | 40.3 / 78.2 (73 %) | 0–14 % (4XX) |
-| 4XX B, small change | 8.6 / 17.8, 0.48° | **3.2 / 5.0, 0.25°** | 16.0 | 25.4 / 51.5 (92 %) | |
-| 4XX C, large change | 11.2 / 17.0, 0.96° | **5.9 / 11.1, 0.39°** | 21.8 | 67.0 / 120.5 (66 %) | |
-| 4XX D, subject 2 (C's map) | 15.4 / 29.2, 0.98° | **7.1 / 18.3, 0.41°** (98 %) | 26.0 | 54.5 / 89.2 (58 %) | |
-| 4XX E, occlusion (C's map) | 10.2 / 20.5, 0.56° | **5.2 / 8.5, 0.35°** | 22.1 | 57.9 / 124.6 (37 %) | |
-| 2XX map → 3XX | 21.2 / 47.8, 0.70° | **10.4 / 20.3** | — | 39.8 / 71.1 (82 %) | |
-| A map → B (small change) | 31.7 / 47.3, 1.17° | **7.9 / 12.9** (92 %) | 50.3 | 81.6 / 103.9 (50 %) | |
-| A map → C (large change) | 47.4 / 65.2, 1.44°, 100 % solved | 80.1 / 98.3 (21 %) | 55.3 | 51.8 / 108.8 (64 %) | |
-
-Fit on the room scans (eval mode, last epoch): coordinates 4.0–6.9 mm, pose of the training frames 1.2–1.7 mm, 0.09–0.15° (3XX 6.9 mm / 1.6 mm; A 6.6 / 1.7; B 4.0 / 1.2; C 5.1 / 1.5). Time per frame 7–8 ms on 3XX, 10–40 ms on 4XX, up to ~220 ms when few cells are inliers (A → C), because RANSAC then needs more iterations.
-
-**Findings**
-6. **Unchanged room with good coverage (3XX): SCR matches or beats classical anchors** — median 2.5 vs 2.6 mm (equal within the ~1 mm noise), p90 5.4 vs 6.9 mm, rotation 0.18 vs 0.34° — with no keyframe retrieval and no pose prior, in ~8 ms. Better than expected in section 8.
-7. **Low coverage (4XX): SCR is ~2–2.7× worse than classical** (8.6–15.4 vs 3.2–7.1 mm), although it fits the 4XX room scans better than the 3XX ones (pose of training frames ~1.5 mm). The 4XX room scans are short (40–90 s) and cover 0–14 % of the sweep viewpoints: SCR does not extrapolate to unseen viewpoints, SIFT copes better with them. This is a generalisation limit, not a fitting one.
-8. **Outdated maps: SCR does not transfer.** 2XX → 3XX 21 mm vs 2.5 mm with 3XX's own scan; A → B 32 mm. Classical degrades too but less (10 and 8 mm). Even on the large change (A → C), where classical breaks (80 mm, 21 % accepted), SCR's 47 mm is not usable. That classical also loses ~8 mm on 2XX → 3XX (same room, few objects moved, Polaris not moved) hints at a small frame offset between the sessions — worth checking before blaming the model.
-9. **Against the RPR anchor network, SCR is 3–6× better on every split** and always solves; against the first SCR, 2–4× better.
-
-### 7c. Coverage, depth at test time, viewpoint augmentation (22 Oct)
-
-Same checkpoints as 7b unless named. Mean of per-sweep medians / p90 (mm), rotation median. Kabsch = `eval --solver kabsch` (3D–3D RANSAC on the measured depth, 20 mm, cells < 2 m; settings fixed before any result). Aug = `--aug-scale 0.67 1.5 --aug-rot 15` (ACE values), 120 epochs, PnP.
-
-| split | SCR v1, PnP | **SCR v1, Kabsch** | SCR aug, PnP | classical anchors |
-|---|---|---|---|---|
-| 2XX val (decides) | 5.1 / 11.3, 0.31° | **3.4 / 8.7, 0.33°** | 6.6 / 13.5, 0.33° | 5.2 / 11.9, 0.33° |
-| 3XX | 2.5 / 5.4, 0.18° | **2.0 / 3.3, 0.19°** | | 2.6 / 6.9, 0.34° |
-| 4XX A | 9.9 / 17.6, 0.60° | 5.9 / 10.1, 0.48° | **6.1 / 10.8, 0.48°** | 5.3 / 10.1, 0.48° |
-| 4XX B | 8.6 / 17.8, 0.48° | 5.9 / 9.2, 0.40° | | **3.2 / 5.0, 0.25°** |
-| 4XX C | 11.2 / 17.0, 0.96° | **5.2 / 10.1**, 0.74° | | 5.9 / 11.1, 0.39° |
-| 4XX D | 15.4 / 29.2, 0.98° | 9.3 / 18.9, 0.73° | | **7.1 / 18.3, 0.41°** |
-| 4XX E | 10.2 / 20.5, 0.56° | 5.9 / 13.9, 0.46° (99 % solved) | | **5.2 / 8.5, 0.35°** |
-
-Kabsch costs ~50–70 ms per frame (numpy RANSAC) against ~10 ms for PnP. Aug fit on the room scans is looser (2XX: 14.9 vs 11.5 mm coordinates, training-frame pose 6.3 vs 2.7 mm; 4XX A: 9.6 vs 6.6 mm).
-
-Coverage (`runs/coverage_error.md`, PnP v1): pooled over all evals, frames with a room-scan pose within 30 mm and 10° have 4.1 mm median error, the others 13.4 mm. 4XX A: covered 4.6 mm (5 % of frames), 0–30 mm 8.1, 30–60 mm 8.5, 60–100 mm 13.9 mm. 2XX val: covered 4.9 (75 %), not covered 8.1. 4XX C and D have no covered frame at all. With the outdated 2XX map on 3XX even covered frames are 11.6 mm off (3XX's own map: 2.3).
-
-**Findings**
-10. **Depth at test time is the biggest single gain so far** and passes its pre-set rule (2XX validation −1.7 mm, > 1 mm noise): every split improves by 20–55 %. With Kabsch, SCR beats classical anchors on 3XX (2.0 / 3.3 vs 2.6 / 6.9 mm) and on 4XX C (5.2 vs 5.9), is close on A and E (5.9 vs 5.3 and 5.2), and stays behind on B (5.9 vs 3.2) and D (9.3 vs 7.1). Rotation on 4XX remains worse than classical (0.40–0.74 vs 0.25–0.48°).
-11. **Coverage explains most of the 4XX gap:** the error roughly triples from covered to uncovered frames and grows with the distance to the nearest room-scan pose.
-12. **Viewpoint augmentation helps where coverage is poor and costs where it is good:** 4XX A 9.9 → 6.1 mm, but 2XX validation 5.1 → 6.6 mm (75 % covered), and it fails its pre-set rule (> 1 mm worse on 2XX). The looser fit on the room scans says the 0.17 M-parameter head now lacks capacity for the harder, augmented task. 2XX validation is mostly covered, so it cannot judge a low-coverage remedy; a low-coverage validation split is needed (section 9).
-13. **The outdated-map failure is not only coverage:** covered frames are still 11.6 mm off with the 2XX map on 3XX. Together with classical's 2.6 → 10 mm on the same pair, this points at a frame offset between the sessions (or the moved objects), to be checked.
+| `s0a-scr-3XX` | evaluator check: old `scr-3XX` checkpoint | 9.8 / 22.1 on 3XX, reproduces `scr.py` exactly |
+| `s1-base-2XX` | `scr.py` recipe | 15.8 / 31.3; fit 28.0 mm |
+| `s1-2XX` | S1 recipe, 30 epochs | 6.3 / 13.1; fit 14.5 mm (its `history.json` was overwritten by a partial rerun; full one in commit c1bb9bb) |
+| `s1-e60-2XX`, `s1-e60-seed1-2XX` | 60 epochs, seeds 0 and 1 | 5.4 / 11.3 and 6.3 / 12.9: noise ~1 mm |
+| `s1-e120-2XX` | 120 epochs (**v1 recipe**) | 5.1 / 11.3; **Kabsch 3.4 / 8.7**; fit 11.5 mm, training-frame pose 2.7 mm |
+| `s3-full-2XX` | 720 × 1280, 30 epochs | 7.3 / 14.5 |
+| `v1-3XX`, `v1-4XXA/B/C` | v1 recipe on the test splits | section 2; fit on the room scans 4.0–6.9 mm, training-frame pose 1.2–1.7 mm |
+| `aug-2XX`, `aug-4XXA` | v1 + viewpoint augmentation | 2XX 6.6 (Kabsch 6.5); 4XX A 6.1 (Kabsch 5.1) |
+| `v1-short-2XX`, `aug-short-2XX` | low-coverage validation: room-202 only (60 s, 0 % covered) | PnP 40.2 vs 23.2; Kabsch 16.2 vs 18.2 |
+| `coverage_error.md`, `coverage_short.md` | `tools/coverage_error.py` | section 3, findings 3 and 9 |
 
 ## 8. Literature and diagnosis
 
@@ -209,53 +146,31 @@ Coverage (`runs/coverage_error.md`, PnP v1): pooled over all evals, frames with 
 |---|---|---|---|---|---|
 | model | forest, depth-normalised RGB-D features | FCN, stride 8, RGB input | frozen pretrained encoder (512-d, stride 8) + ~4 M-param 1×1 MLP head | ACE + global feature, feature-noise regulariser | ACE, mapping without poses, pose refinement |
 | training | random pixels | whole images; 3D loss → reprojection → end-to-end | shuffled buffer of millions of pixel features, ~5 min | as ACE | incremental |
-| depth | input + 3D–3D Kabsch | labels + Kabsch at test time, not an input | not used | not used | not used |
+| depth | input + 3D–3D Kabsch | labels + Kabsch at test time | not used | not used | not used |
 
-Causes of the first SCR's 24–28 mm (ranked): (1) optimisation budget — ~3,400 steps of correlated whole-image batches with the lr annealed to 0 while still falling (**confirmed** by S1); (2) head capacity — 0.17 M parameters vs ACE's ~4 M (open, S2); (3) Huber knee 50 mm shrinking the gradient below 5 cm (fixed in S1); (4) training error reported in train mode with augmentation (fit check added). Floors: fp16 output (fixed), label consistency (~5–6 mm per label, view-dependent hand-eye error; open, S0d).
+Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RGB-D) was the biggest gain after the training fix; ACE's two other ingredients — a much larger head and viewpoint augmentation — are the next things to combine (augmentation alone did not pay with our small head).
 
-Design questions: frozen ACE encoder + pixel buffer vs fine-tuned whole images — test at equal time (S2). Resolution — helps only once errors are independent (S3 says not yet). Depth — test-time Kabsch / refinement first (no retraining), then RGB-D input, then ICP against the room scan (hybrid, reported separately). Confidence — for RANSAC sampling only, not to down-weight the loss. Loss — D435i noise is along the ray, which PnP ignores: 3D loss for initialisation, then reprojection (DSAC*). Mapping data — all frames; ACE-style scale / in-plane rotation augmentation for low coverage (4XX); other sweeps only as a labelled extra.
+## 9. Next steps
 
-**Honest outlook** (written before v1, kept for the record): in an unchanged room, SCR alone matching 2.6 mm (3XX) is still unlikely because of the view-dependent label floor; 2XX validation says it is closer than expected. SCR is likely weakest at low coverage (4XX). **v1 (7b): the first half was too pessimistic — 3XX matches classical; the second held — 4XX is 2–2.7× worse.** Where it can win: no retrieval or pose prior (start pose, recovery), speed (~10 ms), re-mapping a room in minutes, possibly large changes if the receptive field stays local.
+| priority | step | why | needs |
+|---|---|---|---|
+| 1 | **Error at the US image**: SCR + Kabsch anchors with classical odometry in `anchoring.py`, with an inlier gate (≥ 400, set on 2XX validation) | the headline number, comparable with rgbd-us's 3.3 mm (3XX) / 3.6–7.0 mm (4XX) | Kabsch + gate option in `anchoring.py` (rgbd-us) |
+| 2 | **Bigger head (S2)**: ACE-sized 1×1 MLP (~4 M parameters), then with viewpoint augmentation again | capacity for unseen viewpoints (4XX B, D), finding 5 | code |
+| 3 | **Rotation on 4XX** (0.40–0.74 vs classical 0.25–0.48°): weight cells by 1/z², or a final joint refinement of reprojection + depth residuals on the Kabsch inliers | 0.3° ≈ 0.5 mm at the US image | code |
+| 4 | Label consistency / hand-eye check (S0d): multi-view disagreement of room-scan points vs viewing angle; refine `T_marker_cam` if it grows with rotation | the label floor for every method | script |
+| 5 | Room-scan protocol for new recordings: record until `check_coverage.py` reports most sweep viewpoints covered | coverage is the largest error source (finding 3) | recording |
+| 6 | **US as a local refinement, not a pose estimator** (`tools/us_inplane.py`): U1 in-plane registration of US frames k apart vs Polaris; U2 speckle decorrelation vs out-of-plane distance. If either beats the camera locally, add it as a partial (in-plane or out-of-plane) factor in the pose graph. Li et al., "Long-term dependency for 3D reconstruction of freehand ultrasound without external tracker" (IEEE TBME 2024; the TUS-REC baseline) is the US-only reference: in rgbd-us it was no better than zero motion in a new session, so US should refine the camera pose rather than replace it. run-316 (this machine): U1 in-plane registration only ~10 % better than zero motion (the sweeps move mostly out of plane: 6.5 vs 2.2 mm at k = 10); U2 correlation falls monotonically with the out-of-plane distance (Spearman −0.82) | the US image is where the error is measured; the camera's weakest component there | run on all sweeps |
+| later | RGB-D input, reprojection loss, frozen ACE encoder with a pixel buffer, faster Kabsch (GPU) | smaller or uncertain gains | code |
 
-## 9. Plan and status
 
-Pass criteria are against classical anchors on the same split. Settings chosen on 2XX validation only.
-
-| step | what | status |
-|---|---|---|
-| S0a | evaluator reproduces scr.py | **done**: 9.8 / 22.1 mm exactly |
-| S0b | oracle: true coordinates + synthetic independent / correlated error through the solver (run-316, this machine) | to do |
-| S0c | fit check: eval-mode error, rigid vs residual | **done**, built into `train` |
-| S0d | label-consistency floor in the room scans vs baseline / rotation; refine T_marker_cam if it grows with rotation | to do — now the most relevant check (finding 2) |
-| S1 | optimisation fixes; pass: ≥ 30 % better than baseline, fit < 10 mm | anchors **pass** (−68 %); fit 11.5 mm at 120 epochs, not yet < 10 |
-| S1-long | 60 / 120 epochs | **done**: 120 epochs best (5.1 mm), saturating |
-| seed repeat | noise level of the val numbers | **done**: ~1 mm (5.3 vs 6.3 mm, 60 epochs) |
-| v1 test | freeze `s1-e120` recipe; 3XX, 4XX A–E, scene change | **done** (7b): 3XX on par with classical, 4XX 2–2.7× worse, outdated maps fail |
-| v1 system | `anchoring.py --anchor scr` with classical odometry: error at the US image, comparable with note_RPR's table | to do; needs a Kabsch option in anchoring.py |
-| coverage | anchor error vs distance to the nearest room-scan pose | **done** (7c): covered 4.1 mm, uncovered 13.4 mm |
-| S2 | capacity: ACE-sized head; frozen ACE encoder with pixel buffer | to do (needs code) — now also needed for augmentation (finding 12) |
-| S3 | resolution | 720 × 1280 tried early: worse at equal steps |
-| S4 | depth at test time (Kabsch, PnP + depth refinement), RGB-D input, ICP hybrid | Kabsch **done, adopted** (7c, −1.7 mm on 2XX); refinement / RGB-D input to do |
-| aug | ACE viewpoint augmentation (0.67–1.5, ±15°) | 4XX A −3.8 mm, 2XX −1.5 mm worse: not adopted yet; needs a low-coverage validation split and S2 |
-| low-cov val | 2XX validation mapped on room-202 only (60 s, like 4XX's scans) | to do |
-| offset check | 2XX vs 3XX world frame (classical and SCR both lose ~10 mm on 2XX → 3XX) | to do |
-| S5 | 3D → reprojection loss | to do |
-| S6 | confidence for RANSAC sampling | to do |
-| S7 | mapping data and coverage curve | to do |
-| S8 | final protocol; competitive if ≤ 1.3× classical; A→C < 20 mm with ≥ 80 % solved | to do |
  
 
 
+cd <your US_SCR clone> && git pull
+export RGBD_US=/data2/u0137815/rgbd-us DATA=/data2/u0137815/rgbd-us/data
 
-  
-
-
-
-
-
-
-
-
-
-
-
+python tools/us_inplane.py --root $DATA/train_2XX --out runs/us-2XX
+python tools/us_inplane.py --root $DATA/train_3XX --out runs/us-3XX
+python tools/us_inplane.py --root $DATA/test_4XXA --out runs/us-4XXA
+python tools/us_inplane.py --root $DATA/test_4XXD --out runs/us-4XXD
+These cover the main session, the clean test, a new session, and the second subject; D also checks that the curve isn't specific to one person. Each writes us_inplane.md (the readable tables) and us_inplane.json (every frame pair).
