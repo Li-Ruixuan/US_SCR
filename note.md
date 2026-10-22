@@ -52,6 +52,26 @@ Time per frame on the training PC: PnP ~10 ms, Kabsch ~50–70 ms (numpy RANSAC)
 
 Classical anchors without the pose graph: 2XX 5.0, 3XX 2.9, A 5.1, B 3.1, C 5.5, D 7.0, E 4.9. Anchors per sweep with the gate: 27–37 on D and E (a few gated out), the full count elsewhere.
 
+Pose-graph setting for SCR anchors, chosen on 2XX validation: anchor σ 11 mm / 1° → 4.4 (2.23), 5 mm / 0.5° → 4.4 (2.20), 3 mm / 0.3° → 4.5 (2.22) mm; no difference, so the rgbd-us default (11 mm / 1°) stays. 2XX validation is dominated by run-205, where the odometry alone drifts to 64 mm.
+
+**3D pages** (`tools/volume_pages.py` → `runs/volume3d-3XX/`, `runs/volume3d-4XX/`, pose graph): mean pixel error over the compounded US images, the metric of rgbd-us's headline table (classical + classical: 3.3 mm on 3XX).
+
+| sweep | **SCR (Kabsch) + classical odometry** | classical + classical | classical odometry only |
+|---|---|---|---|
+| run-313 | **2.6** | 3.9 | 12.2 |
+| run-314 | **2.7** | 3.3 | 7.0 |
+| run-315 | **2.2** | 3.0 | 9.4 |
+| run-316 | 2.4 | 2.4 | 11.6 |
+| run-317 | 4.2 | 4.1 | 10.3 |
+| **3XX mean** | **2.8** | 3.3 | 10.1 |
+| run-405 (A) | 6.1 | **4.0** | 7.2 |
+| run-410 (B) | 4.9 | **3.6** | 11.5 |
+| run-414 (C) | 9.1 | **4.4** | 10.7 |
+| run-419 (D) | 10.1 | **7.0** | 11.9 |
+| run-426 (E) | 6.3 | **3.6** | 13.5 |
+
+On 3XX SCR is the best system in the headline metric (2.8 vs 3.3 mm). On 4XX classical stays 1.4–2× better; on run-426 (occlusion) SCR's 6.3 mm compares with 11.6 mm for the first SCR (note_RPR).
+
 ## 3. What we learned
 
 1. **The first SCR's gap came from training, not from SCR.** Same network and data, 2XX validation 15.8 → 5.1 mm (PnP) by fixing the optimisation: all frames, 3D-distance loss instead of a 50 mm Huber knee, 4× and then 16× the steps with a flat-then-cosine schedule instead of OneCycle to zero, fp32 head output.
