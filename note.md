@@ -48,6 +48,7 @@ Time per frame on the training PC: PnP ~10 ms, Kabsch ~50–70 ms (numpy RANSAC)
 7. **A Kabsch inlier gate is the obvious reject rule:** ≥ 400 inliers keeps 94–100 % of the frames on every unchanged-room split (100 % on 2XX validation, where the threshold must be set) and cuts A → C from 13.4 / 113.0 to 8.2 / 16.6 mm at 49 % kept. Not applied yet.
 8. **The residual error is scatter, not per-frame misalignment** (removing the best rigid fit barely changes it): RANSAC averages it, which is why ~12 mm coordinates give 2–5 mm poses.
 9. **The low-coverage validation split (2XX mapped on room-202 only) is a weak proxy:** errors are much larger than on 4XX (16 vs 6 mm with Kabsch) and do not grow with pose distance, i.e. room-202 alone sees a different part of the room. Distance to the nearest room-scan pose is a rough coverage measure; view overlap would be better.
+10. **US measures the out-of-plane motion, not the in-plane one** (`tools/us_inplane.py`, `runs/us-*`, 2XX, 3XX, 4XX A, 4XX D). U1: a rigid in-plane registration of US frames k = 1, 3, 10 apart is *worse* than assuming no in-plane motion (e.g. 2XX k = 10: 1.91 vs 1.55 mm); the sweeps move mostly out of plane and the cross-section changes rather than shifts — dropped. U2: the correlation after in-plane alignment falls with the out-of-plane distance along the same curve in every collection and both subjects (ncc 0.995 below 0.5 mm, 0.967 at 2–4 mm, 0.91–0.92 beyond 8 mm; Spearman −0.83 to −0.85). A curve built on 2XX predicts the out-of-plane distance on 3XX / 4XX A / 4XX D with 0.43 / 0.28 / 0.27 mm median error (p90 1.8–2.6), about half the error of predicting the median distance; at k = 10 (3–4.5 mm true) 0.9–1.3 mm. US gives the magnitude only; the sign comes from the camera.
 
 ## 4. Model, training, evaluation
 
@@ -159,13 +160,59 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
 | 3 | **Rotation on 4XX** (0.40–0.74 vs classical 0.25–0.48°): weight cells by 1/z², or a final joint refinement of reprojection + depth residuals on the Kabsch inliers | 0.3° ≈ 0.5 mm at the US image | code |
 | 4 | Label consistency / hand-eye check (S0d): multi-view disagreement of room-scan points vs viewing angle; refine `T_marker_cam` if it grows with rotation | the label floor for every method | script |
 | 5 | Room-scan protocol for new recordings: record until `check_coverage.py` reports most sweep viewpoints covered | coverage is the largest error source (finding 3) | recording |
-| 6 | **US as a local refinement, not a pose estimator** (`tools/us_inplane.py`): U1 in-plane registration of US frames k apart vs Polaris; U2 speckle decorrelation vs out-of-plane distance. If either beats the camera locally, add it as a partial (in-plane or out-of-plane) factor in the pose graph. Li et al., "Long-term dependency for 3D reconstruction of freehand ultrasound without external tracker" (IEEE TBME 2024; the TUS-REC baseline) is the US-only reference: in rgbd-us it was no better than zero motion in a new session, so US should refine the camera pose rather than replace it. run-316 (this machine): U1 in-plane registration only ~10 % better than zero motion (the sweeps move mostly out of plane: 6.5 vs 2.2 mm at k = 10); U2 correlation falls monotonically with the out-of-plane distance (Spearman −0.82) | the US image is where the error is measured; the camera's weakest component there | run on all sweeps |
+| 6 | **US out-of-plane factor (U3)**: add the speckle-decorrelation distance between US frames k apart (magnitude from US, sign from the camera; curve calibrated once on 2XX) as a partial factor in the offline pose graph, on top of the SCR-anchored camera trajectory; judge by the error and the step-to-step error at the US image. U1 (in-plane registration) dropped, U2 passed (finding 10). Reference for US-only: Li et al., "Long-term dependency for 3D reconstruction of freehand ultrasound without external tracker" (IEEE TBME 2024; the TUS-REC baseline), no better than zero motion in a new session in rgbd-us — so US refines the camera instead of replacing it | the out-of-plane spacing of the frames is what US measures to ~0.3 mm; the camera system's step-to-step error at the US image is ~1.1–1.7 mm | after step 1 (needs the SCR-anchored trajectories); code |
 | later | RGB-D input, reprojection loss, frozen ACE encoder with a pixel buffer, faster Kabsch (GPU) | smaller or uncertain gains | code |
 
 
  
 
 
+
+On the training PC
+These run from the rgbd-us folder. Each takes a few minutes, and you can run them one after another or in separate terminals:
+
+
+cd <your US_SCR clone> && git pull
+export RGBD_US=/data2/u0137815/rgbd-us
+U=<your US_SCR clone>
+cd $RGBD_US
+
+# 2XX validation
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/s1-e120-2XX/best.pt \
+  --root data/train_2XX --scan-runs room-201 room-202 --test-root data/train_2XX --test-runs run-205 run-211 \
+  --odometry-source classical-vo-train_2XX --odometry runs/rpr-rgb-gap8-12XX-gru8 --pairs runs/anchor-pairs/pairs_2XX.json \
+  --pgo --out $U/runs/sys-kabsch-2XX
+
+# 3XX
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-3XX/best.pt \
+  --root data/train_3XX --scan-runs room-301 room-302 --test-root data/train_3XX \
+  --odometry-source classical-vo-train_3XX --odometry runs/rpr-rgb-gap8-12XX-gru8 --pairs runs/anchor-pairs/pairs_3XX.json \
+  --pgo --out $U/runs/sys-kabsch-3XX
+
+# 4XX A, B, C (own room scans)
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXA/best.pt \
+  --root data/test_4XXA --scan-runs room-401 room-402 --test-root data/test_4XXA \
+  --odometry-source classical-vo-test_4XXA --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXA.json \
+  --pgo --out $U/runs/sys-kabsch-4XXA
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXB/best.pt \
+  --root data/test_4XXB --scan-runs room-403 room-404 --test-root data/test_4XXB \
+  --odometry-source classical-vo-test_4XXB --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXB.json \
+  --pgo --out $U/runs/sys-kabsch-4XXB
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXC/best.pt \
+  --root data/test_4XXC --scan-runs room-405 room-406 --test-root data/test_4XXC \
+  --odometry-source classical-vo-test_4XXC --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXC.json \
+  --pgo --out $U/runs/sys-kabsch-4XXC
+
+# 4XX D, E (C's room scans)
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXC/best.pt \
+  --root data/test_4XXD --scan-runs room-405 room-406 --test-root data/test_4XXD \
+  --odometry-source classical-vo-test_4XXD --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXD.json \
+  --pgo --out $U/runs/sys-kabsch-4XXD
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXC/best.pt \
+  --root data/test_4XXE --scan-runs room-405 room-406 --test-root data/test_4XXE \
+  --odometry-source classical-vo-test_4XXE --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXE.json \
+  --pgo --out $U/runs/sys-kabsch-4XXE
+The odometry, pairs and settings are the same as in your earlier classical and SCR system runs, so the results compare directly. If one of them stops with a "missing cache" error, that odometry cache isn't on the training PC yet; tell me which one.
 
 
 
