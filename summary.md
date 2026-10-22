@@ -218,6 +218,53 @@ Out-of-plane distance predicted from a curve built on **2XX only**:
 
 The curve is the same in every collection and for both subjects, and transfers across sessions. It gives the distance only (the sign must come from the camera). Not yet tested inside the pose graph.
 
+### 3.10 Further experiments (23 Oct)
+
+**E1: refining the final pose fit** (same models, Kabsch inliers refitted; rule fixed in advance: adopt if the 2XX rotation improves without a worse position error).
+
+| split | plain Kabsch (v1) | weighted by depth noise | joint reprojection + depth |
+|---|---|---|---|
+| 2XX val (decides) | **3.4 / 8.7, 0.33°** | 4.7 / 9.5, 0.37° | 3.6 / 9.5, 0.34° |
+| 3XX | **2.0 / 3.3**, 0.19° | 2.1 / 4.6, 0.21° | 2.0 / 3.9, 0.18° |
+| 4XX A | **5.9 / 10.1, 0.48°** | 7.2 / 12.0, 0.54° | 7.3 / 11.3, 0.51° |
+| 4XX B | 5.9 / 9.2, 0.40° | 7.6 / 13.7, 0.58° | **5.3** / 10.3, **0.37°** |
+| 4XX C | **5.2 / 10.1, 0.74°** | 6.6 / 14.0, 0.94° | 5.7 / 13.2, 0.80° |
+| 4XX D | **9.3 / 18.9, 0.73°** | 10.5 / 21.4, 0.82° | 11.8 / 21.7, 0.84° |
+| 4XX E | **5.9 / 13.9, 0.46°** | 6.2 / 16.8, 0.62° | 7.3 / 15.5, 0.58° |
+
+Not adopted. Down-weighting far cells removes the long lever arms that constrain rotation; adding reprojection does not help either. The rotation error comes from the predicted coordinates, not from the solver.
+
+**T1 / T3: bigger head and cleaner labels** (2XX validation, 120 epochs; rule: adopt if > 1 mm better).
+
+| model | PnP | **Kabsch** | rotation (Kabsch) | fit: pose of training frames | s / epoch |
+|---|---|---|---|---|---|
+| v1 (small head, 0.17 M) | 5.1 / 11.3 | 3.4 / 8.7 | 0.33° (p90 0.58) | 2.7 mm / 0.16° | 26 |
+| big head (2.18 M) | 4.6 / 9.6 | 3.4 / 8.0 | 0.29° (p90 0.53) | 2.3 / 0.12 | 25 |
+| clean labels (< 2 m, no depth edges) | 6.1 / 10.3 | 3.5 / 8.0 | 0.31° (p90 0.61) | 2.3 / 0.13 | 35 |
+| big head + clean labels | 5.0 / 10.9 | 3.4 / **7.3** | **0.27°** (p90 0.50) | 2.1 / 0.11 | 34 |
+
+The median does not move (rule not met), but the p90 (8.7 → 7.3 mm) and the rotation (0.33 → 0.27°) improve, most with both changes; whether this exceeds seed noise is unknown (the seed repeat measured the median only). The big head costs no time. (The clean-label models' fit check shows ~100 mm after the rigid fit because they have no labels beyond 2 m and the fit check scores cells up to 3 m; Kabsch leaves those cells out.)
+
+**T4: more mapping data** (labelled extra; 4XX A mapped on its room scans **plus sweeps run-401…404**, 9,813 frames, tested on run-405…408; the extra sweeps are labelled with Polaris poses).
+
+| map | PnP | **Kabsch** | rotation (Kabsch) | per sweep (Kabsch): 405 / 406 / 407 / 408 |
+|---|---|---|---|---|
+| room scans only (v1) | 9.5 | 5.3 | 0.47° | 7.1 / 2.9 / 5.0 / 6.0 |
+| room scans + 4 earlier sweeps | 2.4 / 7.4 | **1.9 / 5.5** | **0.22°** | 1.7 / 1.1 / 2.2 / 2.4 |
+| classical anchors, room scans only (whole block A) | | 5.3 / 10.1 | 0.48° | |
+
+With views close to the test viewpoints in the map, 4XX A behaves like 3XX: 1.9 mm and 0.22°, a third of the error, and the rotation problem disappears. Coverage, not the model, limits 4XX. Caveats: same subject and session, so the earlier sweeps view the room from nearly the same places; Polaris labels (in use these would be the system's own estimated poses); classical anchors were not given the extra keyframes.
+
+**E3: SCR only, no classical odometry** (SCR anchor every 0.25 s; median error at the US image, step-to-step error in brackets).
+
+| split | SCR + classical odometry (pose graph / offline) | **SCR only, offline** | SCR only, pose graph |
+|---|---|---|---|
+| 2XX val | 4.4 (2.23) / 4.6 (2.39) | **3.8** (2.87) | 6.4 (1.94) |
+| 3XX | 2.6 (1.07) / 2.1 (1.15) | 2.1 (1.69) | 4.6 (1.61) |
+| 4XX A | 5.5 (1.11) / 5.8 (1.33) | 5.9 (1.85) | 7.6 (1.44) |
+
+Without odometry the median accuracy is the same (2XX even better, where the classical odometry drifts 64 mm on run-205), but the trajectory is 1.4–1.7× jumpier from step to step. The pose graph with zero odometry has no motion model and smooths wrongly (worse median). Classical odometry is needed only for smoothness; a constant-velocity motion model or a learned matcher could replace it.
+
 ## 4. Why SCR beats the RPR anchor network
 
 | | RPR anchor network | SCR |

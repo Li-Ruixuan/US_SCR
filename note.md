@@ -214,3 +214,23 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
 
 
 
+2. On the training PC: the seed repeat, two trainings in separate terminals, about 1 h each.
+
+
+cd <your US_SCR clone> && git pull
+export RGBD_US=/data2/u0137815/rgbd-us DATA=/data2/u0137815/rgbd-us/data
+
+# terminal 1: v1, seed 1
+python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/s1-e120-seed1-2XX \
+  --epochs 120 --check-every 6 --workers 12 --seed 1 --eval-root $DATA/train_2XX --eval-runs run-205 run-211
+
+# terminal 2: big head + clean labels, seed 1
+python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/bigclean-seed1-2XX \
+  --head big --label-max-depth 2000 --drop-depth-edges --epochs 120 --check-every 6 --workers 12 --seed 1 \
+  --eval-root $DATA/train_2XX --eval-runs run-205 run-211
+3. When both have finished: the Kabsch evals, a few minutes each.
+
+
+python scr_anchor.py eval --ckpt runs/s1-e120-seed1-2XX/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --solver kabsch
+python scr_anchor.py eval --ckpt runs/bigclean-seed1-2XX/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --solver kabsch
+4. Push runs/ and tell me. Big head + clean labels gets adopted if, with both seeds, its rotation and p90 on 2XX are lower than v1's.
