@@ -165,55 +165,17 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
 
 
  
+ 
+ 
 
 
 
-On the training PC
-These run from the rgbd-us folder. Each takes a few minutes, and you can run them one after another or in separate terminals:
 
 
-cd <your US_SCR clone> && git pull
-export RGBD_US=/data2/u0137815/rgbd-us
-U=<your US_SCR clone>
-cd $RGBD_US
 
-# 2XX validation
-python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/s1-e120-2XX/best.pt \
-  --root data/train_2XX --scan-runs room-201 room-202 --test-root data/train_2XX --test-runs run-205 run-211 \
-  --odometry-source classical-vo-train_2XX --odometry runs/rpr-rgb-gap8-12XX-gru8 --pairs runs/anchor-pairs/pairs_2XX.json \
-  --pgo --out $U/runs/sys-kabsch-2XX
 
-# 3XX
-python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-3XX/best.pt \
-  --root data/train_3XX --scan-runs room-301 room-302 --test-root data/train_3XX \
-  --odometry-source classical-vo-train_3XX --odometry runs/rpr-rgb-gap8-12XX-gru8 --pairs runs/anchor-pairs/pairs_3XX.json \
-  --pgo --out $U/runs/sys-kabsch-3XX
 
-# 4XX A, B, C (own room scans)
-python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXA/best.pt \
-  --root data/test_4XXA --scan-runs room-401 room-402 --test-root data/test_4XXA \
-  --odometry-source classical-vo-test_4XXA --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXA.json \
-  --pgo --out $U/runs/sys-kabsch-4XXA
-python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXB/best.pt \
-  --root data/test_4XXB --scan-runs room-403 room-404 --test-root data/test_4XXB \
-  --odometry-source classical-vo-test_4XXB --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXB.json \
-  --pgo --out $U/runs/sys-kabsch-4XXB
-python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXC/best.pt \
-  --root data/test_4XXC --scan-runs room-405 room-406 --test-root data/test_4XXC \
-  --odometry-source classical-vo-test_4XXC --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXC.json \
-  --pgo --out $U/runs/sys-kabsch-4XXC
-
-# 4XX D, E (C's room scans)
-python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXC/best.pt \
-  --root data/test_4XXD --scan-runs room-405 room-406 --test-root data/test_4XXD \
-  --odometry-source classical-vo-test_4XXD --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXD.json \
-  --pgo --out $U/runs/sys-kabsch-4XXD
-python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXC/best.pt \
-  --root data/test_4XXE --scan-runs room-405 room-406 --test-root data/test_4XXE \
-  --odometry-source classical-vo-test_4XXE --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXE.json \
-  --pgo --out $U/runs/sys-kabsch-4XXE
-The odometry, pairs and settings are the same as in your earlier classical and SCR system runs, so the results compare directly. If one of them stops with a "missing cache" error, that odometry cache isn't on the training PC yet; tell me which one.
-
+ 
 
 
 
