@@ -52,13 +52,14 @@ sys.path.insert(0, str(RGBD_US))   # before this repo, whose old geometry.py wou
 import cv2                                                              # noqa: E402
 import numpy as np                                                      # noqa: E402
 import torch                                                            # noqa: E402
+import torch.nn as nn                                                   # noqa: E402
 import torch.nn.functional as F                                         # noqa: E402
 from torch.utils.data import DataLoader, Dataset                        # noqa: E402
 from tqdm import tqdm                                                   # noqa: E402
 
 from dataloader import RPRConfig, RPRDataset, load_hand_eye, test_sweeps   # noqa: E402
 from scr import (STRIDE, RoomScanFrames, SCRNet, coord_targets, grid_pixels,   # noqa: E402
-                 load_depth_mm, load_scr, localize, robust_loss)
+                 load_depth_mm, localize, robust_loss)
 
 
 def bar(it, **kw):
@@ -76,17 +77,58 @@ class SCRNetFP32Head(SCRNet):
             return self.head(torch.cat([f8, f16], 1).float())
 
 
+class BigHead(nn.Module):
+    """ACE-sized coordinate head (--head big): 1x1 convs, width 512, residual blocks, ~2.2 M parameters
+    instead of scr.py's 0.17 M. In SCR the head is the room's memory; the small one ran out of capacity
+    when viewpoint augmentation made the task harder."""
+
+    def __init__(self, cin=152, width=512, blocks=4):
+        super().__init__()
+        self.inp = nn.Sequential(nn.Conv2d(cin, width, 1), nn.ReLU(inplace=True))
+        self.blocks = nn.ModuleList(nn.Sequential(nn.Conv2d(width, width, 1), nn.ReLU(inplace=True),
+                                                  nn.Conv2d(width, width, 1)) for _ in range(blocks))
+        self.out = nn.Conv2d(width, 3, 1)
+
+    def forward(self, x):
+        x = self.inp(x)
+        for b in self.blocks:
+            x = torch.relu(x + b(x))
+        return self.out(x)
+
+
+def build_net(head="small", pretrained=True, fp32_head=True):
+    net = (SCRNetFP32Head if fp32_head else SCRNet)(pretrained=pretrained)
+    if head == "big":
+        net.head = BigHead()
+    return net
+
+
+def load_model(path, device):
+    """scr.load_scr for either head: the checkpoint's "head" entry (absent = scr.py's small head)."""
+    ck = torch.load(path, map_location=device, weights_only=False)
+    net = build_net(ck.get("head", "small"), pretrained=False).to(device)
+    net.load_state_dict(ck["model"])
+    net.eval()
+    return net, ck
+
+
 class AugFrames(Dataset):
     """Room-scan frames with ACE-style viewpoint augmentation: a random zoom (log-uniform in
     `scale`) and in-plane rotation (+-`rot` deg) about the image centre, applied to the image and
     to its per-pixel room-coordinate map alike, so every pixel keeps its own label (the 3D loss
     needs no intrinsics). Zooming out leaves a black border without labels. At scale 1, angle 0
     the targets are exactly scr.py's: cell (u, v) gets the room point at full-resolution pixel
-    (16u + 8, 16v + 8). Photometric augmentation as scr.RoomScanFrames."""
+    (16u + 8, 16v + 8). Photometric augmentation as scr.RoomScanFrames.
 
-    def __init__(self, ds, root, items, centre, scale, rot, seed=0):
+    Label cleaning (--label-max-depth, --drop-depth-edges): no label beyond max_depth (D435 depth
+    noise grows with distance squared; Kabsch leaves those cells out at test time anyway), and none
+    on depth edges, where a pixel's 3x3 neighbourhood spans more than 3 % of its depth (mixed depths
+    from both sides of an occlusion boundary)."""
+
+    def __init__(self, ds, root, items, centre, scale, rot, seed=0, max_depth=None, drop_edges=False):
         self.ds, self.root, self.items, self.centre = ds, root, items, np.asarray(centre)
         self.log_scale, self.rot, self.seed = np.log(scale), rot, seed
+        self.max_depth, self.drop_edges = max_depth, drop_edges
 
     def __len__(self):
         return len(self.items)
@@ -107,7 +149,15 @@ class AugFrames(Dataset):
         X = np.stack([(u - K[0, 2]) / K[0, 0] * z, (v - K[1, 2]) / K[1, 1] * z, z])
         T = r["T_world_cam"][row]
         xyz = (np.einsum("ij,jhw->hwi", T[:3, :3], X) + T[:3, 3]).astype(np.float32)
-        ok = ((z > cfg.min_depth) & (z < cfg.max_depth)).astype(np.uint8)
+        ok = (z > cfg.min_depth) & (z < min(cfg.max_depth, self.max_depth or np.inf))
+        if self.drop_edges:
+            df = d.astype(np.float32)
+            k = np.ones((3, 3), np.uint8)
+            hi = cv2.dilate(df, k)
+            lo = cv2.erode(np.where(df > 0, df, np.float32(1e9)), k)
+            near_hole = cv2.erode((df > 0).astype(np.uint8), k) == 0           # a missing neighbour counts as an edge
+            ok &= ~(near_hole | ((hi - lo) > 0.03 * df))[v, u]
+        ok = ok.astype(np.uint8)
 
         M = cv2.getRotationMatrix2D(((W - 1) / 2, (H - 1) / 2), rng.uniform(-self.rot, self.rot),
                                     float(np.exp(rng.uniform(*self.log_scale))))
@@ -143,23 +193,48 @@ def flatcos(total, warmup, flat):
     return f
 
 
-def kabsch(P, Q):
-    """R, t minimising |R P + t - Q|, P and Q (N, 3)."""
-    cp, cq = P.mean(0), Q.mean(0)
-    U, _, Vt = np.linalg.svd((P - cp).T @ (Q - cq))
+def kabsch(P, Q, w=None):
+    """R, t minimising sum w |R P + t - Q|^2, P and Q (N, 3), weights w (N,) or None."""
+    w = np.ones(len(P)) if w is None else np.asarray(w, float)
+    cp, cq = w @ P / w.sum(), w @ Q / w.sum()
+    U, _, Vt = np.linalg.svd(((P - cp) * w[:, None]).T @ (Q - cq))
     D = np.diag([1, 1, np.sign(np.linalg.det(Vt.T @ U.T))])
     R = Vt.T @ D @ U.T
     return R, cq - R @ cp
 
 
+def depth_sigma(z):
+    """D435 depth noise (mm) at depth z (mm): ~1 % at 1 m, ~2 % at 2 m, growing with z squared."""
+    return 2.0 + 1e-5 * z ** 2
+
+
+def refine_joint(R, t, C, P, uv, K, sigma_px=4.0):
+    """Pose refined on the inliers by robust least squares over two residuals per cell: the
+    reprojection of the predicted room point onto the cell centre (pixels are exact; sigma_px) and
+    the 3D residual of the measured depth point (sigma from depth_sigma, so far cells count less).
+    Kabsch alone weights every 3D point equally although depth noise lies mostly along the ray."""
+    from scipy.optimize import least_squares
+    s3 = depth_sigma(C[:, 2])[:, None]
+
+    def res(x):
+        Rx = cv2.Rodrigues(x[:3])[0]
+        Xc = (P - x[3:]) @ Rx                                    # predicted room points in the camera frame
+        px = Xc[:, :2] / Xc[:, 2:3] * [K[0, 0], K[1, 1]] + [K[0, 2], K[1, 2]]
+        return np.concatenate([((px - uv) / sigma_px).ravel(), ((C @ Rx.T + x[3:] - P) / s3).ravel()])
+
+    x = least_squares(res, np.concatenate([cv2.Rodrigues(R)[0].ravel(), t]), loss="huber", max_nfev=50).x
+    return cv2.Rodrigues(x[:3])[0], x[3:]
+
+
 @torch.no_grad()
 def localize_kabsch(net, ck, rgb, depth_mm, K, full_w, device, thr=20.0, max_depth=2000.0, min_inliers=30,
-                    iters=256, rng=None):
+                    iters=256, rng=None, refine="none"):
     """Camera pose T_world_cam from 3D-3D RANSAC: the measured depth at each cell centre,
     back-projected to the camera frame, against the predicted room coordinate of that cell.
     Hypotheses from 3 cells (Kabsch), inliers within `thr` mm, refit on the inliers. Cells beyond
-    `max_depth` are left out: D435 depth noise grows with distance squared. Returns (T or None,
-    number of inliers)."""
+    `max_depth` are left out: D435 depth noise grows with distance squared. Final fit on the
+    inliers (`refine`): "none" plain Kabsch; "weighted" Kabsch weighted by 1 / depth_sigma^2;
+    "joint" refine_joint (reprojection + depth residuals). Returns (T or None, number of inliers)."""
     pred = net(torch.from_numpy(rgb).float()[None].to(device))[0].double().cpu().numpy()
     h, w = pred.shape[1:]
     P = pred.reshape(3, -1).T * 1000.0 + np.asarray(ck["centre"])
@@ -169,7 +244,7 @@ def localize_kabsch(net, ck, rgb, depth_mm, K, full_w, device, thr=20.0, max_dep
     z = depth_mm[vi, ui].astype(np.float64)
     m = (z > 100) & (z < max_depth)
     C = np.stack([(uv[:, 0] - K[0, 2]) / K[0, 0] * z, (uv[:, 1] - K[1, 2]) / K[1, 1] * z, z], 1)[m]
-    P = P[m]
+    P, uv = P[m], uv[m]
     if len(P) < max(min_inliers, 3):
         return None, 0
 
@@ -189,6 +264,10 @@ def localize_kabsch(net, ck, rgb, depth_mm, K, full_w, device, thr=20.0, max_dep
         if inl.sum() < max(min_inliers, 3):
             return None, int(inl.sum())
         R, t = kabsch(C[inl], P[inl])
+    if refine == "weighted":
+        R, t = kabsch(C[inl], P[inl], 1.0 / depth_sigma(C[inl, 2]) ** 2)
+    elif refine == "joint":
+        R, t = refine_joint(R, t, C[inl], P[inl], uv[inl], K)
     T = np.eye(4)
     T[:3, :3], T[:3, 3] = R, t
     return T, int((np.linalg.norm(C @ R.T + t - P, axis=1) < thr).sum())
@@ -269,12 +348,15 @@ def train(args):
     # Decoding two 1280 x 720 PNGs per sample, not the network, limits the speed: keep the workers
     # between epochs, prefetch, and copy pinned batches asynchronously.
     viewpoint_aug = tuple(args.aug_scale) != (1.0, 1.0) or args.aug_rot > 0
-    frames = (AugFrames(ds, args.root, items, centre, args.aug_scale, args.aug_rot, seed=args.seed) if viewpoint_aug
+    label_cleaning = args.label_max_depth < cfg.max_depth or args.drop_depth_edges
+    frames = (AugFrames(ds, args.root, items, centre, args.aug_scale, args.aug_rot, seed=args.seed,
+                        max_depth=args.label_max_depth, drop_edges=args.drop_depth_edges)
+              if viewpoint_aug or label_cleaning
               else RoomScanFrames(ds, args.root, items, centre, aug=True, seed=args.seed))
     dl = DataLoader(frames, args.batch_size,
                     shuffle=True, num_workers=args.workers, drop_last=True, pin_memory=device.type == "cuda",
                     persistent_workers=args.workers > 0, prefetch_factor=4 if args.workers > 0 else None)
-    net = (SCRNetFP32Head if args.fp32_head else SCRNet)(pretrained=True).to(device)
+    net = build_net(args.head, pretrained=True, fp32_head=args.fp32_head).to(device)
     opt = torch.optim.AdamW([{"params": list(net.low.parameters()) + list(net.high.parameters()), "lr": args.lr_encoder},
                              {"params": net.head.parameters(), "lr": args.lr}], weight_decay=1e-4)
     total = args.epochs * len(dl)
@@ -286,12 +368,14 @@ def train(args):
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    meta = {"args": vars(args), "centre": centre.tolist(), "image_size": list(args.image_size)}
+    meta = {"args": vars(args), "centre": centre.tolist(), "image_size": list(args.image_size), "head": args.head}
     json.dump(meta | {"n_frames": len(items), "steps": total, "rgbd_us": str(RGBD_US),
                       "git": {"US_SCR": git_rev(Path(__file__).parent), "rgbd-us": git_rev(RGBD_US)}},
               open(out / "config.json", "w"), indent=2)
     print(f"{len(dl)} steps per epoch, {total} in all ({args.sched}, loss {args.loss}, fp32 head {args.fp32_head}, "
-          f"viewpoint augmentation {f'scale {args.aug_scale}, rotation +-{args.aug_rot} deg' if viewpoint_aug else 'off'})",
+          f"viewpoint augmentation {f'scale {args.aug_scale}, rotation +-{args.aug_rot} deg' if viewpoint_aug else 'off'}, "
+          f"head {args.head} ({sum(p.numel() for p in net.head.parameters()) / 1e6:.2f} M), labels < {args.label_max_depth:g} mm"
+          f"{', no depth edges' if args.drop_depth_edges else ''})",
           flush=True)
 
     history = []
@@ -332,13 +416,13 @@ def train(args):
     if args.eval_root:
         evaluate(argparse.Namespace(ckpt=str(out / "best.pt"), test_root=args.eval_root, test_runs=args.eval_runs,
                                     every=30, px=args.px, min_inliers=args.min_inliers, seed=args.seed, out=None,
-                                    solver="pnp", kabsch_thr=20.0, kabsch_max_depth=2000.0))
+                                    solver="pnp", kabsch_thr=20.0, kabsch_max_depth=2000.0, kabsch_refine="none"))
 
 
 def evaluate(args):
     """scr.py eval with a fixed RANSAC seed per frame and both aggregations."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    net, ck = load_scr(args.ckpt, device)
+    net, ck = load_model(args.ckpt, device)
     cfg = RPRConfig(T_marker_cam=load_hand_eye(resolve_hand_eye(ck["args"]["hand_eye"]), "mm"),
                     image_size=tuple(ck["image_size"]))
     sweeps = test_sweeps(args.test_root, args.test_runs)
@@ -354,7 +438,7 @@ def evaluate(args):
                 t0 = time.perf_counter()
                 T, n_inl = localize_kabsch(net, ck, rgb, depth, K, r["hw"][1], device, args.kabsch_thr,
                                            args.kabsch_max_depth, args.min_inliers,
-                                           rng=np.random.default_rng(args.seed + int(row)))
+                                           rng=np.random.default_rng(args.seed + int(row)), refine=args.kabsch_refine)
             else:
                 cv2.setRNGSeed(args.seed + int(row))
                 t0 = time.perf_counter()
@@ -374,8 +458,10 @@ def evaluate(args):
     allp["err_mm_mean_of_sweep_medians"] = float(np.mean(sw_med)) if sw_med else None
 
     tag = (Path(args.test_root).name + ("_" + "+".join(args.test_runs) if args.test_runs else "")
-           + ("_kabsch" if args.solver == "kabsch" else ""))
-    solver = (f"3D-3D RANSAC on the measured depth ({args.kabsch_thr:g} mm, cells < {args.kabsch_max_depth:g} mm"
+           + ("_kabsch" if args.solver == "kabsch" else "")
+           + (f"_{args.kabsch_refine}" if args.solver == "kabsch" and args.kabsch_refine != "none" else ""))
+    solver = (f"3D-3D RANSAC on the measured depth ({args.kabsch_thr:g} mm, cells < {args.kabsch_max_depth:g} mm, "
+              f"refine {args.kabsch_refine}"
               if args.solver == "kabsch" else f"PnP-RANSAC ({args.px:g} px")
     out = Path(args.out or Path(args.ckpt).parent / f"eval_{tag}")
     out.mkdir(parents=True, exist_ok=True)
@@ -436,6 +522,9 @@ def main():
     t.add_argument("--aug-scale", type=float, nargs=2, default=[1.0, 1.0],
                    help="viewpoint augmentation: zoom range, log-uniform (ACE: 0.67 1.5); 1 1 = off")
     t.add_argument("--aug-rot", type=float, default=0.0, help="viewpoint augmentation: in-plane rotation +- deg (ACE: 15)")
+    t.add_argument("--head", choices=["small", "big"], default="small", help="small: scr.py's 0.17 M head; big: BigHead, ~2.2 M")
+    t.add_argument("--label-max-depth", type=float, default=3000.0, help="no training label beyond this depth (mm)")
+    t.add_argument("--drop-depth-edges", action="store_true", help="no training label on depth edges")
     t.add_argument("--px", type=float, default=10.0)
     t.add_argument("--min-inliers", type=int, default=30)
     t.add_argument("--eval-root", default=None, help="evaluate on these sweeps after training")
@@ -452,6 +541,8 @@ def main():
                    help="pnp: PnP-RANSAC on the predicted coordinates (protocol); kabsch: 3D-3D RANSAC with the measured depth")
     e.add_argument("--kabsch-thr", type=float, default=20.0, help="kabsch: inlier threshold (mm)")
     e.add_argument("--kabsch-max-depth", type=float, default=2000.0, help="kabsch: leave out cells farther than this (mm)")
+    e.add_argument("--kabsch-refine", choices=["none", "weighted", "joint"], default="none",
+                   help="kabsch: final fit on the inliers: plain, weighted by depth noise, or reprojection + depth")
     e.add_argument("--out", default=None)
     args = ap.parse_args()
     {"train": train, "eval": evaluate}[args.cmd](args)

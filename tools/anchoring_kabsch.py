@@ -41,13 +41,14 @@ def install(ours):
         depth = scr.load_depth_mm(ds, ds.root, name, row)
         T, n = scr_anchor.localize_kabsch(net, ck, rgb, depth, K, full_w, device, ours.kabsch_thr,
                                           ours.kabsch_max_depth, min_inliers,
-                                          rng=np.random.default_rng(ours.seed + row))
+                                          rng=np.random.default_rng(ours.seed + row), refine=ours.kabsch_refine)
         if T is not None and n < ours.scr_gate:
             return None, n
         return T, n
 
     dataloader.RPRDataset.load_frame = remember
     scr.localize = localize
+    scr.load_scr = scr_anchor.load_model          # checkpoints with either head
 
 
 def main():
@@ -55,6 +56,8 @@ def main():
     ap.add_argument("--kabsch-thr", type=float, default=20.0, help="inlier threshold (mm)")
     ap.add_argument("--kabsch-max-depth", type=float, default=2000.0, help="leave out cells farther than this (mm)")
     ap.add_argument("--scr-gate", type=int, default=400, help="fewer Kabsch inliers = no anchor (0: no gate)")
+    ap.add_argument("--kabsch-refine", choices=["none", "weighted", "joint"], default="none",
+                    help="final fit on the inliers (scr_anchor.localize_kabsch)")
     ap.add_argument("--seed", type=int, default=0)
     ours, rest = ap.parse_known_args()
     if rest and rest[0] == "--":
@@ -62,7 +65,7 @@ def main():
 
     install(ours)
     print(f"SCR anchors by Kabsch ({ours.kabsch_thr:g} mm, cells < {ours.kabsch_max_depth:g} mm), "
-          f"gate >= {ours.scr_gate} inliers", flush=True)
+          f"refine {ours.kabsch_refine}, gate >= {ours.scr_gate} inliers", flush=True)
 
     import anchoring
     sys.argv = ["anchoring.py"] + rest
