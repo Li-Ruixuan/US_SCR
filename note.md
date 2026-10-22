@@ -219,38 +219,9 @@ Pass criteria are against classical anchors on the same split. Settings chosen o
 
 
 
+ 
 
-
-
-On the training PC
-
-cd <your US_SCR clone> && git pull
-export RGBD_US=/data2/u0137815/rgbd-us DATA=/data2/u0137815/rgbd-us/data
-1. Coverage analysis (seconds):
-
-
-python tools/coverage_error.py runs/v1-*/eval_*/scr_eval.json runs/s1-e120-2XX/eval_*/scr_eval.json
-2. Depth at test time (a few minutes each). The first command is the 2XX validation that decides; the rest only report:
-
-
-python scr_anchor.py eval --ckpt runs/s1-e120-2XX/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --solver kabsch
-python scr_anchor.py eval --ckpt runs/v1-3XX/best.pt --test-root $DATA/train_3XX --solver kabsch
-python scr_anchor.py eval --ckpt runs/v1-4XXA/best.pt --test-root $DATA/test_4XXA --solver kabsch
-python scr_anchor.py eval --ckpt runs/v1-4XXB/best.pt --test-root $DATA/test_4XXB --solver kabsch
-python scr_anchor.py eval --ckpt runs/v1-4XXC/best.pt --test-root $DATA/test_4XXC --solver kabsch
-python scr_anchor.py eval --ckpt runs/v1-4XXC/best.pt --test-root $DATA/test_4XXD --solver kabsch
-python scr_anchor.py eval --ckpt runs/v1-4XXC/best.pt --test-root $DATA/test_4XXE --solver kabsch
-3. Viewpoint augmentation. Run these two in separate terminals, alongside steps 1–2:
-
-
-python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/aug-2XX \
-  --epochs 120 --check-every 6 --workers 16 --aug-scale 0.67 1.5 --aug-rot 15 \
-  --eval-root $DATA/train_2XX --eval-runs run-205 run-211
-
-python scr_anchor.py train --root $DATA/test_4XXA --scan-runs room-401 room-402 --out runs/aug-4XXA \
-  --epochs 120 --check-every 6 --workers 16 --aug-scale 0.67 1.5 --aug-rot 15 \
-  --eval-root $DATA/test_4XXA
-
+  
 
 
 
