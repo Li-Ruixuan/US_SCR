@@ -182,120 +182,15 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
  
  
  
-
-
-
-
-
-On the training PC
-Run these from the rgbd-us folder, one after another. Each takes a few minutes on the CPU:
-
-
-cd <your US_SCR clone> && git pull
-export RGBD_US=/data2/u0137815/rgbd-us
-U=<your US_SCR clone>
-cd $RGBD_US
-
-# 3XX, all five sweeps
-python $U/tools/volume_pages.py --test-root data/train_3XX \
-  --anchoring $U/runs/sys-kabsch-3XX/anchor_eval_scr-v1-3XX-odometry-odo-classical-vo-train_3XX-train_3XX.json \
-              runs/anchoring-classical-3XX/anchor_eval_classical-odometry-odo-classical-vo-train_3XX-train_3XX-map-room-301+room-302.json \
-  --extra classical-vo-train_3XX --out $U/runs/volume3d-3XX
-
-# 4XX: one sweep per block (as the earlier pages)
-python $U/tools/volume_pages.py --test-root data/test_4XXA --runs run-405 \
-  --anchoring $U/runs/sys-kabsch-4XXA/anchor_eval_scr-v1-4XXA-odometry-odo-classical-vo-test_4XXA-test_4XXA.json \
-              runs/anchoring-classical-4XXA/anchor_eval_classical-odometry-odo-classical-vo-test_4XXA-test_4XXA.json \
-  --extra classical-vo-test_4XXA --out $U/runs/volume3d-4XX
-python $U/tools/volume_pages.py --test-root data/test_4XXB --runs run-410 \
-  --anchoring $U/runs/sys-kabsch-4XXB/anchor_eval_scr-v1-4XXB-odometry-odo-classical-vo-test_4XXB-test_4XXB.json \
-              runs/anchoring-classical-4XXB/anchor_eval_classical-odometry-odo-classical-vo-test_4XXB-test_4XXB.json \
-  --extra classical-vo-test_4XXB --out $U/runs/volume3d-4XX
-python $U/tools/volume_pages.py --test-root data/test_4XXC --runs run-414 \
-  --anchoring $U/runs/sys-kabsch-4XXC/anchor_eval_scr-v1-4XXC-odometry-odo-classical-vo-test_4XXC-test_4XXC.json \
-              runs/anchoring-classical-4XXC/anchor_eval_classical-odometry-odo-classical-vo-test_4XXC-test_4XXC.json \
-  --extra classical-vo-test_4XXC --out $U/runs/volume3d-4XX
-python $U/tools/volume_pages.py --test-root data/test_4XXD --runs run-419 \
-  --anchoring $U/runs/sys-kabsch-4XXD/anchor_eval_scr-v1-4XXC-odometry-odo-classical-vo-test_4XXD-test_4XXD.json \
-              runs/anchoring-classical-4XXD/anchor_eval_classical-odometry-odo-classical-vo-test_4XXD-test_4XXD.json \
-  --extra classical-vo-test_4XXD --out $U/runs/volume3d-4XX
-python $U/tools/volume_pages.py --test-root data/test_4XXE --runs run-426 \
-  --anchoring $U/runs/sys-kabsch-4XXE/anchor_eval_scr-v1-4XXC-odometry-odo-classical-vo-test_4XXE-test_4XXE.json \
-              runs/anchoring-classical-4XXE/anchor_eval_classical-odometry-odo-classical-vo-test_4XXE-test_4XXE.json \
-  --extra classical-vo-test_4XXE --out $U/runs/volume3d-4XX
-The pages go to <your US_SCR clone>/runs/volume3d-3XX/run-3XX.html and runs/volume3d-4XX/run-4XX.html, about 2–3.5 MB each, and open in any browser. The exported pose JSONs land next to them in poses/.
-
-Adding --dry-run to any command prints what it would run without running it.
-If a page should also show "SCR without the pose graph", add --mode offline and use a different --out folder.
-The two pose-graph runs on 2XX from my previous message are still open. Once we've picked the setting there, rebuilding these pages with it is the same command with the new anchoring files.
-
-
-
-please heck the lastes resut and tellme the new test
-Bash Show new pose-graph results and 3D pages
-IN
-git log --oneline -4; ls runs/sys-kabsch-2XX runs | grep -v "^s1\|^v1\|^aug" ; for f in runs/sys-kabsch-2XX/*.md; do echo "== $f"; sed -n 3p $f | cut -c1-200; grep -E "^\| run-|^\| \*\*mean" $f; done; ls runs/volume3d-* 2>/dev/null | head -20; du -sh runs/volume3d-* 2>/dev/null
-
-OUT
-Exit code 1
-da0492c from rpr result
-735f72d more test
-ae0dee5 new eval
-966b180 new test
-runs:
-coverage_error.md
-coverage_short.md
-s0a-scr-3XX
-s3-full-2XX
-sys-kabsch-2XX
-sys-kabsch-3XX
-sys-kabsch-4XXA
-sys-kabsch-4XXB
-sys-kabsch-4XXC
-sys-kabsch-4XXD
-sys-kabsch-4XXE
-us-2XX
-us-3XX
-us-4XXA
-us-4XXD
-
-runs/sys-kabsch-2XX:
-anchor_eval_scr-s1-e120-2XX-odometry-odo-classical-vo-train_2XX-train_2XX.json
-anchor_eval_scr-s1-e120-2XX-odometry-odo-classical-vo-train_2XX-train_2XX.md
-== runs/sys-kabsch-2XX/anchor_eval_scr-s1-e120-2XX-odometry-odo-classical-vo-train_2XX-train_2XX.md
-Odometry: rpr-rgb-gap8-12XX-gru8 (classical-vo-train_2XX). Anchor every 1 s, 3 keyframes averaged, gate 50 mm, reset to the anchor; pose graph: anchor sigma 11 mm / 1 deg, odometry growth 29 mm²/s / 
-| run-205 | 47 | 100 % | 4.7 / 11.4 | 0.29 | 64.1 (2.86) | 5.3 (4.16) | 5.6 (3.00) | 6.1 (2.81) |
-| run-211 | 28 | 100 % | 2.3 / 5.5 | 0.37 | 9.7 (1.63) | 3.6 (2.00) | 3.5 (1.78) | 2.7 (1.65) |
-| **mean** | | 100 % | 3.5 / 8.4 | 0.33 | 36.9 (2.25) | 4.5 (3.08) | 4.6 (2.39) | 4.4 (2.23) |
-1:30 PM
-I don't see any new results on this machine. The newest commit here is da0492c ("from rpr result"), which has the full-system runs I already reviewed. Neither the two pose-graph runs on 2XX nor the 3D pages (runs/volume3d-*) are here yet.
-
-If you've already pushed them from the training PC, pull them here and tell me, and I'll review them:
-
-
-cd /home/ruixuan/Desktop/US_SCR && git pull
-If they haven't been run yet, these are the next tests, all on the training PC, from the rgbd-us folder:
-
-
-cd <your US_SCR clone> && git pull
-export RGBD_US=/data2/u0137815/rgbd-us
-U=<your US_SCR clone>
-cd $RGBD_US
-1. Pose-graph setting, chosen on 2XX validation (a few minutes each):
-
-
-python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/s1-e120-2XX/best.pt \
-  --root data/train_2XX --scan-runs room-201 room-202 --test-root data/train_2XX --test-runs run-205 run-211 \
-  --odometry-source classical-vo-train_2XX --odometry runs/rpr-rgb-gap8-12XX-gru8 --pairs runs/anchor-pairs/pairs_2XX.json \
-  --pgo --pgo-sigma 5 --pgo-sigma-deg 0.5 --out $U/runs/sys-kabsch-2XX
-
-python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/s1-e120-2XX/best.pt \
-  --root data/train_2XX --scan-runs room-201 room-202 --test-root data/train_2XX --test-runs run-205 run-211 \
-  --odometry-source classical-vo-train_2XX --odometry runs/rpr-rgb-gap8-12XX-gru8 --pairs runs/anchor-pairs/pairs_2XX.json \
-  --pgo --pgo-sigma 3 --pgo-sigma-deg 0.3 --out $U/runs/sys-kabsch-2XX
-
-
  
+
+
+
+
+
+
+
+
 
 
 
