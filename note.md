@@ -247,37 +247,13 @@ Pass criteria are against classical anchors on the same split. Settings chosen o
 
 
 
- 
-
-  On the training PC:
+  
 
 
-cd <your US_SCR clone> && git pull
-export RGBD_US=/data2/u0137815/rgbd-us DATA=/data2/u0137815/rgbd-us/data
-1 and 2: evals (a few minutes each, one after another):
 
 
-python scr_anchor.py eval --ckpt runs/aug-2XX/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --solver kabsch
-python scr_anchor.py eval --ckpt runs/aug-4XXA/best.pt --test-root $DATA/test_4XXA --solver kabsch
-python scr_anchor.py eval --ckpt runs/s1-e120-2XX/best.pt --test-root $DATA/train_3XX --solver kabsch
-python scr_anchor.py eval --ckpt runs/v1-4XXA/best.pt --test-root $DATA/test_4XXB --solver kabsch
-python scr_anchor.py eval --ckpt runs/v1-4XXA/best.pt --test-root $DATA/test_4XXC --solver kabsch
-3: low-coverage validation. Run these two trainings in separate terminals:
 
 
-python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-202 --out runs/v1-short-2XX \
-  --epochs 120 --check-every 6 --workers 16 --eval-root $DATA/train_2XX --eval-runs run-205 run-211
-
-python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-202 --out runs/aug-short-2XX \
-  --epochs 120 --check-every 6 --workers 16 --aug-scale 0.67 1.5 --aug-rot 15 \
-  --eval-root $DATA/train_2XX --eval-runs run-205 run-211
-When both have finished, run the Kabsch evals and the coverage table for them:
-
-
-python scr_anchor.py eval --ckpt runs/v1-short-2XX/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --solver kabsch
-python scr_anchor.py eval --ckpt runs/aug-short-2XX/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --solver kabsch
-python tools/coverage_error.py runs/v1-short-2XX/eval_*/scr_eval.json runs/aug-short-2XX/eval_*/scr_eval.json --out runs/coverage_short.md
-The rule for 3, fixed now: keep the augmentation if it beats no augmentation by more than 1 mm on this short-scan split, measured with Kabsch.
 
 
 
