@@ -179,6 +179,30 @@ Fit on the room scans (eval mode, last epoch): coordinates 4.0–6.9 mm, pose of
 8. **Outdated maps: SCR does not transfer.** 2XX → 3XX 21 mm vs 2.5 mm with 3XX's own scan; A → B 32 mm. Classical degrades too but less (10 and 8 mm). Even on the large change (A → C), where classical breaks (80 mm, 21 % accepted), SCR's 47 mm is not usable. That classical also loses ~8 mm on 2XX → 3XX (same room, few objects moved, Polaris not moved) hints at a small frame offset between the sessions — worth checking before blaming the model.
 9. **Against the RPR anchor network, SCR is 3–6× better on every split** and always solves; against the first SCR, 2–4× better.
 
+### 7c. Coverage, depth at test time, viewpoint augmentation (22 Oct)
+
+Same checkpoints as 7b unless named. Mean of per-sweep medians / p90 (mm), rotation median. Kabsch = `eval --solver kabsch` (3D–3D RANSAC on the measured depth, 20 mm, cells < 2 m; settings fixed before any result). Aug = `--aug-scale 0.67 1.5 --aug-rot 15` (ACE values), 120 epochs, PnP.
+
+| split | SCR v1, PnP | **SCR v1, Kabsch** | SCR aug, PnP | classical anchors |
+|---|---|---|---|---|
+| 2XX val (decides) | 5.1 / 11.3, 0.31° | **3.4 / 8.7, 0.33°** | 6.6 / 13.5, 0.33° | 5.2 / 11.9, 0.33° |
+| 3XX | 2.5 / 5.4, 0.18° | **2.0 / 3.3, 0.19°** | | 2.6 / 6.9, 0.34° |
+| 4XX A | 9.9 / 17.6, 0.60° | 5.9 / 10.1, 0.48° | **6.1 / 10.8, 0.48°** | 5.3 / 10.1, 0.48° |
+| 4XX B | 8.6 / 17.8, 0.48° | 5.9 / 9.2, 0.40° | | **3.2 / 5.0, 0.25°** |
+| 4XX C | 11.2 / 17.0, 0.96° | **5.2 / 10.1**, 0.74° | | 5.9 / 11.1, 0.39° |
+| 4XX D | 15.4 / 29.2, 0.98° | 9.3 / 18.9, 0.73° | | **7.1 / 18.3, 0.41°** |
+| 4XX E | 10.2 / 20.5, 0.56° | 5.9 / 13.9, 0.46° (99 % solved) | | **5.2 / 8.5, 0.35°** |
+
+Kabsch costs ~50–70 ms per frame (numpy RANSAC) against ~10 ms for PnP. Aug fit on the room scans is looser (2XX: 14.9 vs 11.5 mm coordinates, training-frame pose 6.3 vs 2.7 mm; 4XX A: 9.6 vs 6.6 mm).
+
+Coverage (`runs/coverage_error.md`, PnP v1): pooled over all evals, frames with a room-scan pose within 30 mm and 10° have 4.1 mm median error, the others 13.4 mm. 4XX A: covered 4.6 mm (5 % of frames), 0–30 mm 8.1, 30–60 mm 8.5, 60–100 mm 13.9 mm. 2XX val: covered 4.9 (75 %), not covered 8.1. 4XX C and D have no covered frame at all. With the outdated 2XX map on 3XX even covered frames are 11.6 mm off (3XX's own map: 2.3).
+
+**Findings**
+10. **Depth at test time is the biggest single gain so far** and passes its pre-set rule (2XX validation −1.7 mm, > 1 mm noise): every split improves by 20–55 %. With Kabsch, SCR beats classical anchors on 3XX (2.0 / 3.3 vs 2.6 / 6.9 mm) and on 4XX C (5.2 vs 5.9), is close on A and E (5.9 vs 5.3 and 5.2), and stays behind on B (5.9 vs 3.2) and D (9.3 vs 7.1). Rotation on 4XX remains worse than classical (0.40–0.74 vs 0.25–0.48°).
+11. **Coverage explains most of the 4XX gap:** the error roughly triples from covered to uncovered frames and grows with the distance to the nearest room-scan pose.
+12. **Viewpoint augmentation helps where coverage is poor and costs where it is good:** 4XX A 9.9 → 6.1 mm, but 2XX validation 5.1 → 6.6 mm (75 % covered), and it fails its pre-set rule (> 1 mm worse on 2XX). The looser fit on the room scans says the 0.17 M-parameter head now lacks capacity for the harder, augmented task. 2XX validation is mostly covered, so it cannot judge a low-coverage remedy; a low-coverage validation split is needed (section 9).
+13. **The outdated-map failure is not only coverage:** covered frames are still 11.6 mm off with the 2XX map on 3XX. Together with classical's 2.6 → 10 mm on the same pair, this points at a frame offset between the sessions (or the moved objects), to be checked.
+
 ## 8. Literature and diagnosis
 
 | | Shotton '13 | DSAC* (RGB-D) | ACE | GLACE | ACE0 |
@@ -207,10 +231,14 @@ Pass criteria are against classical anchors on the same split. Settings chosen o
 | S1-long | 60 / 120 epochs | **done**: 120 epochs best (5.1 mm), saturating |
 | seed repeat | noise level of the val numbers | **done**: ~1 mm (5.3 vs 6.3 mm, 60 epochs) |
 | v1 test | freeze `s1-e120` recipe; 3XX, 4XX A–E, scene change | **done** (7b): 3XX on par with classical, 4XX 2–2.7× worse, outdated maps fail |
-| v1 system | `anchoring.py --anchor scr` with classical odometry: error at the US image, comparable with note_RPR's table | to do |
-| S2 | capacity: ACE-sized head; frozen ACE encoder with pixel buffer | to do (needs code) |
+| v1 system | `anchoring.py --anchor scr` with classical odometry: error at the US image, comparable with note_RPR's table | to do; needs a Kabsch option in anchoring.py |
+| coverage | anchor error vs distance to the nearest room-scan pose | **done** (7c): covered 4.1 mm, uncovered 13.4 mm |
+| S2 | capacity: ACE-sized head; frozen ACE encoder with pixel buffer | to do (needs code) — now also needed for augmentation (finding 12) |
 | S3 | resolution | 720 × 1280 tried early: worse at equal steps |
-| S4 | depth at test time (Kabsch, PnP + depth refinement), RGB-D input, ICP hybrid | to do (needs code) |
+| S4 | depth at test time (Kabsch, PnP + depth refinement), RGB-D input, ICP hybrid | Kabsch **done, adopted** (7c, −1.7 mm on 2XX); refinement / RGB-D input to do |
+| aug | ACE viewpoint augmentation (0.67–1.5, ±15°) | 4XX A −3.8 mm, 2XX −1.5 mm worse: not adopted yet; needs a low-coverage validation split and S2 |
+| low-cov val | 2XX validation mapped on room-202 only (60 s, like 4XX's scans) | to do |
+| offset check | 2XX vs 3XX world frame (classical and SCR both lose ~10 mm on 2XX → 3XX) | to do |
 | S5 | 3D → reprojection loss | to do |
 | S6 | confidence for RANSAC sampling | to do |
 | S7 | mapping data and coverage curve | to do |
@@ -221,7 +249,35 @@ Pass criteria are against classical anchors on the same split. Settings chosen o
 
  
 
-  
+  On the training PC:
+
+
+cd <your US_SCR clone> && git pull
+export RGBD_US=/data2/u0137815/rgbd-us DATA=/data2/u0137815/rgbd-us/data
+1 and 2: evals (a few minutes each, one after another):
+
+
+python scr_anchor.py eval --ckpt runs/aug-2XX/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --solver kabsch
+python scr_anchor.py eval --ckpt runs/aug-4XXA/best.pt --test-root $DATA/test_4XXA --solver kabsch
+python scr_anchor.py eval --ckpt runs/s1-e120-2XX/best.pt --test-root $DATA/train_3XX --solver kabsch
+python scr_anchor.py eval --ckpt runs/v1-4XXA/best.pt --test-root $DATA/test_4XXB --solver kabsch
+python scr_anchor.py eval --ckpt runs/v1-4XXA/best.pt --test-root $DATA/test_4XXC --solver kabsch
+3: low-coverage validation. Run these two trainings in separate terminals:
+
+
+python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-202 --out runs/v1-short-2XX \
+  --epochs 120 --check-every 6 --workers 16 --eval-root $DATA/train_2XX --eval-runs run-205 run-211
+
+python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-202 --out runs/aug-short-2XX \
+  --epochs 120 --check-every 6 --workers 16 --aug-scale 0.67 1.5 --aug-rot 15 \
+  --eval-root $DATA/train_2XX --eval-runs run-205 run-211
+When both have finished, run the Kabsch evals and the coverage table for them:
+
+
+python scr_anchor.py eval --ckpt runs/v1-short-2XX/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --solver kabsch
+python scr_anchor.py eval --ckpt runs/aug-short-2XX/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --solver kabsch
+python tools/coverage_error.py runs/v1-short-2XX/eval_*/scr_eval.json runs/aug-short-2XX/eval_*/scr_eval.json --out runs/coverage_short.md
+The rule for 3, fixed now: keep the augmentation if it beats no augmentation by more than 1 mm on this short-scan split, measured with Kabsch.
 
 
 
