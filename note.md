@@ -166,11 +166,9 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
  
 
 
-cd <your US_SCR clone> && git pull
-export RGBD_US=/data2/u0137815/rgbd-us DATA=/data2/u0137815/rgbd-us/data
 
-python tools/us_inplane.py --root $DATA/train_2XX --out runs/us-2XX
-python tools/us_inplane.py --root $DATA/train_3XX --out runs/us-3XX
-python tools/us_inplane.py --root $DATA/test_4XXA --out runs/us-4XXA
-python tools/us_inplane.py --root $DATA/test_4XXD --out runs/us-4XXD
-These cover the main session, the clean test, a new session, and the second subject; D also checks that the curve isn't specific to one person. Each writes us_inplane.md (the readable tables) and us_inplane.json (every frame pair).
+
+
+
+
+
