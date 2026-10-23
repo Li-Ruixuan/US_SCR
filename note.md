@@ -208,51 +208,7 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
 
 
 
+  
 
 
-
-
-
-On the training PC (git pull first):
-
-
-export RGBD_US=/data2/u0137815/rgbd-us DATA=/data2/u0137815/rgbd-us/data
-U=<your US_SCR clone>
-cd $RGBD_US
-
-# 4XX A, step 1: localise sweeps 401, 402 with the room-scan-only model, start from an SCR anchor (no Polaris)
-python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXA/best.pt \
-  --root data/test_4XXA --scan-runs room-401 room-402 --test-root data/test_4XXA --test-runs run-401 run-402 \
-  --odometry-source classical-vo-test_4XXA --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXA.json \
-  --pgo --start anchor --out $U/runs/selflabel-4XXA
-
-# step 2: export that trajectory per frame
-python poses.py --ckpts runs/rpr-rgb-gap8-123XX-gru8/fold*/best.pt \
-  --source anchored-pgo-scr-v1-4XXA-odometry-odo-classical-vo-test_4XXA-startanchor-test_4XXA \
-  --test-root data/test_4XXA --test-runs run-401 run-402 --out $U/runs/selflabel-4XXA --no-plot --no-compound
-
-# 4XX D, steps 1-2: sweeps 418-420 with C's room-scan-only model
-python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXC/best.pt \
-  --root data/test_4XXD --scan-runs room-405 room-406 --test-root data/test_4XXD --test-runs run-418 run-419 run-420 \
-  --odometry-source classical-vo-test_4XXD --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXD.json \
-  --pgo --start anchor --out $U/runs/selflabel-4XXD
-python poses.py --ckpts runs/rpr-rgb-gap8-123XX-gru8/fold*/best.pt \
-  --source anchored-pgo-scr-v1-4XXC-odometry-odo-classical-vo-test_4XXD-startanchor-test_4XXD \
-  --test-root data/test_4XXD --test-runs run-418 run-419 run-420 --out $U/runs/selflabel-4XXD --no-plot --no-compound
-cd $U
-Step 3: retrain on the room scans plus the self-labelled sweeps. Two trainings, separate terminals, about 1 h each:
-
-
-python scr_anchor.py train --root $DATA/test_4XXA --scan-runs room-401 room-402 run-401 run-402 \
-  --label-poses runs/selflabel-4XXA/poses/fold0_run-401_*.json runs/selflabel-4XXA/poses/fold0_run-402_*.json \
-  --out runs/v1-4XXA-plus2-est --epochs 120 --check-every 6 --workers 12 \
-  --eval-root $DATA/test_4XXA --eval-runs run-405 run-406 run-407 run-408
-python scr_anchor.py train --root $DATA/test_4XXD --scan-runs room-405 room-406 run-418 run-419 run-420 \
-  --label-poses runs/selflabel-4XXD/poses/fold0_run-418_*.json runs/selflabel-4XXD/poses/fold0_run-419_*.json runs/selflabel-4XXD/poses/fold0_run-420_*.json \
-  --out runs/v1-4XXD-plus3-est --epochs 120 --check-every 6 --workers 12 \
-  --eval-root $DATA/test_4XXD --eval-runs run-421 run-423 run-424
-Step 4: Kabsch evals:
-
-
-python scr_anchor.py eval --ckpt runs/v1-4XXA-plus2-est/best.pt --test-root $DATA/test_4XXA --test-runs run-405 run-406 run-407 run-408 --solver kabsch
-python scr_anchor.py eval --ckpt runs/v1-4XXD-plus3-est/best.pt --test-root $DATA/test_4XXD --test-runs run-421 run-423 run-424 --solver kabsch
+  
