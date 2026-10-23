@@ -206,39 +206,7 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
 
  
 
+ 
+ 
 
 
-  What to run now (no new code; training PC, after git pull)
-The defaults are now the final recipe and Kabsch is the default solver, so the commands are shorter.
-
-1. Seeds for the main result, three trainings in separate terminals, about 30–50 min each:
-
-
-cd <your US_SCR clone> && git pull
-export DATA=/data2/u0137815/rgbd-us/data
-python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/v1-3XX-seed1 --seed 1 --eval-root $DATA/train_3XX
-python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/v1-3XX-seed2 --seed 2 --eval-root $DATA/train_3XX
-python scr_anchor.py train --root $DATA/test_4XXA --scan-runs room-401 room-402 --out runs/v1-4XXA-seed1 --seed 1 --eval-root $DATA/test_4XXA
-2. Finish the open big + clean decision (about 70 min):
-
-
-rm -rf runs/bigclean-seed1-2XX
-python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/bigclean-seed1-2XX \
-  --head big --label-max-depth 2000 --drop-depth-edges --seed 1 --eval-root $DATA/train_2XX --eval-runs run-205 run-211
-3. Results without the gate, where the gate mattered (D, E). A few minutes each, from the rgbd-us folder:
-
-
-export RGBD_US=/data2/u0137815/rgbd-us U=<your US_SCR clone>
-cd $RGBD_US
-python $U/tools/anchoring_kabsch.py --scr-gate 0 -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXC/best.pt \
-  --root data/test_4XXD --scan-runs room-405 room-406 --test-root data/test_4XXD \
-  --odometry-source classical-vo-test_4XXD --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXD.json \
-  --pgo --out $U/runs/sys-kabsch-nogate-4XXD
-python $U/tools/anchoring_kabsch.py --scr-gate 0 -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXC/best.pt \
-  --root data/test_4XXE --scan-runs room-405 room-406 --test-root data/test_4XXE \
-  --odometry-source classical-vo-test_4XXE --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXE.json \
-  --pgo --out $U/runs/sys-kabsch-nogate-4XXE
-These three groups close the open points for the current dataset.
-
-
-  
