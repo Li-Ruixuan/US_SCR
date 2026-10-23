@@ -8,13 +8,13 @@ Status 23 Oct 2026. Project: `US_SCR` (this repo), building on `rgbd-us` (`note_
 |---|---|---|
 | Why did the first SCR underfit? | It was undertrained, not unable to learn: same network and data, 2XX validation 15.8 → 5.1 mm by fixing the training alone | strong (single change, large effect) |
 | Does depth help? | Yes: 3D–3D RANSAC (Kabsch) on the measured depth instead of PnP gives a further 20–55 % on every split (2XX validation 5.1 → 3.4 mm) | strong (every split) |
-| Unchanged room, good room-scan coverage (3XX)? | **SCR is the best anchor and the best full system:** anchors 2.0 / 3.3 mm vs classical 2.6 / 6.9 mm; full system 2.8 vs 3.3 mm mean pixel error at the US image | moderate (5 sweeps, the gain is about half the run-to-run noise; 4 of 5 sweeps better or equal) |
+| Unchanged room, good room-scan coverage (3XX)? | **SCR is the best anchor and the best full system:** anchors 2.0 / 3.3 mm vs classical 2.6 / 6.9 mm; full system 2.8 vs 3.3 mm mean pixel error at the US image | strong for the anchors (three seeds: 1.9–2.2 mm, all below classical in median, p90 and rotation); moderate for the system (seed 0 only, 4 of 5 sweeps better or equal) |
 | New session, short room scans (4XX)? | **Classical is still 1.4–2× better at the US image** (SCR 4.9–10.1 vs 3.6–7.0 mm) | strong |
 | Why worse on 4XX? | **Room-scan coverage.** The short 4XX room scans cover 0–14 % of the sweep viewpoints. Adding 2–4 earlier sweeps to the map (Polaris-labelled) brings 4XX A to 1.9 mm / 0.22° and makes SCR the better system on both blocks tested (US image A 2.3 vs 3.2, D 4.5 vs 5.8 mm, classical given the same keyframes); the rotation gap disappears too | strong (covered vs uncovered 4.1 vs 13.4 mm; extended maps on two blocks, fair comparison) |
 | Can the map be extended without a tracker? | **Not yet:** labelling the extra sweeps with the system's own poses (5–14 mm off) recovers almost none of the gain (A 5.3 → 5.0, D 9.0 → 7.9 mm); the network learns the label errors | strong for this labelling; more accurate labels (e.g. refined against the room scan) untested |
 | Outdated room scan? | SCR + Kabsch beats classical on 2XX → 3XX (6.5 vs 10.4 mm) and the large change A → C (13.4 vs 80 mm), loses on the small change A → B (14.0 vs 7.9 mm) | moderate (one pair each) |
 | SCR vs the RPR anchor network? | **SCR is 3–6× more accurate on every split** and always solves (RPR: 37–93 % accepted) | strong |
-| Bigger head, cleaner labels, refined pose fit, viewpoint augmentation, full resolution? | No clear gain: big head + clean labels improve p90 and rotation on 2XX (one seed, second seed unfinished) and nothing on extended maps; the other three are neutral or worse | moderate |
+| Bigger head, cleaner labels, refined pose fit, viewpoint augmentation, full resolution? | Big head + clean labels: lower p90 and rotation on 2XX for both seeds, median unchanged — adopted, effect on the test splits not yet measured; nothing on extended maps. Refined pose fit, viewpoint augmentation and full resolution: neutral or worse | moderate |
 | Is the classical odometry needed? | Only for smoothness: SCR anchors every 0.25 s without odometry give the same median error at the US image but 1.4–1.7× larger step-to-step error | moderate (three splits) |
 | Can US images help? | Not for in-plane motion (registration worse than assuming none); yes for out-of-plane distance (speckle decorrelation, 0.3–0.4 mm median, transfers across sessions and subjects) — not yet in the system | strong for the diagnostics, untested in the system |
 
@@ -308,6 +308,35 @@ The extra sweeps are localised by the full system with the room-scan-only model 
 
 Self-labelling recovers almost none of the gain (A 5.3 → 5.0, within noise; D 9.0 → 7.9). The network learns the extra views *with the errors of the poses that labelled them*, so the later sweeps are localised about as well as those labels (5–8 mm), not better: map extension is only as good as the poses of the added views. Making it work needs labels more accurate than the anchors themselves — e.g. refining the new sweep's poses against the room scan geometry before training (as ACE0 refines poses during mapping), or adding only frames whose anchors are confidently correct — otherwise the practical route to coverage is a better room scan.
 
+### 3.13 Seed repeats, big head + clean labels decided, inlier gate (24 Oct)
+
+**Seed repeats of the final model** (SCR anchors, Kabsch, per-second evaluation; mean of per-sweep medians / p90, rotation):
+
+| split | seed 0 | seed 1 | seed 2 | classical anchors |
+|---|---|---|---|---|
+| 3XX | 2.0 / 3.3, 0.19° | 1.9 / 3.6, 0.18° | 2.2 / 3.8, 0.19° | 2.6 / 6.9, 0.34° |
+| 4XX A | 5.9 / 10.1, 0.48° | 5.8 / 10.1, 0.49° | | 5.3 / 10.1, 0.48° |
+
+On 3XX the spread over three seeds is 0.3 mm (1.9–2.2 mm), and every seed is below classical in median (0.4–0.7 mm), p90 (3.3–3.8 vs 6.9 mm) and rotation (0.18–0.19 vs 0.34°). The run-to-run noise on 3XX (140 frames) is much smaller than the ~1 mm measured on 2XX validation (77 frames, 2 sweeps): the 3XX anchor advantage is robust. 4XX A is equally stable (5.9 / 5.8 mm). The system-level 3XX result (2.8 vs 3.3 mm mean pixel error) was measured for seed 0 only.
+
+**Big head + clean labels, second seed** (2XX validation, Kabsch; rule fixed in advance: adopt if rotation and p90 are lower than the small head for both seeds):
+
+| seed | small head (v1) | big head + clean labels |
+|---|---|---|
+| 0 | 3.4 / 8.7, 0.33° | 3.4 / **7.3**, **0.27°** |
+| 1 | 3.5 / 9.4, 0.37° | 3.7 / **6.9**, **0.28°** |
+
+Rule met for both seeds: p90 −1.4 and −2.5 mm, rotation −0.06 and −0.09°, median unchanged within noise. **Adopted** (`--head big --label-max-depth 2000 --drop-depth-edges`). Its effect on the test splits, where rotation limits the error at the US image, is not measured yet; on the extended map (4XX A + 4 sweeps) it changed nothing (1.8 vs 1.9 mm).
+
+**Inlier gate** (full system, 4XX D and E, the splits where the ≥ 400-inlier gate removed anchors):
+
+| split | gated: anchors (median / p90), US image | ungated: anchors, US image |
+|---|---|---|
+| 4XX D | 9.0 / 16.7 mm, **10.2** mm | 9.4 / 18.7 mm, **10.1** mm |
+| 4XX E | 5.9 / 12.0 mm, **6.4** mm | 6.1 / 15.9 mm, **6.5** mm |
+
+The gate trims the anchor p90 but does not change the error at the US image (the pose graph already absorbs the outliers). The concern that it was chosen after seeing the test splits therefore does not affect the system results; report the ungated numbers or say this.
+
 ## 4. Why SCR beats the RPR anchor network
 
 | | RPR anchor network | SCR |
@@ -381,8 +410,9 @@ Fairness: both used depth (the anchor network took RGB-D pairs); SCR received mo
 | `runs/s0a-scr-3XX` | evaluator check |
 | `runs/s1-base-2XX`, `s1-2XX`, `s1-e60-2XX`, `s1-e60-seed1-2XX`, `s1-e120-2XX`, `s3-full-2XX` | training study on 2XX (3.1) |
 | `runs/v1-3XX`, `v1-4XXA/B/C` | v1 on the test splits; `eval_*` (PnP) and `eval_*_kabsch` (3.2, 3.3) |
-| `runs/aug-2XX`, `aug-4XXA`, `v1-short-2XX`, `aug-short-2XX` | augmentation and low-coverage validation (3.5) |
-| `runs/coverage_error.md`, `coverage_short.md` | coverage analysis (3.4) |
+| `runs/aug-2XX`, `aug-4XXA` | viewpoint augmentation (3.5); the room-202-only validation runs were removed (numbers in 3.5, files in git commit 5f80808) |
+| `runs/coverage_error.md` | coverage analysis (3.4) |
+| `runs/README.md` | index of every run: purpose, data, settings, key result, status |
 | `runs/sys-kabsch-*` | full system, error at the US image (3.7) |
 | `runs/volume3d-3XX`, `volume3d-4XX` | 3D pages (3.8) |
 | `runs/us-*` | US diagnostics (3.9) |

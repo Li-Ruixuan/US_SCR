@@ -173,8 +173,8 @@ All 2XX runs map room-201/202 and test run-205/211; numbers are mean of per-swee
 | `s3-full-2XX` | 720 × 1280, 30 epochs | 7.3 / 14.5 |
 | `v1-3XX`, `v1-4XXA/B/C` | v1 recipe on the test splits | section 2; fit on the room scans 4.0–6.9 mm, training-frame pose 1.2–1.7 mm |
 | `aug-2XX`, `aug-4XXA` | v1 + viewpoint augmentation | 2XX 6.6 (Kabsch 6.5); 4XX A 6.1 (Kabsch 5.1) |
-| `v1-short-2XX`, `aug-short-2XX` | low-coverage validation: room-202 only (60 s, 0 % covered) | PnP 40.2 vs 23.2; Kabsch 16.2 vs 18.2 |
-| `coverage_error.md`, `coverage_short.md` | `tools/coverage_error.py` | section 3, findings 3 and 9 |
+| (removed 24 Oct) `v1-short-2XX`, `aug-short-2XX` | low-coverage validation: room-202 only (60 s, 0 % covered) | PnP 40.2 vs 23.2; Kabsch 16.2 vs 18.2 |
+| `coverage_error.md` | `tools/coverage_error.py` | section 3, finding 3; full index of runs: `runs/README.md` |
 
 ## 8. Literature and diagnosis
 
@@ -210,3 +210,88 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
  
 
 
+Setup (training PC, once per terminal)
+
+cd <your US_SCR clone> && git pull
+export DATA=/data2/u0137815/rgbd-us/data RGBD_US=/data2/u0137815/rgbd-us
+export U=$(pwd)
+Priority 1: needed for the paper
+1a. 3XX with the protocol respected (map recorded before the sweeps)
+Does the 3XX advantage hold when the room scan really precedes the sweeps? About 20 min of training, then a few minutes each.
+
+
+cd $U
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 --out runs/v1-3XX-room301 \
+  --eval-root $DATA/train_3XX --eval-runs run-315 run-316 run-317
+
+cd $RGBD_US
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-3XX-room301/best.pt \
+  --root data/train_3XX --scan-runs room-301 --test-root data/train_3XX --test-runs run-315 run-316 run-317 \
+  --odometry-source classical-vo-train_3XX --odometry runs/rpr-rgb-gap8-12XX-gru8 --pairs runs/anchor-pairs/pairs_3XX.json \
+  --pgo --start anchor --out $U/runs/sys-kabsch-3XX-room301
+python anchoring.py evaluate --anchor classical --root data/train_3XX --scan-runs room-301 room-302 \
+  --map-root data/train_3XX --map-scans room-301 --test-root data/train_3XX --test-runs run-315 run-316 run-317 \
+  --odometry-source classical-vo-train_3XX --odometry runs/rpr-rgb-gap8-12XX-gru8 --pairs runs/anchor-pairs/pairs_3XX.json \
+  --pgo --start anchor --out $U/runs/sys-classical-3XX-room301
+1b. Final system numbers without any ground-truth start (--start anchor)
+The paper's error at the US image, with no Polaris pose anywhere at test time. A few minutes each, from the rgbd-us folder. The classical start-anchor results for 3XX and 4XX already exist in rgbd-us; 2XX needs its own run (last command).
+
+
+cd $RGBD_US
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/s1-e120-2XX/best.pt \
+  --root data/train_2XX --scan-runs room-201 room-202 --test-root data/train_2XX --test-runs run-205 run-211 \
+  --odometry-source classical-vo-train_2XX --odometry runs/rpr-rgb-gap8-12XX-gru8 --pairs runs/anchor-pairs/pairs_2XX.json \
+  --pgo --start anchor --out $U/runs/sys-final-2XX
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-3XX/best.pt \
+  --root data/train_3XX --scan-runs room-301 room-302 --test-root data/train_3XX \
+  --odometry-source classical-vo-train_3XX --odometry runs/rpr-rgb-gap8-12XX-gru8 --pairs runs/anchor-pairs/pairs_3XX.json \
+  --pgo --start anchor --out $U/runs/sys-final-3XX
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXA/best.pt \
+  --root data/test_4XXA --scan-runs room-401 room-402 --test-root data/test_4XXA \
+  --odometry-source classical-vo-test_4XXA --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXA.json \
+  --pgo --start anchor --out $U/runs/sys-final-4XXA
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXB/best.pt \
+  --root data/test_4XXB --scan-runs room-403 room-404 --test-root data/test_4XXB \
+  --odometry-source classical-vo-test_4XXB --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXB.json \
+  --pgo --start anchor --out $U/runs/sys-final-4XXB
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXC/best.pt \
+  --root data/test_4XXC --scan-runs room-405 room-406 --test-root data/test_4XXC \
+  --odometry-source classical-vo-test_4XXC --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXC.json \
+  --pgo --start anchor --out $U/runs/sys-final-4XXC
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXC/best.pt \
+  --root data/test_4XXD --scan-runs room-405 room-406 --test-root data/test_4XXD \
+  --odometry-source classical-vo-test_4XXD --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXD.json \
+  --pgo --start anchor --out $U/runs/sys-final-4XXD
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXC/best.pt \
+  --root data/test_4XXE --scan-runs room-405 room-406 --test-root data/test_4XXE \
+  --odometry-source classical-vo-test_4XXE --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXE.json \
+  --pgo --start anchor --out $U/runs/sys-final-4XXE
+# classical, 2XX validation, same setting (the 3XX and 4XX ones exist in rgbd-us)
+python anchoring.py evaluate --anchor classical --root data/train_2XX --scan-runs room-201 room-202 \
+  --test-root data/train_2XX --test-runs run-205 run-211 \
+  --odometry-source classical-vo-train_2XX --odometry runs/rpr-rgb-gap8-12XX-gru8 --pairs runs/anchor-pairs/pairs_2XX.json \
+  --pgo --start anchor --out $U/runs/sys-classical-final-2XX
+1c. A spread for the system-level 3XX result (seeds 1, 2)
+Is 2.8 against 3.3 mm at the US image stable across training seeds? A few minutes each.
+
+
+cd $RGBD_US
+for s in 1 2; do
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-3XX-seed$s/best.pt \
+  --root data/train_3XX --scan-runs room-301 room-302 --test-root data/train_3XX \
+  --odometry-source classical-vo-train_3XX --odometry runs/rpr-rgb-gap8-12XX-gru8 --pairs runs/anchor-pairs/pairs_3XX.json \
+  --pgo --start anchor --out $U/runs/sys-final-3XX-seed$s
+done
+Priority 2: may improve the 4XX result
+2. Big head + clean labels (adopted on 2XX) on the test splits
+Does its better rotation reduce the 4XX gap at the US image? Four trainings of about 30–50 min (separate terminals), then the system runs.
+
+
+cd $U
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/v2-3XX --head big --label-max-depth 2000 --drop-depth-edges --eval-root $DATA/train_3XX
+python scr_anchor.py train --root $DATA/test_4XXA --scan-runs room-401 room-402 --out runs/v2-4XXA --head big --label-max-depth 2000 --drop-depth-edges --eval-root $DATA/test_4XXA
+python scr_anchor.py train --root $DATA/test_4XXB --scan-runs room-403 room-404 --out runs/v2-4XXB --head big --label-max-depth 2000 --drop-depth-edges --eval-root $DATA/test_4XXB
+python scr_anchor.py train --root $DATA/test_4XXC --scan-runs room-405 room-406 --out runs/v2-4XXC --head big --label-max-depth 2000 --drop-depth-edges --eval-root $DATA/test_4XXC
+python scr_anchor.py eval --ckpt runs/v2-4XXC/best.pt --test-root $DATA/test_4XXD
+python scr_anchor.py eval --ckpt runs/v2-4XXC/best.pt --test-root $DATA/test_4XXE
+Then repeat the seven 1b commands with v2-... checkpoints and --out $U/runs/sys-v2-.... That means v2-3XX, v2-4XXA, v2-4XXB, and v2-4XXC for C, D and E. Skip 2XX, which already has the result.
