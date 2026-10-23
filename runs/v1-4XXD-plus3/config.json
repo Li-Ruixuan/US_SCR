@@ -1,0 +1,68 @@
+{
+  "args": {
+    "cmd": "train",
+    "root": "/data2/u0137815/rgbd-us/data/test_4XXD",
+    "scan_runs": [
+      "room-405",
+      "room-406",
+      "run-418",
+      "run-419",
+      "run-420"
+    ],
+    "out": "runs/v1-4XXD-plus3",
+    "hand_eye": "/data2/u0137815/rgbd-us/T_marker_cam.npy",
+    "image_size": [
+      360,
+      640
+    ],
+    "frame_step": 1,
+    "epochs": 120,
+    "batch_size": 8,
+    "lr": 0.001,
+    "lr_encoder": 0.0001,
+    "sched": "flatcos",
+    "flat": 0.6,
+    "loss": "dist",
+    "huber_delta": 0.05,
+    "fp32_head": true,
+    "amp": true,
+    "workers": 12,
+    "seed": 0,
+    "check_every": 6,
+    "check_frames": 120,
+    "max_frames": 0,
+    "aug_scale": [
+      1.0,
+      1.0
+    ],
+    "aug_rot": 0.0,
+    "head": "small",
+    "label_max_depth": 3000.0,
+    "drop_depth_edges": false,
+    "px": 10.0,
+    "min_inliers": 30,
+    "eval_root": "/data2/u0137815/rgbd-us/data/test_4XXD",
+    "eval_runs": [
+      "run-421",
+      "run-423",
+      "run-424"
+    ]
+  },
+  "centre": [
+    89.62143271008914,
+    -67.33964067962586,
+    -962.5947939067598
+  ],
+  "image_size": [
+    360,
+    640
+  ],
+  "head": "small",
+  "n_frames": 5953,
+  "steps": 89280,
+  "rgbd_us": "/data2/u0137815/rgbd-us",
+  "git": {
+    "US_SCR": "d421b1c",
+    "rgbd-us": "a5bf2ce"
+  }
+}
