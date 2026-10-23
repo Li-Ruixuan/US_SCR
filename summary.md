@@ -1,6 +1,6 @@
 # Scene coordinate regression (SCR) anchors for markerless US probe tracking: summary of all tests
 
-Status 22 Oct 2026. Project: `US_SCR` (this repo), building on `rgbd-us` (`note_RPR.md`). Working notes with the full history: `note.md`.
+Status 23 Oct 2026. Project: `US_SCR` (this repo), building on `rgbd-us` (`note_RPR.md`). Working notes with the full history: `note.md`.
 
 ## 1. Bottom line
 
@@ -10,9 +10,12 @@ Status 22 Oct 2026. Project: `US_SCR` (this repo), building on `rgbd-us` (`note_
 | Does depth help? | Yes: 3D–3D RANSAC (Kabsch) on the measured depth instead of PnP gives a further 20–55 % on every split (2XX validation 5.1 → 3.4 mm) | strong (every split) |
 | Unchanged room, good room-scan coverage (3XX)? | **SCR is the best anchor and the best full system:** anchors 2.0 / 3.3 mm vs classical 2.6 / 6.9 mm; full system 2.8 vs 3.3 mm mean pixel error at the US image | moderate (5 sweeps, the gain is about half the run-to-run noise; 4 of 5 sweeps better or equal) |
 | New session, short room scans (4XX)? | **Classical is still 1.4–2× better at the US image** (SCR 4.9–10.1 vs 3.6–7.0 mm) | strong |
-| Why worse on 4XX? | Low room-scan coverage (0–14 % of the sweep viewpoints) and a rotation error about twice classical's | strong for coverage (error 4.1 vs 13.4 mm covered / not covered), likely for rotation |
+| Why worse on 4XX? | **Room-scan coverage.** The short 4XX room scans cover 0–14 % of the sweep viewpoints. Adding 2–4 earlier sweeps to the map (Polaris-labelled) brings 4XX A to 1.9 mm / 0.22° and makes SCR the better system on both blocks tested (US image A 2.3 vs 3.2, D 4.5 vs 5.8 mm, classical given the same keyframes); the rotation gap disappears too | strong (covered vs uncovered 4.1 vs 13.4 mm; extended maps on two blocks, fair comparison) |
+| Can the map be extended without a tracker? | **Not yet:** labelling the extra sweeps with the system's own poses (5–14 mm off) recovers almost none of the gain (A 5.3 → 5.0, D 9.0 → 7.9 mm); the network learns the label errors | strong for this labelling; more accurate labels (e.g. refined against the room scan) untested |
 | Outdated room scan? | SCR + Kabsch beats classical on 2XX → 3XX (6.5 vs 10.4 mm) and the large change A → C (13.4 vs 80 mm), loses on the small change A → B (14.0 vs 7.9 mm) | moderate (one pair each) |
 | SCR vs the RPR anchor network? | **SCR is 3–6× more accurate on every split** and always solves (RPR: 37–93 % accepted) | strong |
+| Bigger head, cleaner labels, refined pose fit, viewpoint augmentation, full resolution? | No clear gain: big head + clean labels improve p90 and rotation on 2XX (one seed, second seed unfinished) and nothing on extended maps; the other three are neutral or worse | moderate |
+| Is the classical odometry needed? | Only for smoothness: SCR anchors every 0.25 s without odometry give the same median error at the US image but 1.4–1.7× larger step-to-step error | moderate (three splits) |
 | Can US images help? | Not for in-plane motion (registration worse than assuming none); yes for out-of-plane distance (speckle decorrelation, 0.3–0.4 mm median, transfers across sessions and subjects) — not yet in the system | strong for the diagnostics, untested in the system |
 
 ## 2. Setup
@@ -294,6 +297,17 @@ Both methods gain from the extra keyframes, SCR far more: at the US image SCR go
 
 Caveats: the extra sweeps are labelled with Polaris poses (in use: the system's own estimated poses), they come from the same subject and session as the test sweeps, and two blocks were tested.
 
+### 3.12 Map extension without Polaris: earlier sweeps labelled with the system's own poses (23 Oct)
+
+The extra sweeps are localised by the full system with the room-scan-only model (SCR + Kabsch anchors, classical odometry, pose graph, each segment **started from an SCR anchor**, no Polaris pose anywhere), exported with `poses.py`, and used as training labels (`scr_anchor.py train --label-poses`). Test on the later sweeps (Kabsch).
+
+| block, test sweeps | room scans only | + sweeps, **estimated poses** | + sweeps, Polaris poses | error of the estimated labels vs Polaris (median / p90) |
+|---|---|---|---|---|
+| A, run-405…408 (+ run-401, 402) | 5.3, 0.47° | **5.0 / 8.4, 0.48°** | 1.9 / 5.4, 0.23° | 4.6 / 8.0 and 5.8 / 7.4 mm, 0.39–0.52° |
+| D, run-421, 423, 424 (+ run-418…420) | 9.0, 0.76° | **7.9 / 11.2, 0.60°** | 3.1 / 7.0, 0.22° | 7.4 / 17.8, 7.6 / 18.1, 13.7 / 21.9 mm, 0.65–0.95° |
+
+Self-labelling recovers almost none of the gain (A 5.3 → 5.0, within noise; D 9.0 → 7.9). The network learns the extra views *with the errors of the poses that labelled them*, so the later sweeps are localised about as well as those labels (5–8 mm), not better: map extension is only as good as the poses of the added views. Making it work needs labels more accurate than the anchors themselves — e.g. refining the new sweep's poses against the room scan geometry before training (as ACE0 refines poses during mapping), or adding only frames whose anchors are confidently correct — otherwise the practical route to coverage is a better room scan.
+
 ## 4. Why SCR beats the RPR anchor network
 
 | | RPR anchor network | SCR |
@@ -354,7 +368,7 @@ Fairness: both used depth (the anchor network took RGB-D pairs); SCR received mo
 
 | file | purpose |
 |---|---|
-| `scr_anchor.py` | `train` (v1 recipe; `--aug-scale`, `--aug-rot`) and `eval` (`--solver pnp/kabsch`); imports `rgbd-us/scr.py` and `dataloader.py` |
+| `scr_anchor.py` | `train` (final recipe by default; `--head`, label cleaning, viewpoint augmentation, `--label-poses`) and `eval` (`--solver kabsch/pnp`); uses `rgbdus/` (copies of rgbd-us `scr.py`, `dataloader.py`, `geometry.py`), runs without rgbd-us |
 | `tools/anchoring_kabsch.py` | rgbd-us `anchoring.py` (full system) with SCR + Kabsch anchors and the inlier gate |
 | `tools/volume_pages.py` | interactive 3D pages from anchoring results (rgbd-us `poses.py` + `tools/volume_3d.py`) |
 | `tools/coverage_error.py` | anchor error vs distance to the nearest room-scan pose |

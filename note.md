@@ -104,10 +104,10 @@ Network = `rgbd-us/scr.py` SCRNet, unchanged: RGB 360 × 640 → ImageNet Effici
 
 ## 5. Code and workflow
 
-- **`scr_anchor.py`**: `train` and `eval`. Imports `rgbd-us/scr.py` and `dataloader.py` from `$RGBD_US` (default `../rgbd-us`), so network, labels and frame selection are the rgbd-us ones; checkpoints keep the `scr.py` format (`anchoring.py evaluate --anchor scr --scr-ckpt` takes them, PnP only for now). Every `--check-every` epochs a **fit check** on 120 fixed training frames (eval mode, no augmentation): coordinate error, the same after the best rigid fit, PnP pose of those frames.
+- **`scr_anchor.py`**: `train` and `eval`. Uses `rgbdus/` (unchanged copies of rgbd-us `scr.py`, `dataloader.py`, `geometry.py`), so network, labels and frame selection are the rgbd-us ones and it runs without rgbd-us; checkpoints keep the `scr.py` format (`tools/anchoring_kabsch.py` runs them in the full system, which needs rgbd-us). Setup for new users: `README.md`. Every `--check-every` epochs a **fit check** on 120 fixed training frames (eval mode, no augmentation): coordinate error, the same after the best rigid fit, PnP pose of those frames.
 - **`tools/coverage_error.py`**: anchor error against the distance to the nearest room-scan pose, per eval file.
 - **`tools/draw_scr_anchor_diagram.py`** → `tools/scr_anchor_diagram.png/.pdf`: block diagram (its results box still shows PnP numbers).
-- Old code (`dataset.py`, `model.py`, `train.py`, `eval.py`, `loss.py`, `solver.py`, `smoothing.py`, `geometry.py`) is the earlier scr1–4 attempt (pooled data incl. 1XX); not used, not comparable.
+- The earlier scr1–4 code (pooled data incl. 1XX) and the copies of rgbd-us tools were removed on 23 Oct (clean-up); they are in git history and in rgbd-us.
 - The user runs everything on the training PC and does all git push / pull; checkpoints (`*.pt`) are git-ignored.
 
 ```bash
@@ -208,7 +208,37 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
 
 
 
-  
+  What to run now (no new code; training PC, after git pull)
+The defaults are now the final recipe and Kabsch is the default solver, so the commands are shorter.
+
+1. Seeds for the main result, three trainings in separate terminals, about 30–50 min each:
+
+
+cd <your US_SCR clone> && git pull
+export DATA=/data2/u0137815/rgbd-us/data
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/v1-3XX-seed1 --seed 1 --eval-root $DATA/train_3XX
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/v1-3XX-seed2 --seed 2 --eval-root $DATA/train_3XX
+python scr_anchor.py train --root $DATA/test_4XXA --scan-runs room-401 room-402 --out runs/v1-4XXA-seed1 --seed 1 --eval-root $DATA/test_4XXA
+2. Finish the open big + clean decision (about 70 min):
+
+
+rm -rf runs/bigclean-seed1-2XX
+python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/bigclean-seed1-2XX \
+  --head big --label-max-depth 2000 --drop-depth-edges --seed 1 --eval-root $DATA/train_2XX --eval-runs run-205 run-211
+3. Results without the gate, where the gate mattered (D, E). A few minutes each, from the rgbd-us folder:
+
+
+export RGBD_US=/data2/u0137815/rgbd-us U=<your US_SCR clone>
+cd $RGBD_US
+python $U/tools/anchoring_kabsch.py --scr-gate 0 -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXC/best.pt \
+  --root data/test_4XXD --scan-runs room-405 room-406 --test-root data/test_4XXD \
+  --odometry-source classical-vo-test_4XXD --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXD.json \
+  --pgo --out $U/runs/sys-kabsch-nogate-4XXD
+python $U/tools/anchoring_kabsch.py --scr-gate 0 -- evaluate --anchor scr --scr-ckpt $U/runs/v1-4XXC/best.pt \
+  --root data/test_4XXE --scan-runs room-405 room-406 --test-root data/test_4XXE \
+  --odometry-source classical-vo-test_4XXE --odometry runs/rpr-rgb-gap8-123XX-gru8 --pairs runs/anchor-pairs/pairs_4XXE.json \
+  --pgo --out $U/runs/sys-kabsch-nogate-4XXE
+These three groups close the open points for the current dataset.
 
 
   

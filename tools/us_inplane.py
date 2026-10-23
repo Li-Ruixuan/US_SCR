@@ -33,12 +33,11 @@ within the same segment.
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
-RGBD_US = Path(os.environ.get("RGBD_US", Path(__file__).resolve().parents[2] / "rgbd-us")).resolve()
-sys.path.insert(0, str(RGBD_US))
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / "rgbdus"))
 
 import cv2                                                               # noqa: E402
 import numpy as np                                                       # noqa: E402
@@ -119,8 +118,8 @@ def main():
     ap.add_argument("--gaps", type=int, nargs="+", default=[1, 3, 10], help="k: new US frames between the pair")
     ap.add_argument("--every", type=int, default=5, help="every n-th new US frame as a start")
     ap.add_argument("--out", required=True)
-    ap.add_argument("--hand-eye", default=str(RGBD_US / "T_marker_cam.npy"))
-    ap.add_argument("--calib", default=str(RGBD_US / "calib_matrix.csv"))
+    ap.add_argument("--hand-eye", default=str(REPO / "T_marker_cam.npy"))
+    ap.add_argument("--calib", default=str(REPO / "calib_matrix.csv"), help="US calibration (TUS-REC format)")
     args = ap.parse_args()
 
     T_mc = load_hand_eye(args.hand_eye, "mm")

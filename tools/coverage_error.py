@@ -10,12 +10,11 @@ distance bin and covered / not covered, per eval file and pooled. Poses only, no
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
-RGBD_US = Path(os.environ.get("RGBD_US", Path(__file__).resolve().parents[2] / "rgbd-us")).resolve()
-sys.path.insert(0, str(RGBD_US))
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / "rgbdus"))
 
 import numpy as np                                          # noqa: E402
 
@@ -32,7 +31,7 @@ def camera_poses(run_dir, T_mc):
 
 def hand_eye_path(path):
     p = Path(path)
-    return p if p.is_absolute() or p.exists() else RGBD_US / p
+    return p if p.exists() else REPO / "T_marker_cam.npy"
 
 
 def frame_coverage(eval_json):

@@ -1,0 +1,10 @@
+# Python >= 3.10; tested with Python 3.11, torch 2.11 (CUDA 12.8), torchvision 0.26.
+# Install torch / torchvision for your CUDA version first (https://pytorch.org), then: pip install -r requirements.txt
+torch>=2.3
+torchvision>=0.18
+numpy>=1.24
+opencv-python>=4.8
+pandas>=2.0
+pillow>=10.0
+tqdm>=4.60
+matplotlib>=3.7   # tools/draw_scr_anchor_diagram.py only

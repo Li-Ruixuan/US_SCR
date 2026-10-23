@@ -18,8 +18,15 @@ import argparse
 import sys
 from pathlib import Path
 
+import os                                                    # noqa: E402
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import scr_anchor                                            # noqa: E402  (puts $RGBD_US first on sys.path)
+import scr_anchor                                            # noqa: E402  (puts rgbdus/ first on sys.path)
+
+# anchoring.py and its own imports (odometry, pose graph, evaluation) come from the rgbd-us repo;
+# dataloader / geometry / scr are already loaded from rgbdus/, identical copies.
+RGBD_US = Path(os.environ.get("RGBD_US", Path(__file__).resolve().parents[2] / "rgbd-us")).resolve()
+sys.path.append(str(RGBD_US))
 
 import numpy as np                                           # noqa: E402
 
@@ -41,7 +48,7 @@ def install(ours):
         depth = scr.load_depth_mm(ds, ds.root, name, row)
         T, n = scr_anchor.localize_kabsch(net, ck, rgb, depth, K, full_w, device, ours.kabsch_thr,
                                           ours.kabsch_max_depth, min_inliers,
-                                          rng=np.random.default_rng(ours.seed + row), refine=ours.kabsch_refine)
+                                          rng=np.random.default_rng(ours.seed + row))
         if T is not None and n < ours.scr_gate:
             return None, n
         return T, n
@@ -56,8 +63,6 @@ def main():
     ap.add_argument("--kabsch-thr", type=float, default=20.0, help="inlier threshold (mm)")
     ap.add_argument("--kabsch-max-depth", type=float, default=2000.0, help="leave out cells farther than this (mm)")
     ap.add_argument("--scr-gate", type=int, default=400, help="fewer Kabsch inliers = no anchor (0: no gate)")
-    ap.add_argument("--kabsch-refine", choices=["none", "weighted", "joint"], default="none",
-                    help="final fit on the inliers (scr_anchor.localize_kabsch)")
     ap.add_argument("--seed", type=int, default=0)
     ours, rest = ap.parse_known_args()
     if rest and rest[0] == "--":
@@ -65,7 +70,7 @@ def main():
 
     install(ours)
     print(f"SCR anchors by Kabsch ({ours.kabsch_thr:g} mm, cells < {ours.kabsch_max_depth:g} mm), "
-          f"refine {ours.kabsch_refine}, gate >= {ours.scr_gate} inliers", flush=True)
+          f"gate >= {ours.scr_gate} inliers", flush=True)
 
     import anchoring
     sys.argv = ["anchoring.py"] + rest

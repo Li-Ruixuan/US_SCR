@@ -1,53 +1,40 @@
 """
-SCR anchors, step S1 of the plan: rgbd-us `scr.py` (same network, targets, solver and test
-protocol) with the optimisation fixed, plus the checks that tell whether it still underfits.
+Scene coordinate regression (SCR) anchors: train a network on a session's room scans, then
+localise the camera of each sweep frame.
 
-What S1 changes against scr.py, each a flag so the scr.py recipe can be rerun from this file:
-  * every room-scan frame (--frame-step 1, scr.py: 2);
-  * 3D distance loss (--loss dist; scr.py: Huber with a 50 mm knee, whose quadratic branch
-    shrinks the gradient exactly where the error should go from cm to mm);
-  * 4x the steps with a flat-then-cosine schedule (--sched flatcos; scr.py's OneCycle took the
-    learning rate to zero while the error was still falling);
-  * the head in fp32 (--fp32-head; under autocast the output is fp16, which is ~1-2 mm apart at
-    1-2 m from the centre, i.e. the whole error budget).
+Network: rgbd-us `scr.py` SCRNet (EfficientNet-B0 to stride 16, stride-8 + stride-16 features,
+1x1-conv head) predicting the room coordinate of each cell of a 45 x 80 grid; optionally an
+ACE-sized head (--head big). Targets: the room-scan depth at each cell centre, back-projected with
+the frame's pose (Polaris, or the system's own estimate with --label-poses).
 
-Fit check (every --check-every epochs): a fixed set of training frames in eval mode, fp32,
-no augmentation -- per-frame median coordinate error, the same after the best rigid fit
-(what remains is noise RANSAC can average; the difference is a per-frame misalignment that
-goes straight into the pose), and the PnP pose of the training frames themselves.
+Training (`train`): every room-scan frame, mean 3D distance loss, AdamW, 120 epochs with a flat
+learning rate for 60 % of the steps then a cosine decay to 0, head in fp32 (fp16 would quantise the
+output to 1-2 mm). Every --check-every epochs a fit check runs on 120 fixed training frames in eval
+mode: coordinate error, the same after the best rigid fit, and the PnP pose of those frames.
 
-Evaluation = scr.py eval: one frame every 30 usable rows of the test sweeps (rgbd-us
-RPRDataset: Polaris pose, not in the air, depth present), PnP-RANSAC 10 px, >= 30 inliers,
-camera position / rotation error against Polaris. Added: a fixed RANSAC seed per frame,
-p90 rotation, the mean of per-sweep medians next to the pooled median, and the time per frame.
+Pose (`eval`): --solver kabsch (default): 3D-3D RANSAC between the measured depth of each cell and
+its predicted room coordinate; --solver pnp: PnP-RANSAC on the 2D cell centres (rgbd-us scr.py).
+Protocol as rgbd-us `scr.py eval`: one frame every 30 usable rows of the test sweeps, camera
+position / rotation error against Polaris, with a fixed RANSAC seed per frame.
 
-Checkpoints keep scr.py's format, so `anchoring.py evaluate --anchor scr --scr-ckpt` takes them.
+Checkpoints keep scr.py's format (plus "head"), so tools/anchoring_kabsch.py runs them in the full
+system. Data loading and the network come from rgbdus/ (unchanged copies of rgbd-us modules).
 
-Later steps, each off by default so the S1 recipe is unchanged:
-  * --aug-scale / --aug-rot (train): ACE-style viewpoint augmentation, random zoom and in-plane
-    rotation of the image and its room-coordinate map alike, for room scans that do not cover the
-    sweep viewpoints (4XX);
-  * --solver kabsch (eval, S4): the pose from the measured depth instead of PnP: 3D-3D RANSAC
-    between the back-projected depth of each cell and its predicted room coordinate.
-
-rgbd-us is imported from $RGBD_US (default: ../rgbd-us next to this repo).
-
-  python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --out runs/s1-2XX \\
-      --eval-root $DATA/train_2XX --eval-runs run-205 run-211
-  python scr_anchor.py eval --ckpt runs/s1-2XX/best.pt --test-root $DATA/train_3XX
+  python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/v1-3XX \\
+      --eval-root $DATA/train_3XX
+  python scr_anchor.py eval --ckpt runs/v1-3XX/best.pt --test-root $DATA/train_3XX
 """
 
 import argparse
 import json
 import math
-import os
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-RGBD_US = Path(os.environ.get("RGBD_US", Path(__file__).resolve().parent.parent / "rgbd-us")).resolve()
-sys.path.insert(0, str(RGBD_US))   # before this repo, whose old geometry.py would shadow rgbd-us's
+REPO = Path(__file__).resolve().parent
+sys.path.insert(0, str(REPO / "rgbdus"))
 
 import cv2                                                              # noqa: E402
 import numpy as np                                                      # noqa: E402
@@ -58,14 +45,15 @@ from torch.utils.data import DataLoader, Dataset                        # noqa: 
 from tqdm import tqdm                                                   # noqa: E402
 
 from dataloader import RPRConfig, RPRDataset, load_hand_eye, test_sweeps   # noqa: E402
-from scr import (STRIDE, RoomScanFrames, SCRNet, coord_targets, grid_pixels,   # noqa: E402
-                 load_depth_mm, localize, robust_loss)
+from scr import STRIDE, SCRNet, coord_targets, grid_pixels, load_depth_mm, localize   # noqa: E402
 
 
 def bar(it, **kw):
-    """Progress bar on stderr; in a log file (nohup) it refreshes every 10 s so the log stays short."""
+    """Progress bar on stderr; in a log file it refreshes every 10 s so the log stays short."""
     return tqdm(it, mininterval=0.5 if sys.stderr.isatty() else 10, dynamic_ncols=True, leave=False, **kw)
 
+
+# ---------------------------------------------------------------- network
 
 class SCRNetFP32Head(SCRNet):
     """scr.SCRNet with the head outside autocast. Same parameters, so scr.load_scr loads it."""
@@ -78,9 +66,8 @@ class SCRNetFP32Head(SCRNet):
 
 
 class BigHead(nn.Module):
-    """ACE-sized coordinate head (--head big): 1x1 convs, width 512, residual blocks, ~2.2 M parameters
-    instead of scr.py's 0.17 M. In SCR the head is the room's memory; the small one ran out of capacity
-    when viewpoint augmentation made the task harder."""
+    """ACE-sized coordinate head (--head big): 1x1 convs, width 512, residual blocks, ~2.2 M
+    parameters instead of scr.py's 0.17 M. In SCR the head is the room's memory."""
 
     def __init__(self, cin=152, width=512, blocks=4):
         super().__init__()
@@ -96,8 +83,8 @@ class BigHead(nn.Module):
         return self.out(x)
 
 
-def build_net(head="small", pretrained=True, fp32_head=True):
-    net = (SCRNetFP32Head if fp32_head else SCRNet)(pretrained=pretrained)
+def build_net(head="small", pretrained=True):
+    net = SCRNetFP32Head(pretrained=pretrained)
     if head == "big":
         net.head = BigHead()
     return net
@@ -112,23 +99,23 @@ def load_model(path, device):
     return net, ck
 
 
-class AugFrames(Dataset):
-    """Room-scan frames with ACE-style viewpoint augmentation: a random zoom (log-uniform in
-    `scale`) and in-plane rotation (+-`rot` deg) about the image centre, applied to the image and
-    to its per-pixel room-coordinate map alike, so every pixel keeps its own label (the 3D loss
-    needs no intrinsics). Zooming out leaves a black border without labels. At scale 1, angle 0
-    the targets are exactly scr.py's: cell (u, v) gets the room point at full-resolution pixel
-    (16u + 8, 16v + 8). Photometric augmentation as scr.RoomScanFrames.
+# ---------------------------------------------------------------- training data
 
-    Label cleaning (--label-max-depth, --drop-depth-edges): no label beyond max_depth (D435 depth
-    noise grows with distance squared; Kabsch leaves those cells out at test time anyway), and none
-    on depth edges, where a pixel's 3x3 neighbourhood spans more than 3 % of its depth (mixed depths
-    from both sides of an occlusion boundary)."""
+class Frames(Dataset):
+    """Training frames with their room-coordinate targets.
 
-    def __init__(self, ds, root, items, centre, scale, rot, seed=0, max_depth=None, drop_edges=False):
+    The target of cell (u, v) is the room point seen at full-resolution pixel (16u + 8, 16v + 8),
+    as in scr.py. Photometric augmentation as scr.RoomScanFrames. Optional:
+      * viewpoint augmentation (ACE): a random zoom (log-uniform in `scale`) and in-plane rotation
+        (+-`rot` deg) of the image and its room-coordinate map alike; zooming out leaves a border
+        without labels;
+      * label cleaning: no label beyond `max_depth` (depth noise grows with distance squared) and
+        none on depth edges, where a pixel's 3x3 neighbourhood spans more than 3 % of its depth."""
+
+    def __init__(self, ds, root, items, centre, scale=(1.0, 1.0), rot=0.0, max_depth=None, drop_edges=False, seed=0):
         self.ds, self.root, self.items, self.centre = ds, root, items, np.asarray(centre)
-        self.log_scale, self.rot, self.seed = np.log(scale), rot, seed
-        self.max_depth, self.drop_edges = max_depth, drop_edges
+        self.log_scale, self.rot = np.log(scale), rot
+        self.max_depth, self.drop_edges, self.seed = max_depth, drop_edges, seed
 
     def __len__(self):
         return len(self.items)
@@ -141,7 +128,7 @@ class AugFrames(Dataset):
         rgb = np.ascontiguousarray(self.ds.load_frame(name, row, bc)[0].transpose(1, 2, 0))   # (H, W, 3)
         H, W = rgb.shape[:2]
 
-        # room coordinate of every output pixel: full-resolution pixel (f x, f y), as scr.coord_targets
+        # room coordinate of every output pixel: full-resolution pixel (f x, f y)
         d = load_depth_mm(self.ds, self.root, name, row)
         K, f = np.asarray(r["K"], float), r["hw"][1] // W
         v, u = np.mgrid[0:H, 0:W] * f
@@ -159,82 +146,66 @@ class AugFrames(Dataset):
             ok &= ~(near_hole | ((hi - lo) > 0.03 * df))[v, u]
         ok = ok.astype(np.uint8)
 
-        M = cv2.getRotationMatrix2D(((W - 1) / 2, (H - 1) / 2), rng.uniform(-self.rot, self.rot),
-                                    float(np.exp(rng.uniform(*self.log_scale))))
-        rgb = cv2.warpAffine(rgb, M, (W, H), flags=cv2.INTER_LINEAR, borderValue=0)
-        # nearest neighbour for the labels: interpolating across a depth edge invents a surface
-        xyz = cv2.warpAffine(xyz, M, (W, H), flags=cv2.INTER_NEAREST)
-        ok = cv2.warpAffine(ok, M, (W, H), flags=cv2.INTER_NEAREST, borderValue=0) > 0
+        if self.rot > 0 or self.log_scale[0] != self.log_scale[1]:
+            M = cv2.getRotationMatrix2D(((W - 1) / 2, (H - 1) / 2), rng.uniform(-self.rot, self.rot),
+                                        float(np.exp(rng.uniform(*self.log_scale))))
+            rgb = cv2.warpAffine(rgb, M, (W, H), flags=cv2.INTER_LINEAR, borderValue=0)
+            # nearest neighbour for the labels: interpolating across a depth edge invents a surface
+            xyz = cv2.warpAffine(xyz, M, (W, H), flags=cv2.INTER_NEAREST)
+            ok = cv2.warpAffine(ok, M, (W, H), flags=cv2.INTER_NEAREST, borderValue=0)
 
         o = STRIDE // 2
         tgt = ((xyz[o::STRIDE, o::STRIDE] - self.centre) / 1000.0).transpose(2, 0, 1)
         return (torch.from_numpy(rgb.transpose(2, 0, 1).copy()).float(), torch.from_numpy(tgt.copy()).float(),
-                torch.from_numpy(ok[o::STRIDE, o::STRIDE].copy()))
+                torch.from_numpy(ok[o::STRIDE, o::STRIDE] > 0))
 
 
-def coord_loss(pred, tgt, ok, kind, delta):
-    """(loss, median error mm) over the cells with depth; 'huber' is scr.robust_loss."""
-    if kind == "huber":
-        return robust_loss(pred, tgt, ok, delta)
-    err = torch.linalg.norm(pred - tgt, dim=1)[ok]
-    if err.numel() == 0:
-        return pred.sum() * 0, float("nan")
-    return err.mean(), float(err.detach().median()) * 1000
+def label_with_estimates(ds, paths):
+    """Map extension without a tracker: the runs exported in these poses.py JSON files (the
+    system's own trajectory, T_world_cam_pred) are labelled with that estimate instead of the
+    Polaris pose; their rows without an estimate get NaN and are dropped from training. Returns,
+    per run, how far the estimated labels are from Polaris (for the record only)."""
+    err = {}
+    for p in paths:
+        d = json.load(open(p))
+        run = d["run"]
+        if run not in ds.runs:
+            raise SystemExit(f"{p}: {run} is not in --scan-runs")
+        rows = np.array([f["row"] for f in d["frames"]])
+        T = np.array([f["T_world_cam_pred"] for f in d["frames"]])
+        T_gt = ds.runs[run]["T_world_cam"][rows]
+        dt = np.linalg.norm(T[:, :3, 3] - T_gt[:, :3, 3], axis=1)
+        dR = np.einsum("nji,njk->nik", T[:, :3, :3], T_gt[:, :3, :3])
+        dr = np.degrees(np.arccos(np.clip((np.trace(dR, axis1=1, axis2=2) - 1) / 2, -1, 1)))
+        est = np.full_like(ds.runs[run]["T_world_cam"], np.nan)
+        est[rows] = T
+        ds.runs[run]["T_world_cam"] = est
+        err[run] = {"source": d["source"], "frames": len(rows), "camera_err_mm_median": float(np.median(dt)),
+                    "camera_err_mm_p90": float(np.percentile(dt, 90)), "rot_err_deg_median": float(np.median(dr))}
+        print(f"  {run}: labelled with {d['source']} ({len(rows)} frames; vs Polaris {err[run]['camera_err_mm_median']:.1f} mm "
+              f"median, p90 {err[run]['camera_err_mm_p90']:.1f} mm, {err[run]['rot_err_deg_median']:.2f} deg)", flush=True)
+    return err
 
 
-def flatcos(total, warmup, flat):
-    """LR factor: linear warm-up, constant until `flat` of the steps, cosine to 0."""
-    def f(s):
-        if s < warmup:
-            return (s + 1) / warmup
-        if s < flat * total:
-            return 1.0
-        return 0.5 * (1 + math.cos(math.pi * (s - flat * total) / max(total - flat * total, 1)))
-    return f
+# ---------------------------------------------------------------- pose
 
-
-def kabsch(P, Q, w=None):
-    """R, t minimising sum w |R P + t - Q|^2, P and Q (N, 3), weights w (N,) or None."""
-    w = np.ones(len(P)) if w is None else np.asarray(w, float)
-    cp, cq = w @ P / w.sum(), w @ Q / w.sum()
-    U, _, Vt = np.linalg.svd(((P - cp) * w[:, None]).T @ (Q - cq))
+def kabsch(P, Q):
+    """R, t minimising |R P + t - Q|, P and Q (N, 3)."""
+    cp, cq = P.mean(0), Q.mean(0)
+    U, _, Vt = np.linalg.svd((P - cp).T @ (Q - cq))
     D = np.diag([1, 1, np.sign(np.linalg.det(Vt.T @ U.T))])
     R = Vt.T @ D @ U.T
     return R, cq - R @ cp
 
 
-def depth_sigma(z):
-    """D435 depth noise (mm) at depth z (mm): ~1 % at 1 m, ~2 % at 2 m, growing with z squared."""
-    return 2.0 + 1e-5 * z ** 2
-
-
-def refine_joint(R, t, C, P, uv, K, sigma_px=4.0):
-    """Pose refined on the inliers by robust least squares over two residuals per cell: the
-    reprojection of the predicted room point onto the cell centre (pixels are exact; sigma_px) and
-    the 3D residual of the measured depth point (sigma from depth_sigma, so far cells count less).
-    Kabsch alone weights every 3D point equally although depth noise lies mostly along the ray."""
-    from scipy.optimize import least_squares
-    s3 = depth_sigma(C[:, 2])[:, None]
-
-    def res(x):
-        Rx = cv2.Rodrigues(x[:3])[0]
-        Xc = (P - x[3:]) @ Rx                                    # predicted room points in the camera frame
-        px = Xc[:, :2] / Xc[:, 2:3] * [K[0, 0], K[1, 1]] + [K[0, 2], K[1, 2]]
-        return np.concatenate([((px - uv) / sigma_px).ravel(), ((C @ Rx.T + x[3:] - P) / s3).ravel()])
-
-    x = least_squares(res, np.concatenate([cv2.Rodrigues(R)[0].ravel(), t]), loss="huber", max_nfev=50).x
-    return cv2.Rodrigues(x[:3])[0], x[3:]
-
-
 @torch.no_grad()
 def localize_kabsch(net, ck, rgb, depth_mm, K, full_w, device, thr=20.0, max_depth=2000.0, min_inliers=30,
-                    iters=256, rng=None, refine="none"):
+                    iters=256, rng=None):
     """Camera pose T_world_cam from 3D-3D RANSAC: the measured depth at each cell centre,
     back-projected to the camera frame, against the predicted room coordinate of that cell.
-    Hypotheses from 3 cells (Kabsch), inliers within `thr` mm, refit on the inliers. Cells beyond
-    `max_depth` are left out: D435 depth noise grows with distance squared. Final fit on the
-    inliers (`refine`): "none" plain Kabsch; "weighted" Kabsch weighted by 1 / depth_sigma^2;
-    "joint" refine_joint (reprojection + depth residuals). Returns (T or None, number of inliers)."""
+    Hypotheses from 3 cells (Kabsch), inliers within `thr` mm, refit three times on the inliers.
+    Cells beyond `max_depth` are left out: depth noise grows with distance squared.
+    Returns (T or None, number of inliers)."""
     pred = net(torch.from_numpy(rgb).float()[None].to(device))[0].double().cpu().numpy()
     h, w = pred.shape[1:]
     P = pred.reshape(3, -1).T * 1000.0 + np.asarray(ck["centre"])
@@ -244,7 +215,7 @@ def localize_kabsch(net, ck, rgb, depth_mm, K, full_w, device, thr=20.0, max_dep
     z = depth_mm[vi, ui].astype(np.float64)
     m = (z > 100) & (z < max_depth)
     C = np.stack([(uv[:, 0] - K[0, 2]) / K[0, 0] * z, (uv[:, 1] - K[1, 2]) / K[1, 1] * z, z], 1)[m]
-    P, uv = P[m], uv[m]
+    P = P[m]
     if len(P) < max(min_inliers, 3):
         return None, 0
 
@@ -264,10 +235,6 @@ def localize_kabsch(net, ck, rgb, depth_mm, K, full_w, device, thr=20.0, max_dep
         if inl.sum() < max(min_inliers, 3):
             return None, int(inl.sum())
         R, t = kabsch(C[inl], P[inl])
-    if refine == "weighted":
-        R, t = kabsch(C[inl], P[inl], 1.0 / depth_sigma(C[inl, 2]) ** 2)
-    elif refine == "joint":
-        R, t = refine_joint(R, t, C[inl], P[inl], uv[inl], K)
     T = np.eye(4)
     T[:3, :3], T[:3, 3] = R, t
     return T, int((np.linalg.norm(C @ R.T + t - P, axis=1) < thr).sum())
@@ -279,6 +246,19 @@ def pose_err(T, T_gt):
             float(np.degrees(np.arccos(np.clip((np.trace(dR) - 1) / 2, -1, 1)))))
 
 
+# ---------------------------------------------------------------- helpers
+
+def flatcos(total, warmup, flat):
+    """LR factor: linear warm-up, constant until `flat` of the steps, cosine to 0."""
+    def f(s):
+        if s < warmup:
+            return (s + 1) / warmup
+        if s < flat * total:
+            return 1.0
+        return 0.5 * (1 + math.cos(math.pi * (s - flat * total) / max(total - flat * total, 1)))
+    return f
+
+
 def git_rev(path):
     try:
         return subprocess.run(["git", "-C", str(path), "rev-parse", "--short", "HEAD"], capture_output=True,
@@ -288,11 +268,10 @@ def git_rev(path):
 
 
 def resolve_hand_eye(path):
-    """Absolute path; a relative one that does not exist here is taken from rgbd-us (old checkpoints)."""
+    """The hand-eye file a checkpoint names; if that path does not exist on this computer (a
+    checkpoint trained elsewhere), this repo's T_marker_cam.npy."""
     p = Path(path)
-    if not p.is_absolute() and not p.exists():
-        p = RGBD_US / p
-    return str(p.resolve())
+    return str(p.resolve() if p.exists() else REPO / "T_marker_cam.npy")
 
 
 @torch.no_grad()
@@ -331,32 +310,7 @@ def fit_check(net, ck, ds, root, items, device, args):
             "pose_mm": med(t_err), "pose_deg": med(r_err), "solved_pct": 100 * solved / max(len(coord), 1)}
 
 
-def label_with_estimates(ds, paths):
-    """Map extension without a tracker: the runs exported in these poses.py JSON files (the
-    system's own trajectory, T_world_cam_pred) are labelled with that estimate instead of the
-    Polaris pose; their rows without an estimate get NaN and are dropped from training. Returns,
-    per run, how far the estimated labels are from Polaris (for the record only)."""
-    err = {}
-    for p in paths:
-        d = json.load(open(p))
-        run = d["run"]
-        if run not in ds.runs:
-            raise SystemExit(f"{p}: {run} is not in --scan-runs")
-        rows = np.array([f["row"] for f in d["frames"]])
-        T = np.array([f["T_world_cam_pred"] for f in d["frames"]])
-        T_gt = ds.runs[run]["T_world_cam"][rows]
-        dt = np.linalg.norm(T[:, :3, 3] - T_gt[:, :3, 3], axis=1)
-        dR = np.einsum("nji,njk->nik", T[:, :3, :3], T_gt[:, :3, :3])
-        dr = np.degrees(np.arccos(np.clip((np.trace(dR, axis1=1, axis2=2) - 1) / 2, -1, 1)))
-        est = np.full_like(ds.runs[run]["T_world_cam"], np.nan)
-        est[rows] = T
-        ds.runs[run]["T_world_cam"] = est
-        err[run] = {"source": d["source"], "frames": len(rows), "camera_err_mm_median": float(np.median(dt)),
-                    "camera_err_mm_p90": float(np.percentile(dt, 90)), "rot_err_deg_median": float(np.median(dr))}
-        print(f"  {run}: labelled with {d['source']} ({len(rows)} frames; vs Polaris {err[run]['camera_err_mm_median']:.1f} mm "
-              f"median, p90 {err[run]['camera_err_mm_p90']:.1f} mm, {err[run]['rot_err_deg_median']:.2f} deg)", flush=True)
-    return err
-
+# ---------------------------------------------------------------- train
 
 def train(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -365,46 +319,38 @@ def train(args):
     cfg = RPRConfig(T_marker_cam=load_hand_eye(args.hand_eye, "mm"), image_size=tuple(args.image_size))
     ds = RPRDataset(args.root, args.scan_runs, args.scan_runs, cfg)
     label_err = label_with_estimates(ds, args.label_poses)
-    items = [(n, int(r)) for n in args.scan_runs for r in np.concatenate(ds.runs[n]["segments"])[:: args.frame_step]
+    items = [(n, int(r)) for n in args.scan_runs for r in np.concatenate(ds.runs[n]["segments"])
              if np.isfinite(ds.runs[n]["T_world_cam"][r]).all()]
     if args.max_frames:                     # smoke tests only
         items = items[:: max(1, len(items) // args.max_frames)][: args.max_frames]
     centre = np.mean([ds.runs[n]["T_world_cam"][r][:3, 3] for n, r in items], 0)
     check_items = [items[i] for i in np.linspace(0, len(items) - 1, min(args.check_frames, len(items))).astype(int)]
-    print(f"{len(items)} room-scan frames from {', '.join(args.scan_runs)} (every {args.frame_step}); "
-          f"scene centre {np.round(centre).tolist()} mm; fit check on {len(check_items)} of them", flush=True)
+    print(f"{len(items)} training frames from {', '.join(args.scan_runs)}; scene centre {np.round(centre).tolist()} mm; "
+          f"fit check on {len(check_items)} of them", flush=True)
 
-    # Decoding two 1280 x 720 PNGs per sample, not the network, limits the speed: keep the workers
-    # between epochs, prefetch, and copy pinned batches asynchronously.
-    viewpoint_aug = tuple(args.aug_scale) != (1.0, 1.0) or args.aug_rot > 0
-    label_cleaning = args.label_max_depth < cfg.max_depth or args.drop_depth_edges
-    frames = (AugFrames(ds, args.root, items, centre, args.aug_scale, args.aug_rot, seed=args.seed,
-                        max_depth=args.label_max_depth, drop_edges=args.drop_depth_edges)
-              if viewpoint_aug or label_cleaning
-              else RoomScanFrames(ds, args.root, items, centre, aug=True, seed=args.seed))
-    dl = DataLoader(frames, args.batch_size,
-                    shuffle=True, num_workers=args.workers, drop_last=True, pin_memory=device.type == "cuda",
-                    persistent_workers=args.workers > 0, prefetch_factor=4 if args.workers > 0 else None)
-    net = build_net(args.head, pretrained=True, fp32_head=args.fp32_head).to(device)
+    frames = Frames(ds, args.root, items, centre, args.aug_scale, args.aug_rot, args.label_max_depth,
+                    args.drop_depth_edges, args.seed)
+    # decoding two 1280 x 720 PNGs per sample, not the network, limits the speed
+    dl = DataLoader(frames, args.batch_size, shuffle=True, num_workers=args.workers, drop_last=True,
+                    pin_memory=device.type == "cuda", persistent_workers=args.workers > 0,
+                    prefetch_factor=4 if args.workers > 0 else None)
+    net = build_net(args.head).to(device)
     opt = torch.optim.AdamW([{"params": list(net.low.parameters()) + list(net.high.parameters()), "lr": args.lr_encoder},
                              {"params": net.head.parameters(), "lr": args.lr}], weight_decay=1e-4)
     total = args.epochs * len(dl)
-    if args.sched == "onecycle":
-        sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=[args.lr_encoder, args.lr], total_steps=total)
-    else:
-        sched = torch.optim.lr_scheduler.LambdaLR(opt, flatcos(total, max(1, total // 100), args.flat))
-    scaler = torch.amp.GradScaler(enabled=args.amp)
+    sched = torch.optim.lr_scheduler.LambdaLR(opt, flatcos(total, max(1, total // 100), args.flat))
+    amp = device.type == "cuda"
+    scaler = torch.amp.GradScaler(enabled=amp)
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     meta = {"args": vars(args), "centre": centre.tolist(), "image_size": list(args.image_size), "head": args.head}
-    json.dump(meta | {"n_frames": len(items), "steps": total, "rgbd_us": str(RGBD_US), "estimated_labels": label_err,
-                      "git": {"US_SCR": git_rev(Path(__file__).parent), "rgbd-us": git_rev(RGBD_US)}},
+    json.dump(meta | {"n_frames": len(items), "steps": total, "estimated_labels": label_err, "git": git_rev(REPO)},
               open(out / "config.json", "w"), indent=2)
-    print(f"{len(dl)} steps per epoch, {total} in all ({args.sched}, loss {args.loss}, fp32 head {args.fp32_head}, "
-          f"viewpoint augmentation {f'scale {args.aug_scale}, rotation +-{args.aug_rot} deg' if viewpoint_aug else 'off'}, "
-          f"head {args.head} ({sum(p.numel() for p in net.head.parameters()) / 1e6:.2f} M), labels < {args.label_max_depth:g} mm"
-          f"{', no depth edges' if args.drop_depth_edges else ''})",
+    print(f"{len(dl)} steps per epoch, {total} in all; head {args.head} "
+          f"({sum(p.numel() for p in net.head.parameters()) / 1e6:.2f} M); labels < {args.label_max_depth:g} mm"
+          f"{', no depth edges' if args.drop_depth_edges else ''}; viewpoint augmentation "
+          f"{f'zoom {args.aug_scale}, rotation +-{args.aug_rot} deg' if args.aug_rot or args.aug_scale != [1.0, 1.0] else 'off'}",
           flush=True)
 
     history = []
@@ -414,18 +360,21 @@ def train(args):
         pbar = bar(dl, desc=f"epoch {ep + 1}/{args.epochs}")
         for rgb, tgt, ok in pbar:
             rgb, tgt, ok = (x.to(device, non_blocking=True) for x in (rgb, tgt, ok))
-            with torch.autocast(device.type, enabled=args.amp):
+            with torch.autocast(device.type, enabled=amp):
                 pred = net(rgb)
-            loss, med = coord_loss(pred.float(), tgt, ok, args.loss, args.huber_delta)
+            err = torch.linalg.norm(pred.float() - tgt, dim=1)[ok]               # 3D distance, metres
+            if err.numel() == 0:
+                continue
+            loss = err.mean()
             opt.zero_grad(set_to_none=True)
             scaler.scale(loss).backward()
             scaler.step(opt)
             scaler.update()
             sched.step()
             losses.append(loss.item())
-            meds.append(med)
-            pbar.set_postfix(loss=f"{losses[-1]:.4f}", err=f"{med:.0f} mm", refresh=False)
-        h = {"epoch": ep + 1, "loss": float(np.mean(losses)), "coord_err_mm_median": float(np.nanmedian(meds)),
+            meds.append(float(err.detach().median()) * 1000)
+            pbar.set_postfix(loss=f"{losses[-1]:.4f}", err=f"{meds[-1]:.0f} mm", refresh=False)
+        h = {"epoch": ep + 1, "loss": float(np.mean(losses)), "coord_err_mm_median": float(np.median(meds)),
              "lr_head": opt.param_groups[1]["lr"], "epoch_s": round(time.time() - t0)}
         line = (f"epoch {ep + 1}/{args.epochs}: loss {h['loss']:.4f}, train-mode coordinate error "
                 f"{h['coord_err_mm_median']:.1f} mm, lr {h['lr_head']:.1e}, {h['epoch_s']} s")
@@ -444,12 +393,14 @@ def train(args):
 
     if args.eval_root:
         evaluate(argparse.Namespace(ckpt=str(out / "best.pt"), test_root=args.eval_root, test_runs=args.eval_runs,
-                                    every=30, px=args.px, min_inliers=args.min_inliers, seed=args.seed, out=None,
-                                    solver="pnp", kabsch_thr=20.0, kabsch_max_depth=2000.0, kabsch_refine="none"))
+                                    every=30, solver="kabsch", px=args.px, min_inliers=args.min_inliers,
+                                    kabsch_thr=20.0, kabsch_max_depth=2000.0, seed=args.seed, out=None))
 
+
+# ---------------------------------------------------------------- evaluate
 
 def evaluate(args):
-    """scr.py eval with a fixed RANSAC seed per frame and both aggregations."""
+    """One frame every --every usable rows of the test sweeps; pose by Kabsch or PnP; error against Polaris."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     net, ck = load_model(args.ckpt, device)
     cfg = RPRConfig(T_marker_cam=load_hand_eye(resolve_hand_eye(ck["args"]["hand_eye"]), "mm"),
@@ -467,7 +418,7 @@ def evaluate(args):
                 t0 = time.perf_counter()
                 T, n_inl = localize_kabsch(net, ck, rgb, depth, K, r["hw"][1], device, args.kabsch_thr,
                                            args.kabsch_max_depth, args.min_inliers,
-                                           rng=np.random.default_rng(args.seed + int(row)), refine=args.kabsch_refine)
+                                           rng=np.random.default_rng(args.seed + int(row)))
             else:
                 cv2.setRNGSeed(args.seed + int(row))
                 t0 = time.perf_counter()
@@ -487,10 +438,8 @@ def evaluate(args):
     allp["err_mm_mean_of_sweep_medians"] = float(np.mean(sw_med)) if sw_med else None
 
     tag = (Path(args.test_root).name + ("_" + "+".join(args.test_runs) if args.test_runs else "")
-           + ("_kabsch" if args.solver == "kabsch" else "")
-           + (f"_{args.kabsch_refine}" if args.solver == "kabsch" and args.kabsch_refine != "none" else ""))
-    solver = (f"3D-3D RANSAC on the measured depth ({args.kabsch_thr:g} mm, cells < {args.kabsch_max_depth:g} mm, "
-              f"refine {args.kabsch_refine}"
+           + ("_kabsch" if args.solver == "kabsch" else ""))
+    solver = (f"Kabsch RANSAC on the measured depth ({args.kabsch_thr:g} mm, cells < {args.kabsch_max_depth:g} mm"
               if args.solver == "kabsch" else f"PnP-RANSAC ({args.px:g} px")
     out = Path(args.out or Path(args.ckpt).parent / f"eval_{tag}")
     out.mkdir(parents=True, exist_ok=True)
@@ -527,54 +476,46 @@ def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     t = sub.add_parser("train")
-    t.add_argument("--root", required=True)
-    t.add_argument("--scan-runs", nargs="+", required=True)
+    t.add_argument("--root", required=True, help="collection folder, e.g. $DATA/train_3XX")
+    t.add_argument("--scan-runs", nargs="+", required=True, help="room scans (and extra sweeps) to train on")
     t.add_argument("--out", required=True)
-    t.add_argument("--hand-eye", default=str(RGBD_US / "T_marker_cam.npy"))
-    t.add_argument("--image-size", type=int, nargs=2, default=[360, 640])
-    t.add_argument("--frame-step", type=int, default=1, help="use every n-th room-scan frame (scr.py: 2)")
-    t.add_argument("--epochs", type=int, default=30, help="scr.py: 15 at frame step 2, i.e. 1/4 of the steps")
-    t.add_argument("--batch-size", type=int, default=8)
-    t.add_argument("--lr", type=float, default=1e-3, help="head")
-    t.add_argument("--lr-encoder", type=float, default=1e-4)
-    t.add_argument("--sched", choices=["flatcos", "onecycle"], default="flatcos", help="scr.py: onecycle")
-    t.add_argument("--flat", type=float, default=0.6, help="flatcos: share of the steps at full learning rate")
-    t.add_argument("--loss", choices=["dist", "huber"], default="dist", help="scr.py: huber")
-    t.add_argument("--huber-delta", type=float, default=0.05, help="m (scr.py: 0.05)")
-    t.add_argument("--fp32-head", action=argparse.BooleanOptionalAction, default=True, help="scr.py: --no-fp32-head")
-    t.add_argument("--amp", action=argparse.BooleanOptionalAction, default=True)
-    t.add_argument("--workers", type=int, default=8)
-    t.add_argument("--seed", type=int, default=0)
-    t.add_argument("--check-every", type=int, default=3, help="epochs between fit checks")
-    t.add_argument("--check-frames", type=int, default=120)
-    t.add_argument("--max-frames", type=int, default=0, help="smoke tests only: cap the training frames")
-    t.add_argument("--aug-scale", type=float, nargs=2, default=[1.0, 1.0],
-                   help="viewpoint augmentation: zoom range, log-uniform (ACE: 0.67 1.5); 1 1 = off")
-    t.add_argument("--aug-rot", type=float, default=0.0, help="viewpoint augmentation: in-plane rotation +- deg (ACE: 15)")
-    t.add_argument("--head", choices=["small", "big"], default="small", help="small: scr.py's 0.17 M head; big: BigHead, ~2.2 M")
-    t.add_argument("--label-max-depth", type=float, default=3000.0, help="no training label beyond this depth (mm)")
-    t.add_argument("--drop-depth-edges", action="store_true", help="no training label on depth edges")
     t.add_argument("--label-poses", nargs="+", default=[],
                    help="poses.py JSON exports: label these --scan-runs with the system's estimated poses "
                         "(T_world_cam_pred) instead of Polaris (map extension without a tracker)")
-    t.add_argument("--px", type=float, default=10.0)
+    t.add_argument("--head", choices=["small", "big"], default="small", help="small: scr.py's 0.17 M head; big: ~2.2 M")
+    t.add_argument("--label-max-depth", type=float, default=3000.0, help="no training label beyond this depth (mm)")
+    t.add_argument("--drop-depth-edges", action="store_true", help="no training label on depth edges")
+    t.add_argument("--aug-scale", type=float, nargs=2, default=[1.0, 1.0],
+                   help="viewpoint augmentation: zoom range, log-uniform (ACE: 0.67 1.5); 1 1 = off")
+    t.add_argument("--aug-rot", type=float, default=0.0, help="viewpoint augmentation: in-plane rotation +- deg (ACE: 15)")
+    t.add_argument("--epochs", type=int, default=120)
+    t.add_argument("--flat", type=float, default=0.6, help="share of the steps at full learning rate")
+    t.add_argument("--batch-size", type=int, default=8)
+    t.add_argument("--lr", type=float, default=1e-3, help="head")
+    t.add_argument("--lr-encoder", type=float, default=1e-4)
+    t.add_argument("--image-size", type=int, nargs=2, default=[360, 640])
+    t.add_argument("--hand-eye", default=str(REPO / "T_marker_cam.npy"))
+    t.add_argument("--workers", type=int, default=12)
+    t.add_argument("--seed", type=int, default=0)
+    t.add_argument("--check-every", type=int, default=6, help="epochs between fit checks")
+    t.add_argument("--check-frames", type=int, default=120)
+    t.add_argument("--max-frames", type=int, default=0, help="smoke tests only: cap the training frames")
+    t.add_argument("--px", type=float, default=10.0, help="fit check: PnP threshold (px)")
     t.add_argument("--min-inliers", type=int, default=30)
-    t.add_argument("--eval-root", default=None, help="evaluate on these sweeps after training")
+    t.add_argument("--eval-root", default=None, help="evaluate (Kabsch) on these sweeps after training")
     t.add_argument("--eval-runs", nargs="+", default=None)
     e = sub.add_parser("eval")
     e.add_argument("--ckpt", required=True)
     e.add_argument("--test-root", required=True)
-    e.add_argument("--test-runs", nargs="+", default=None)
-    e.add_argument("--every", type=int, default=30, help="usable rows between evaluated frames (30 = 1 s)")
-    e.add_argument("--px", type=float, default=10.0, help="RANSAC reprojection error (px, full resolution)")
-    e.add_argument("--min-inliers", type=int, default=30)
-    e.add_argument("--seed", type=int, default=0)
-    e.add_argument("--solver", choices=["pnp", "kabsch"], default="pnp",
-                   help="pnp: PnP-RANSAC on the predicted coordinates (protocol); kabsch: 3D-3D RANSAC with the measured depth")
+    e.add_argument("--test-runs", nargs="+", default=None, help="default: every run-* in --test-root")
+    e.add_argument("--solver", choices=["kabsch", "pnp"], default="kabsch",
+                   help="kabsch: 3D-3D RANSAC with the measured depth; pnp: PnP-RANSAC on the cell centres (scr.py)")
     e.add_argument("--kabsch-thr", type=float, default=20.0, help="kabsch: inlier threshold (mm)")
     e.add_argument("--kabsch-max-depth", type=float, default=2000.0, help="kabsch: leave out cells farther than this (mm)")
-    e.add_argument("--kabsch-refine", choices=["none", "weighted", "joint"], default="none",
-                   help="kabsch: final fit on the inliers: plain, weighted by depth noise, or reprojection + depth")
+    e.add_argument("--px", type=float, default=10.0, help="pnp: reprojection threshold (px, full resolution)")
+    e.add_argument("--min-inliers", type=int, default=30)
+    e.add_argument("--every", type=int, default=30, help="usable rows between evaluated frames (30 = 1 s)")
+    e.add_argument("--seed", type=int, default=0)
     e.add_argument("--out", default=None)
     args = ap.parse_args()
     {"train": train, "eval": evaluate}[args.cmd](args)
