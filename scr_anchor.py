@@ -331,13 +331,42 @@ def fit_check(net, ck, ds, root, items, device, args):
             "pose_mm": med(t_err), "pose_deg": med(r_err), "solved_pct": 100 * solved / max(len(coord), 1)}
 
 
+def label_with_estimates(ds, paths):
+    """Map extension without a tracker: the runs exported in these poses.py JSON files (the
+    system's own trajectory, T_world_cam_pred) are labelled with that estimate instead of the
+    Polaris pose; their rows without an estimate get NaN and are dropped from training. Returns,
+    per run, how far the estimated labels are from Polaris (for the record only)."""
+    err = {}
+    for p in paths:
+        d = json.load(open(p))
+        run = d["run"]
+        if run not in ds.runs:
+            raise SystemExit(f"{p}: {run} is not in --scan-runs")
+        rows = np.array([f["row"] for f in d["frames"]])
+        T = np.array([f["T_world_cam_pred"] for f in d["frames"]])
+        T_gt = ds.runs[run]["T_world_cam"][rows]
+        dt = np.linalg.norm(T[:, :3, 3] - T_gt[:, :3, 3], axis=1)
+        dR = np.einsum("nji,njk->nik", T[:, :3, :3], T_gt[:, :3, :3])
+        dr = np.degrees(np.arccos(np.clip((np.trace(dR, axis1=1, axis2=2) - 1) / 2, -1, 1)))
+        est = np.full_like(ds.runs[run]["T_world_cam"], np.nan)
+        est[rows] = T
+        ds.runs[run]["T_world_cam"] = est
+        err[run] = {"source": d["source"], "frames": len(rows), "camera_err_mm_median": float(np.median(dt)),
+                    "camera_err_mm_p90": float(np.percentile(dt, 90)), "rot_err_deg_median": float(np.median(dr))}
+        print(f"  {run}: labelled with {d['source']} ({len(rows)} frames; vs Polaris {err[run]['camera_err_mm_median']:.1f} mm "
+              f"median, p90 {err[run]['camera_err_mm_p90']:.1f} mm, {err[run]['rot_err_deg_median']:.2f} deg)", flush=True)
+    return err
+
+
 def train(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.manual_seed(args.seed)
     args.hand_eye = resolve_hand_eye(args.hand_eye)
     cfg = RPRConfig(T_marker_cam=load_hand_eye(args.hand_eye, "mm"), image_size=tuple(args.image_size))
     ds = RPRDataset(args.root, args.scan_runs, args.scan_runs, cfg)
-    items = [(n, int(r)) for n in args.scan_runs for r in np.concatenate(ds.runs[n]["segments"])[:: args.frame_step]]
+    label_err = label_with_estimates(ds, args.label_poses)
+    items = [(n, int(r)) for n in args.scan_runs for r in np.concatenate(ds.runs[n]["segments"])[:: args.frame_step]
+             if np.isfinite(ds.runs[n]["T_world_cam"][r]).all()]
     if args.max_frames:                     # smoke tests only
         items = items[:: max(1, len(items) // args.max_frames)][: args.max_frames]
     centre = np.mean([ds.runs[n]["T_world_cam"][r][:3, 3] for n, r in items], 0)
@@ -369,7 +398,7 @@ def train(args):
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     meta = {"args": vars(args), "centre": centre.tolist(), "image_size": list(args.image_size), "head": args.head}
-    json.dump(meta | {"n_frames": len(items), "steps": total, "rgbd_us": str(RGBD_US),
+    json.dump(meta | {"n_frames": len(items), "steps": total, "rgbd_us": str(RGBD_US), "estimated_labels": label_err,
                       "git": {"US_SCR": git_rev(Path(__file__).parent), "rgbd-us": git_rev(RGBD_US)}},
               open(out / "config.json", "w"), indent=2)
     print(f"{len(dl)} steps per epoch, {total} in all ({args.sched}, loss {args.loss}, fp32 head {args.fp32_head}, "
@@ -525,6 +554,9 @@ def main():
     t.add_argument("--head", choices=["small", "big"], default="small", help="small: scr.py's 0.17 M head; big: BigHead, ~2.2 M")
     t.add_argument("--label-max-depth", type=float, default=3000.0, help="no training label beyond this depth (mm)")
     t.add_argument("--drop-depth-edges", action="store_true", help="no training label on depth edges")
+    t.add_argument("--label-poses", nargs="+", default=[],
+                   help="poses.py JSON exports: label these --scan-runs with the system's estimated poses "
+                        "(T_world_cam_pred) instead of Polaris (map extension without a tracker)")
     t.add_argument("--px", type=float, default=10.0)
     t.add_argument("--min-inliers", type=int, default=30)
     t.add_argument("--eval-root", default=None, help="evaluate on these sweeps after training")

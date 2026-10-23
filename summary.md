@@ -265,6 +265,35 @@ With views close to the test viewpoints in the map, 4XX A behaves like 3XX: 1.9 
 
 Without odometry the median accuracy is the same (2XX even better, where the classical odometry drifts 64 mm on run-205), but the trajectory is 1.4–1.7× jumpier from step to step. The pose graph with zero odometry has no motion model and smooths wrongly (worse median). Classical odometry is needed only for smoothness; a constant-velocity motion model or a learned matcher could replace it.
 
+### 3.11 Extended maps: coverage curve, second block, fair comparison, full system (23 Oct)
+
+Maps extended with earlier sweeps of the same block (labelled with Polaris poses, as the room scans); tested on the later sweeps only. All numbers on the same test sweeps.
+
+**Coverage curve, 4XX A** (test run-405…408; SCR anchors, Kabsch; mean of per-sweep medians / p90, rotation):
+
+| map | frames | anchor error | rotation |
+|---|---|---|---|
+| room scans only (v1) | 3,893 | 5.3 | 0.47° |
+| + 1 sweep (run-401) | 5,679 | 2.4 / 6.6 | 0.27° |
+| + 2 sweeps (run-401, 402) | 6,851 | **1.9 / 5.4** | 0.23° |
+| + 4 sweeps (run-401…404) | 9,813 | 1.9 / 5.5 | 0.22° |
+| + 4 sweeps, big head + clean labels | 9,813 | 1.8 / 5.2 | 0.22° |
+
+One extra sweep gives most of the gain; two saturate it. Big head + clean labels add nothing measurable here.
+
+**Fair comparison and full system** (classical anchors given the same extra keyframes; median error at the US image with the pose graph, without it in brackets):
+
+| block, test sweeps | map | SCR anchors | classical anchors | **SCR system** | classical system |
+|---|---|---|---|---|---|
+| A, run-405…408 | room scans only | 5.6, 0.47° | 5.9, 0.48° | 5.0 (5.4) | **4.5** (5.6) |
+| A, run-405…408 | + run-401…404 | **2.0 / 4.6, 0.20°** | 3.7 / 7.0, 0.36° | **2.3 (2.1)** | 3.2 (3.5) |
+| D, run-421, 423, 424 | C's room scans only | 8.6, 0.76° | 7.4, 0.46° | 10.2 | **7.2** |
+| D, run-421, 423, 424 | + run-418…420 | **3.3 / 7.7, 0.27°** | 4.7 / 14.6, 0.35° | **4.5 (3.7)** | 5.8 (5.0) |
+
+Both methods gain from the extra keyframes, SCR far more: at the US image SCR goes 5.0 → 2.3 mm (A) and 10.2 → 4.5 mm (D), classical 4.5 → 3.2 and 7.2 → 5.8 mm. With extended maps SCR is the better system on both blocks, including the second subject; with room scans only, classical is better. SCR's rotation drops below classical's (0.20–0.27 vs 0.35–0.36°). The pose graph (anchor σ 11 mm / 1°, set for weaker anchors) now costs SCR accuracy (D: 4.5 vs 3.7 mm without it).
+
+Caveats: the extra sweeps are labelled with Polaris poses (in use: the system's own estimated poses), they come from the same subject and session as the test sweeps, and two blocks were tested.
+
 ## 4. Why SCR beats the RPR anchor network
 
 | | RPR anchor network | SCR |
