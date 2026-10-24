@@ -209,4 +209,33 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
 
 
 
- 
+ Next runs (training PC, from your US_SCR clone)
+Step 2: test splits, SCR (v2, one frame, recovery) and classical (recovery). About 10–20 min per split:
+
+
+cd <your US_SCR clone> && git pull
+export DATA=/data2/u0137815/rgbd-us/data ODO=/data2/u0137815/rgbd-us/runs
+for b in 3XX 4XXA 4XXB 4XXC 4XXD 4XXE; do
+  case $b in
+    3XX)  root=$DATA/train_3XX; scans="room-301 room-302"; ck=v2-3XX;  odo=$ODO/rpr-rgb-gap8-12XX-gru8;  src=classical-vo-train_3XX ;;
+    4XXA) root=$DATA/test_4XXA; scans="room-401 room-402"; ck=v2-4XXA; odo=$ODO/rpr-rgb-gap8-123XX-gru8; src=classical-vo-test_4XXA ;;
+    4XXB) root=$DATA/test_4XXB; scans="room-403 room-404"; ck=v2-4XXB; odo=$ODO/rpr-rgb-gap8-123XX-gru8; src=classical-vo-test_4XXB ;;
+    4XXC) root=$DATA/test_4XXC; scans="room-405 room-406"; ck=v2-4XXC; odo=$ODO/rpr-rgb-gap8-123XX-gru8; src=classical-vo-test_4XXC ;;
+    4XXD) root=$DATA/test_4XXD; scans="room-405 room-406"; ck=v2-4XXC; odo=$ODO/rpr-rgb-gap8-123XX-gru8; src=classical-vo-test_4XXD ;;
+    4XXE) root=$DATA/test_4XXE; scans="room-405 room-406"; ck=v2-4XXC; odo=$ODO/rpr-rgb-gap8-123XX-gru8; src=classical-vo-test_4XXE ;;
+  esac
+  python tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt runs/$ck/best.pt \
+    --root $root --scan-runs $scans --test-root $root --odometry-source $src --odometry $odo \
+    --pairs $ODO/anchor-pairs/pairs_$b.json --pgo --start anchor --gate-recover 3 --out runs/sys-v2r-$b
+  python anchoring.py evaluate --anchor classical \
+    --root $root --scan-runs $scans --test-root $root --odometry-source $src --odometry $odo \
+    --pairs $ODO/anchor-pairs/pairs_$b.json --pgo --start anchor --gate-recover 3 --out runs/sys-classical-r-$b
+done
+The strict 3XX SCR run, still open, a few minutes:
+
+
+python tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt runs/v1-3XX-room301/best.pt \
+  --root $DATA/train_3XX --scan-runs room-301 --test-root $DATA/train_3XX --test-runs run-315 run-316 run-317 \
+  --odometry-source classical-vo-train_3XX --odometry $ODO/rpr-rgb-gap8-12XX-gru8 --pairs $ODO/anchor-pairs/pairs_3XX.json \
+  --pgo --start anchor --gate-recover 3 --out runs/sys-kabsch-3XX-room301
+On this machine, commit the summary update:

@@ -376,6 +376,20 @@ Starting from an anchor instead of the true pose changes nothing (3XX 2.6, A 5.5
 
 v2 improves every split, most in p90 (D 18.9 → 14.5, E 13.9 → 9.7 mm) and rotation (−0.04 to −0.15°), confirming the 2XX decision. The gain is too small to close the 4XX gap: classical anchors stay better on B, D, E and in rotation everywhere. Full-system runs with v2 are still to be run.
 
+### 3.15 Multi-frame anchors and gate recovery (2XX validation, 24 Oct)
+
+Full system, v2 model (big head + clean labels), every segment started from an anchor, gate recovery after 3 agreeing rejected anchors; `--scr-frames M` pools the correspondences of M chain frames (0.27 s apart) linked by the odometry. Median error at the US image (offline pose graph), step-to-step error in brackets; anchors median / p90, rotation.
+
+| anchors from | anchors | US image |
+|---|---|---|
+| 1 frame (M = 1) | 3.6 / 6.3, 0.29° | **4.2** (2.22) |
+| 3 frames | 3.6 / 7.0, 0.29° | 4.4 (2.22) |
+| 5 frames | 3.8 / 7.4, 0.28° | 4.5 (2.24) |
+| v1, 1 frame, no recovery (reference) | 3.5 / 8.4, 0.33° | 4.3 (2.22) |
+| classical anchors (reference) | 5.2 / 11.9, 0.33° | 4.2 (2.27) |
+
+Multi-frame anchors are not adopted (rule fixed in advance: > 0.2 mm better than one frame; they are 0.2–0.3 mm worse). Pooling triples the inliers but the odometry linking the frames adds its own error, and the rotation barely changes (0.29 → 0.28°): the rotation error of single-frame anchors is not mainly noise that more correspondences average out. Gate recovery never triggered on 2XX (no wrongly accepted anchor), so it changes nothing there; it is kept for the 4XX failure (run-404).
+
 ## 4. Why SCR beats the RPR anchor network
 
 | | RPR anchor network | SCR |
