@@ -201,54 +201,18 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
 
 
  
+  
+SCR anchors by Kabsch (20 mm, cells < 2000 mm), gate >= 400 inliers
+usage: anchoring.py [-h] {coverage,simulate,pairs,train,evaluate} ...
+anchoring.py: error: unrecognized arguments: --gate-recover 3 --scr-frames 1
+SCR anchors by Kabsch (20 mm, cells < 2000 mm), gate >= 400 inliers
+usage: anchoring.py [-h] {coverage,simulate,pairs,train,evaluate} ...
+anchoring.py: error: unrecognized arguments: --gate-recover 3 --scr-frames 3
+SCR anchors by Kabsch (20 mm, cells < 2000 mm), gate >= 400 inliers
+usage: anchoring.py [-h] {coverage,simulate,pairs,train,evaluate} ...
+anchoring.py: error: unrecognized arguments: --gate-recover 3 --scr-frames 5
+
  
-
-
-
-
-
-
-
- git commit -m "Multi-frame Kabsch anchors, gate recovery support; root-level rgbd-us copies" && git push
-cd /home/ruixuan/Desktop/rgbd-us
-git add anchoring.py && git commit -m "anchoring.py: --gate-recover, --scr-frames (opt-in)" && git push
-Runs (training PC, after git pull in both repos)
-
-cd <your US_SCR clone> && git pull && cd /data2/u0137815/rgbd-us && git pull
-export RGBD_US=/data2/u0137815/rgbd-us U=<your US_SCR clone>
-cd $RGBD_US
-Step 1: 2XX validation decides the number of frames (model v2 = bigclean-2XX, with recovery). Three runs, a few minutes each:
-
-
-for M in 1 3 5; do
-python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/bigclean-2XX/best.pt \
-  --root data/train_2XX --scan-runs room-201 room-202 --test-root data/train_2XX --test-runs run-205 run-211 \
-  --odometry-source classical-vo-train_2XX --odometry runs/rpr-rgb-gap8-12XX-gru8 --pairs runs/anchor-pairs/pairs_2XX.json \
-  --pgo --start anchor --gate-recover 3 --scr-frames $M --out $U/runs/sys-v2r-2XX
-done
-Rule, fixed now: use the M with the lowest error at the US image on 2XX, if it beats M = 1 by more than 0.2 mm (system seed spread about 0.1 mm); otherwise M = 1. References: v1 4.3 mm, classical 4.2 mm.
-
-Step 2: test splits, SCR (v2) and classical, both with recovery. Set M from step 1; about 10–20 min per split for both:
-
-
-M=3   # <- the value chosen in step 1
-for b in 3XX 4XXA 4XXB 4XXC 4XXD 4XXE; do
-  case $b in
-    3XX)  root=data/train_3XX; scans="room-301 room-302"; ck=v2-3XX;  odo=runs/rpr-rgb-gap8-12XX-gru8;  src=classical-vo-train_3XX ;;
-    4XXA) root=data/test_4XXA; scans="room-401 room-402"; ck=v2-4XXA; odo=runs/rpr-rgb-gap8-123XX-gru8; src=classical-vo-test_4XXA ;;
-    4XXB) root=data/test_4XXB; scans="room-403 room-404"; ck=v2-4XXB; odo=runs/rpr-rgb-gap8-123XX-gru8; src=classical-vo-test_4XXB ;;
-    4XXC) root=data/test_4XXC; scans="room-405 room-406"; ck=v2-4XXC; odo=runs/rpr-rgb-gap8-123XX-gru8; src=classical-vo-test_4XXC ;;
-    4XXD) root=data/test_4XXD; scans="room-405 room-406"; ck=v2-4XXC; odo=runs/rpr-rgb-gap8-123XX-gru8; src=classical-vo-test_4XXD ;;
-    4XXE) root=data/test_4XXE; scans="room-405 room-406"; ck=v2-4XXC; odo=runs/rpr-rgb-gap8-123XX-gru8; src=classical-vo-test_4XXE ;;
-  esac
-  python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/$ck/best.pt \
-    --root $root --scan-runs $scans --test-root $root --odometry-source $src --odometry $odo \
-    --pairs runs/anchor-pairs/pairs_$b.json --pgo --start anchor --gate-recover 3 --scr-frames $M --out $U/runs/sys-v2r-$b
-  python anchoring.py evaluate --anchor classical \
-    --root $root --scan-runs $scans --test-root $root --odometry-source $src --odometry $odo \
-    --pairs runs/anchor-pairs/pairs_$b.json --pgo --start anchor --gate-recover 3 --out $U/runs/sys-classical-r-$b
-done
-Still open from before: the strict 3XX SCR system run (sys-kabsch-3XX-room301). Its command is in my previous message.
 
 
 
