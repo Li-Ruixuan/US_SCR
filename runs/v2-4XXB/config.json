@@ -1,0 +1,53 @@
+{
+  "args": {
+    "cmd": "train",
+    "root": "/data2/u0137815/rgbd-us/data/test_4XXB",
+    "scan_runs": [
+      "room-403",
+      "room-404"
+    ],
+    "out": "runs/v2-4XXB",
+    "label_poses": [],
+    "head": "big",
+    "label_max_depth": 2000.0,
+    "drop_depth_edges": true,
+    "aug_scale": [
+      1.0,
+      1.0
+    ],
+    "aug_rot": 0.0,
+    "epochs": 120,
+    "flat": 0.6,
+    "batch_size": 8,
+    "lr": 0.001,
+    "lr_encoder": 0.0001,
+    "image_size": [
+      360,
+      640
+    ],
+    "hand_eye": "/data2/u0137815/US_SCR/T_marker_cam.npy",
+    "workers": 12,
+    "seed": 0,
+    "check_every": 6,
+    "check_frames": 120,
+    "max_frames": 0,
+    "px": 10.0,
+    "min_inliers": 30,
+    "eval_root": "/data2/u0137815/rgbd-us/data/test_4XXB",
+    "eval_runs": null
+  },
+  "centre": [
+    116.31169945288903,
+    -86.18122357490014,
+    -916.8139744907663
+  ],
+  "image_size": [
+    360,
+    640
+  ],
+  "head": "big",
+  "n_frames": 2381,
+  "steps": 35640,
+  "estimated_labels": {},
+  "git": "d993558"
+}
