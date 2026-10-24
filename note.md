@@ -204,20 +204,9 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
   
  
 
+ 
 
 
 
 
-
-The runs that failed, corrected (training PC, from your US_SCR clone)
-
-cd <your US_SCR clone> && git pull
-export DATA=/data2/u0137815/rgbd-us/data ODO=/data2/u0137815/rgbd-us/runs
-
-# step 1: 2XX validation chooses the number of frames per anchor (v2 model, with gate recovery)
-for M in 1 3 5; do
-python tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt runs/bigclean-2XX/best.pt \
-  --root $DATA/train_2XX --scan-runs room-201 room-202 --test-root $DATA/train_2XX --test-runs run-205 run-211 \
-  --odometry-source classical-vo-train_2XX --odometry $ODO/rpr-rgb-gap8-12XX-gru8 --pairs $ODO/anchor-pairs/pairs_2XX.json \
-  --pgo --start anchor --gate-recover 3 --scr-frames $M --out runs/sys-v2r-2XX
-done
+ 
