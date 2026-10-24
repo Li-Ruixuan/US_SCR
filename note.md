@@ -201,10 +201,21 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
 
 
 
-
  
 
- 
+export RGBD_US=/data2/u0137815/rgbd-us U=<your US_SCR clone>
+cd $RGBD_US
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-3XX-room301/best.pt \
+  --root data/train_3XX --scan-runs room-301 --test-root data/train_3XX --test-runs run-315 run-316 run-317 \
+  --odometry-source classical-vo-train_3XX --odometry runs/rpr-rgb-gap8-12XX-gru8 --pairs runs/anchor-pairs/pairs_3XX.json \
+  --pgo --start anchor --out $U/runs/sys-kabsch-3XX-room301
+v2 in the full system, only if you want to report v2. These are the sys-final commands with v2-... checkpoints:
 
- 
- That means v2-3XX, v2-4XXA, v2-4XXB, and v2-4XXC for C, D and E. Skip 2XX, which already has the result.
+
+for b in A B C; do
+python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v2-4XX$b/best.pt \
+  --root data/test_4XX$b --scan-runs $( [ $b = A ] && echo room-401 room-402 || ([ $b = B ] && echo room-403 room-404 || echo room-405 room-406) ) \
+  --test-root data/test_4XX$b --odometry-source classical-vo-test_4XX$b --odometry runs/rpr-rgb-gap8-123XX-gru8 \
+  --pairs runs/anchor-pairs/pairs_4XX$b.json --pgo --start anchor --out $U/runs/sys-v2-4XX$b
+done
+To commit the updated notes, on this machine:

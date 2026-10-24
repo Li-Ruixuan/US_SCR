@@ -85,3 +85,15 @@ Classical + classical references are in rgbd-us (`runs/anchoring-classical-*`, `
 | `volume3d-3XX`, `volume3d-4XX` | 3D pages: true poses vs SCR + classical odometry vs classical + classical vs odometry only; mean pixel error 3XX 2.8 vs 3.3 mm | final (figure) |
 | `coverage_error.md` | anchor error vs distance to the nearest room-scan pose (PnP, v1 models): covered 4.1, uncovered 13.4 mm | final |
 | `us-2XX`, `us-3XX`, `us-4XXA`, `us-4XXD` | US diagnostics: in-plane registration (U1, no better than zero motion) and speckle decorrelation vs out-of-plane distance (U2, transfers across sessions) | study |
+
+## 6. Added 24 Oct (summary 3.14)
+
+| run | content | key result | status |
+|---|---|---|---|
+| `v1-3XX-room301` | 3XX mapped on room-301 only (recorded before run-315…317), tested on run-315…317 | Kabsch 3.1 / 6.1, 0.26° (both scans: 1.8) | final (strict-protocol check) |
+| `sys-classical-3XX-room301` | classical anchors, same map and sweeps, start from anchors | anchors 2.7 / 6.1, 0.32°; US image 3.0 | final (strict-protocol check) |
+| `sys-final-2XX`, `sys-final-3XX`, `sys-final-4XXA` … `4XXE` | full system, SCR anchors, every segment started from an anchor (`--start anchor`) | US image 4.3, 2.6, 5.5, 6.0, 6.7, 10.3, 6.6 | final (reported system numbers) |
+| `sys-final-3XX-seed1`, `-seed2` | same, models of seeds 1 and 2 | 2.7, 2.7 | final (seed spread) |
+| `sys-classical-final-2XX` | classical anchors, 2XX validation, start from anchors (the 3XX and 4XX ones are in rgbd-us `runs/anchoring-classical-*`, files with `startanchor`) | 4.2 | final (reference) |
+| `v2-3XX`, `v2-4XXA`, `v2-4XXB`, `v2-4XXC` | big head + clean labels on the test splits (`v2-4XXC` also on D, E) | Kabsch 3XX 1.8, A 5.4, B 5.6, C 4.8, D 8.6, E 5.7 | study (small gain on every split) |
+

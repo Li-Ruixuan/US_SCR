@@ -8,8 +8,8 @@ Status 23 Oct 2026. Project: `US_SCR` (this repo), building on `rgbd-us` (`note_
 |---|---|---|
 | Why did the first SCR underfit? | It was undertrained, not unable to learn: same network and data, 2XX validation 15.8 → 5.1 mm by fixing the training alone | strong (single change, large effect) |
 | Does depth help? | Yes: 3D–3D RANSAC (Kabsch) on the measured depth instead of PnP gives a further 20–55 % on every split (2XX validation 5.1 → 3.4 mm) | strong (every split) |
-| Unchanged room, good room-scan coverage (3XX)? | **SCR is the best anchor and the best full system:** anchors 2.0 / 3.3 mm vs classical 2.6 / 6.9 mm; full system 2.8 vs 3.3 mm mean pixel error at the US image | strong for the anchors (three seeds: 1.9–2.2 mm, all below classical in median, p90 and rotation); moderate for the system (seed 0 only, 4 of 5 sweeps better or equal) |
-| New session, short room scans (4XX)? | **Classical is still 1.4–2× better at the US image** (SCR 4.9–10.1 vs 3.6–7.0 mm) | strong |
+| Unchanged room, good room-scan coverage (3XX)? | **On par with or better than classical, depending on the map:** with both room scans SCR is the best anchor and system (anchors 2.0 vs 2.6 mm, 0.19 vs 0.34°; US image 2.6–2.7 vs 3.1 mm over three seeds); with only the room scan recorded before the sweeps it is on par (anchors 3.1 vs 2.7 mm, same p90, better rotation) | **weakened by the strict-protocol check:** with the map recorded before the sweeps (room-301 only) SCR is on par with classical (3.1 vs 2.7 mm, same p90, better rotation), not better; the advantage with both scans (three seeds, system 2.6–2.7 vs 3.1 mm) depends partly on room-302, recorded after the sweeps (3.14) |
+| New session, short room scans (4XX)? | **Classical is still 1.3–1.8× better at the US image** (median, every segment started from an anchor: SCR 5.5–10.3 vs 3.4–6.3 mm); the big head + clean labels lower the anchor error a little on every split but do not close the gap | strong |
 | Why worse on 4XX? | **Room-scan coverage.** The short 4XX room scans cover 0–14 % of the sweep viewpoints. Adding 2–4 earlier sweeps to the map (Polaris-labelled) brings 4XX A to 1.9 mm / 0.22° and makes SCR the better system on both blocks tested (US image A 2.3 vs 3.2, D 4.5 vs 5.8 mm, classical given the same keyframes); the rotation gap disappears too | strong (covered vs uncovered 4.1 vs 13.4 mm; extended maps on two blocks, fair comparison) |
 | Can the map be extended without a tracker? | **Not yet:** labelling the extra sweeps with the system's own poses (5–14 mm off) recovers almost none of the gain (A 5.3 → 5.0, D 9.0 → 7.9 mm); the network learns the label errors | strong for this labelling; more accurate labels (e.g. refined against the room scan) untested |
 | Outdated room scan? | SCR + Kabsch beats classical on 2XX → 3XX (6.5 vs 10.4 mm) and the large change A → C (13.4 vs 80 mm), loses on the small change A → B (14.0 vs 7.9 mm) | moderate (one pair each) |
@@ -336,6 +336,45 @@ Rule met for both seeds: p90 −1.4 and −2.5 mm, rotation −0.06 and −0.09�
 | 4XX E | 5.9 / 12.0 mm, **6.4** mm | 6.1 / 15.9 mm, **6.5** mm |
 
 The gate trims the anchor p90 but does not change the error at the US image (the pose graph already absorbs the outliers). The concern that it was chosen after seeing the test splits therefore does not affect the system results; report the ungated numbers or say this.
+
+### 3.14 Strict protocol for 3XX, final system without a ground-truth start, big head + clean labels on the test splits (24 Oct)
+
+**3XX with the room scan recorded before the sweeps.** The 3XX room scans were recorded during (room-301, between run-314 and run-315) and after (room-302) the sweeps. Strict check: map on room-301 only (52 s, 1,569 frames), test on the sweeps recorded after it (run-315…317).
+
+| run-315…317 | SCR anchors (Kabsch, per second) | classical anchors (full system, anchor times) | classical, US image |
+|---|---|---|---|
+| map room-301 + room-302 | **1.8** (2.1 / 1.3 / 2.1), 0.20° | 2.5 (2.5 / 1.9 / 3.0), 0.29° | 2.9 |
+| map room-301 only (strict) | 3.1 / 6.1 (4.0 / 2.3 / 3.1), **0.26°** | **2.7 / 6.1** (3.5 / 1.8 / 2.7), 0.32° | 3.0 |
+
+Under the strict protocol SCR is on par with classical anchors on 3XX (median 3.1 vs 2.7 mm, same p90, better rotation), not better. SCR loses more from the shorter map (1.8 → 3.1 mm) than classical (2.5 → 2.7 mm): the coverage dependence of section 3.4 again. The 3XX advantage of sections 3.2–3.8 depended partly on room-302, recorded after the sweeps. The SCR full-system run for this check (`sys-kabsch-3XX-room301`) is still to be run.
+
+**Final system, every segment started from an anchor (no Polaris pose at test time)**; median error at the US image (mm), offline pose graph, step-to-step error in brackets; without the pose graph in square brackets.
+
+| split | **SCR + classical odometry** | classical + classical | ratio |
+|---|---|---|---|
+| 2XX val | 4.3 (2.22) [4.6] | 4.2 (2.27) [5.1] | 1.0 |
+| 3XX | **2.6** (1.08) [**2.2**] | 3.1 (1.09) [2.9] | 0.8 |
+| 3XX, seeds 1 / 2 | 2.7 / 2.7 [2.2 / 2.2] | | |
+| 4XX A | 5.5 (1.10) | **4.2** (1.13) | 1.3 |
+| 4XX B | 6.0 (1.34) | **3.4** (1.32) | 1.8 |
+| 4XX C | 6.7 (1.17) | **4.9** (1.19) | 1.4 |
+| 4XX D | 10.3 (1.21) | **6.3** (1.19) | 1.6 |
+| 4XX E | 6.6 (1.64) | **5.0** (1.57) | 1.3 |
+
+Starting from an anchor instead of the true pose changes nothing (3XX 2.6, A 5.5 as before). The 3XX system result is stable over three seeds (2.6–2.7 mm). On 4XX classical is 1.3–1.8× better at the US image.
+
+**Big head + clean labels on the test splits** (anchors, Kabsch; v1 → v2):
+
+| split | v1 (small head) | v2 (big head + clean labels) | classical anchors |
+|---|---|---|---|
+| 3XX | 2.0 / 3.3, 0.19° | 1.8 / 3.4, 0.19° | 2.6 / 6.9, 0.34° |
+| 4XX A | 5.9 / 10.1, 0.48° | 5.4 / 8.9, 0.45° | 5.3 / 10.1, 0.48° |
+| 4XX B | 5.9 / 9.2, 0.40° | 5.6 / 8.0, 0.35° | 3.2 / 5.0, 0.25° |
+| 4XX C | 5.2 / 10.1, 0.74° | **4.8 / 9.9, 0.59°** | 5.9 / 11.1, 0.39° |
+| 4XX D | 9.3 / 18.9, 0.73° | 8.6 / 14.5, 0.64° | 7.1 / 18.3, 0.41° |
+| 4XX E | 5.9 / 13.9, 0.46° | 5.7 / 9.7, 0.40° | 5.2 / 8.5, 0.35° |
+
+v2 improves every split, most in p90 (D 18.9 → 14.5, E 13.9 → 9.7 mm) and rotation (−0.04 to −0.15°), confirming the 2XX decision. The gain is too small to close the 4XX gap: classical anchors stay better on B, D, E and in rotation everywhere. Full-system runs with v2 are still to be run.
 
 ## 4. Why SCR beats the RPR anchor network
 
