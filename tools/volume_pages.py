@@ -1,35 +1,33 @@
 """
 Interactive 3D pages of compounded sweeps, one HTML file per sweep, straight from anchoring
 results: the US volume compounded with the true poses (Polaris) and with each estimate, on one
-common grid, rotatable in a browser (rgbd-us tools/volume_3d.py; MIP, overlay and translucent
-modes, path of the US image centre, image outlines).
+common grid, rotatable in a browser (tools/volume_3d.py; MIP, overlay and translucent modes, path
+of the US image centre, image outlines).
 
-Two rgbd-us steps, chained:
+Two steps, chained:
   1. poses.py --source anchored-<mode>-<tag> exports each estimate per sweep as JSON
      (from the trajectories anchoring.py saved in <odometry arm>/preds/; CPU, no network);
   2. tools/volume_3d.py --json <one JSON per estimate> builds the page of each sweep.
 
 --anchoring takes anchor_eval_<tag>.json files (from tools/anchoring_kabsch.py or anchoring.py):
 the tag and the odometry arm are read from them, so no source name has to be typed. --extra adds
-plain sources such as classical-vo-train_3XX (odometry only). Run it from the rgbd-us folder, as
-those scripts expect.
+plain sources such as classical-vo-train_3XX (odometry only). The odometry run is the path stored in
+the anchoring file; give --odometry if that path is not valid here (e.g. files written in rgbd-us with
+relative paths).
 
-  cd $RGBD_US
-  python <US_SCR>/tools/volume_pages.py --test-root data/train_3XX \\
-      --anchoring <US_SCR>/runs/sys-kabsch-3XX/anchor_eval_scr-v1-3XX-odometry-odo-classical-vo-train_3XX-train_3XX.json \\
-                  runs/anchoring-classical-3XX/anchor_eval_classical-odometry-odo-classical-vo-train_3XX-train_3XX-map-room-301+room-302.json \\
-      --extra classical-vo-train_3XX --out <US_SCR>/runs/volume3d-3XX
+  python tools/volume_pages.py --test-root $DATA/train_3XX \\
+      --anchoring runs/sys-final-3XX/anchor_eval_scr-v1-3XX-odometry-odo-classical-vo-train_3XX-startanchor-train_3XX.json \\
+      --extra classical-vo-train_3XX --out runs/volume3d-3XX
 """
 
 import argparse
 import glob
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
 
-RGBD_US = Path(os.environ.get("RGBD_US", Path(__file__).resolve().parents[2] / "rgbd-us")).resolve()
+REPO = Path(__file__).resolve().parents[1]
 
 
 def anchoring_source(path, mode):
@@ -53,7 +51,7 @@ def extra_label(source):
 def run(cmd, dry):
     print("$ " + " ".join(str(c) for c in cmd), flush=True)
     if not dry:
-        subprocess.run([str(c) for c in cmd], cwd=RGBD_US, check=True)
+        subprocess.run([str(c) for c in cmd], check=True)
 
 
 def main():
@@ -76,7 +74,7 @@ def main():
     odo = args.odometry or (sources[0][1] if sources else None)
     if odo is None:
         raise SystemExit("give --odometry when there is no --anchoring file")
-    if any(o != odo for _, o, _ in sources):
+    if len({Path(o).name for _, o, _ in sources}) > 1:          # compare the arm, not where it is stored
         raise SystemExit("the anchoring files use different odometry arms; one page needs one")
     sources = [(s, l) for s, _, l in sources] + [(s, extra_label(s)) for s in args.extra]
     if args.labels:
@@ -85,11 +83,11 @@ def main():
         sources = [(s, l) for (s, _), l in zip(sources, args.labels)]
 
     out = Path(args.out).resolve()
-    ckpts = sorted(glob.glob(str(RGBD_US / odo / "fold*" / "best.pt")))
+    ckpts = sorted(glob.glob(str(Path(odo) / "fold*" / "best.pt")))
     if not ckpts and not args.dry_run:
-        raise SystemExit(f"no {odo}/fold*/best.pt under {RGBD_US}")
+        raise SystemExit(f"no {odo}/fold*/best.pt: give the odometry run with --odometry")
     for src, _ in sources:                              # 1. export (CPU, from the saved trajectories)
-        cmd = [sys.executable, "poses.py", "--ckpts", *ckpts, "--source", src, "--test-root", args.test_root,
+        cmd = [sys.executable, REPO / "poses.py", "--ckpts", *ckpts, "--source", src, "--test-root", args.test_root,
                "--out", out, "--no-plot", "--no-compound"]
         run(cmd + (["--test-runs", *args.runs] if args.runs else []), args.dry_run)
 
@@ -103,7 +101,7 @@ def main():
         if not args.dry_run and None in js:
             print(f"{sweep}: skipped, not exported for {[s for (s, _), j in zip(sources, js) if j is None]}")
             continue
-        run([sys.executable, "tools/volume_3d.py", "--json", *[j or f"<{s}>" for (s, _), j in zip(sources, js)],
+        run([sys.executable, REPO / "tools" / "volume_3d.py", "--json", *[j or f"<{s}>" for (s, _), j in zip(sources, js)],
              "--labels", *[l for _, l in sources], "--out", out / f"{sweep}.html",
              "--voxel", args.voxel, "--stride", args.stride], args.dry_run)
     print(f"pages -> {out}/<run>.html")

@@ -7,4 +7,5 @@ opencv-python>=4.8
 pandas>=2.0
 pillow>=10.0
 tqdm>=4.60
+scipy>=1.10
 matplotlib>=3.7   # tools/draw_scr_anchor_diagram.py only

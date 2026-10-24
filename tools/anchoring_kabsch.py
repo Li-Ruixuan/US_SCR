@@ -1,36 +1,30 @@
 """
-The full rgbd-us system (anchoring.py evaluate: odometry + anchors every 1 s + pose graph, error at
-the US image) with SCR anchors solved by Kabsch instead of PnP: scr_anchor.localize_kabsch, 3D-3D
-RANSAC between the measured depth and the predicted room coordinates, and an inlier gate (fewer
-than --scr-gate inliers = no anchor at that time).
+The full system (anchoring.py evaluate: odometry + anchors every 1 s + pose graph, error at the US
+image) with SCR anchors solved by Kabsch instead of PnP: scr_anchor.localize_kabsch, 3D-3D RANSAC
+between the measured depth and the predicted room coordinates, and an inlier gate (fewer than
+--scr-gate inliers = no anchor at that time).
 
 anchoring.py's SCR mode imports scr.localize when it runs and calls it right after
 base.load_frame(run, row), so this wrapper replaces scr.localize and remembers which frame load_frame
-read last, to fetch that frame's depth; it also provides scr.localize_multi for --scr-frames. Everything after --, plus nothing else, goes to
-anchoring.py; run it from the rgbd-us folder, as anchoring.py expects.
+read last, to fetch that frame's depth; it also provides scr.localize_multi for --scr-frames.
+Everything after -- goes to anchoring.py (in this repo). Run from this repo's folder; the odometry run
+(--odometry) and the anchor pairs (--pairs) are data from rgbd-us, given by path.
 
-  cd $RGBD_US
-  python <US_SCR>/tools/anchoring_kabsch.py --scr-gate 400 -- evaluate --anchor scr \\
-      --scr-ckpt <US_SCR>/runs/v1-3XX/best.pt --root data/train_3XX --scan-runs room-301 room-302 ... --pgo
+  python tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt runs/v1-3XX/best.pt \\
+      --root $DATA/train_3XX --scan-runs room-301 room-302 --test-root $DATA/train_3XX \\
+      --odometry-source classical-vo-train_3XX --odometry $ODO/rpr-rgb-gap8-12XX-gru8 \\
+      --pairs $ODO/anchor-pairs/pairs_3XX.json --pgo --start anchor --out runs/sys-final-3XX
 
-anchoring.py options for SCR (rgbd-us, after the 24 Oct change): --gate-recover N (accept again when N
-consecutive rejected anchors agree), --scr-frames M (one anchor from M chain frames, solved here by
-localize_multi).
+anchoring.py options added in this repo: --gate-recover N (accept an anchor again when N consecutive
+rejected anchors agree), --scr-frames M (one anchor from M chain frames, solved by localize_multi).
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-import os                                                    # noqa: E402
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import scr_anchor                                            # noqa: E402  (puts this repo first on sys.path)
-
-# anchoring.py and its own imports (odometry, pose graph, evaluation) come from the rgbd-us repo;
-# dataloader / geometry / scr are already loaded from this repo, identical copies.
-RGBD_US = Path(os.environ.get("RGBD_US", Path(__file__).resolve().parents[2] / "rgbd-us")).resolve()
-sys.path.append(str(RGBD_US))
+import scr_anchor                                            # noqa: E402
 
 import numpy as np                                           # noqa: E402
 

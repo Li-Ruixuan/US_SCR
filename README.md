@@ -16,9 +16,9 @@ Given `{I_t_rgb, D_t, I_t_US}`, output `T_t ∈ SE(3)` in a room-fixed frame est
 |---|---|
 | train an SCR model, evaluate its anchors (`scr_anchor.py`) | this repo + the data |
 | coverage analysis, US diagnostics (`tools/coverage_error.py`, `tools/us_inplane.py`) | this repo + the data |
-| full system: odometry + anchors + pose graph, error at the US image (`tools/anchoring_kabsch.py`); 3D pages (`tools/volume_pages.py`) | additionally the `rgbd-us` repo with its odometry caches |
+| full system: odometry + anchors + pose graph, error at the US image (`tools/anchoring_kabsch.py`); 3D pages (`tools/volume_pages.py`) | this repo + the data + two rgbd-us **result folders** (no rgbd-us code): the odometry run (`runs/rpr-rgb-gap8-*-gru8`, its checkpoint and odometry caches in `preds/`) and the anchor pairs (`runs/anchor-pairs/`) |
 
-`dataloader.py`, `geometry.py` and `scr.py` are unchanged copies of the three rgbd-us modules the core needs (data loading, geometry, the SCR network); keep them identical to rgbd-us, because the full-system tools load rgbd-us's `anchoring.py`, which imports these same modules.
+All code is in this repo. The modules from rgbd-us (`dataloader.py`, `geometry.py`, `scr.py`, `anchoring.py`, `eval.py`, `poses.py`, `trajectory.py`, `model.py`, `loss.py`, `train.py`, `tools/anchor_classical.py`, `tools/anchor_saliency.py`, `tools/volume_3d.py`) are copies of rgbd-us commit a5bf2ce; only `anchoring.py` was changed here (options `--gate-recover`, `--scr-frames`).
 
 ## 1. Setup
 
@@ -84,30 +84,33 @@ Coverage analysis of an evaluation:
 python tools/coverage_error.py runs/v1-3XX/eval_train_3XX_kabsch/scr_eval.json --out runs/coverage_3XX.md
 ```
 
-## 5. Full system (needs rgbd-us)
+## 5. Full system (odometry + anchors + pose graph)
 
-Clone `rgbd-us` next to this repo (or set `RGBD_US`); it must contain the odometry run (`runs/rpr-rgb-gap8-12XX-gru8`, with the classical odometry cache in `preds/`) and the anchor pairs (`runs/anchor-pairs/`). Run from the rgbd-us folder:
+Needs the odometry run and the anchor pairs, result folders of rgbd-us (`runs/rpr-rgb-gap8-12XX-gru8` for 2XX/3XX, `runs/rpr-rgb-gap8-123XX-gru8` for 4XX, with the classical odometry caches in `preds/`; `runs/anchor-pairs/`). Set `ODO` to the folder that holds them and run from this repo's folder (anchoring writes its trajectories into `$ODO/<odometry run>/preds/`):
 
 ```bash
-export RGBD_US=/path/to/rgbd-us U=/path/to/US_SCR
-cd $RGBD_US
-python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v1-3XX/best.pt \
-  --root data/train_3XX --scan-runs room-301 room-302 --test-root data/train_3XX \
-  --odometry-source classical-vo-train_3XX --odometry runs/rpr-rgb-gap8-12XX-gru8 --pairs runs/anchor-pairs/pairs_3XX.json \
-  --pgo --out $U/runs/sys-kabsch-3XX
-python $U/tools/volume_pages.py --test-root data/train_3XX \
-  --anchoring $U/runs/sys-kabsch-3XX/anchor_eval_scr-v1-3XX-odometry-odo-classical-vo-train_3XX-train_3XX.json \
-  --extra classical-vo-train_3XX --out $U/runs/volume3d-3XX
+export DATA=/path/to/data ODO=/path/to/rgbd-us/runs
+python tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt runs/v1-3XX/best.pt \
+  --root $DATA/train_3XX --scan-runs room-301 room-302 --test-root $DATA/train_3XX \
+  --odometry-source classical-vo-train_3XX --odometry $ODO/rpr-rgb-gap8-12XX-gru8 --pairs $ODO/anchor-pairs/pairs_3XX.json \
+  --pgo --start anchor --out runs/sys-final-3XX
+python tools/volume_pages.py --test-root $DATA/train_3XX \
+  --anchoring runs/sys-final-3XX/anchor_eval_scr-v1-3XX-odometry-odo-classical-vo-train_3XX-startanchor-train_3XX.json \
+  --extra classical-vo-train_3XX --out runs/volume3d-3XX
 ```
+
+Classical anchors for comparison: `python anchoring.py evaluate --anchor classical` with the same data options. Options: `--start anchor` (no ground-truth pose at the start of a segment), `--gate-recover 3` (accept anchors again after a wrong one was accepted), `--scr-frames M` (one SCR anchor from M chain frames).
 
 ## Files
 
 | file | purpose |
 |---|---|
 | `scr_anchor.py` | `train` and `eval` |
-| `dataloader.py`, `geometry.py`, `scr.py` | copies of the rgbd-us modules (data loading, geometry, SCR network) |
-| `tools/anchoring_kabsch.py` | full system with SCR + Kabsch anchors (needs rgbd-us) |
-| `tools/volume_pages.py` | interactive 3D pages of compounded sweeps (needs rgbd-us) |
+| `dataloader.py`, `geometry.py`, `scr.py` | data loading, geometry, SCR network (from rgbd-us) |
+| `anchoring.py`, `eval.py`, `poses.py`, `trajectory.py`, `model.py`, `loss.py`, `train.py` | full system: anchors + odometry + pose graph, pose export, evaluation (from rgbd-us; `anchoring.py` extended here) |
+| `tools/anchoring_kabsch.py` | full system with SCR + Kabsch anchors |
+| `tools/volume_pages.py`, `tools/volume_3d.py` | interactive 3D pages of compounded sweeps |
+| `tools/anchor_classical.py`, `tools/anchor_saliency.py` | classical (SIFT) anchors, used by `anchoring.py` (from rgbd-us) |
 | `tools/coverage_error.py` | anchor error vs distance to the nearest room-scan pose |
 | `tools/us_inplane.py` | US diagnostics: in-plane registration and speckle decorrelation |
 | `tools/draw_scr_anchor_diagram.py` | block diagram (`tools/scr_anchor_diagram.pdf/.png`) |
