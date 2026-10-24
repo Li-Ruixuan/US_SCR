@@ -4,14 +4,18 @@ the US image) with SCR anchors solved by Kabsch instead of PnP: scr_anchor.local
 RANSAC between the measured depth and the predicted room coordinates, and an inlier gate (fewer
 than --scr-gate inliers = no anchor at that time).
 
-anchoring.py is used unchanged: its SCR mode imports scr.localize when it runs and calls it right
-after base.load_frame(run, row), so this wrapper replaces scr.localize and remembers which frame
-load_frame read last, to fetch that frame's depth. Everything after --, plus nothing else, goes to
+anchoring.py's SCR mode imports scr.localize when it runs and calls it right after
+base.load_frame(run, row), so this wrapper replaces scr.localize and remembers which frame load_frame
+read last, to fetch that frame's depth; it also provides scr.localize_multi for --scr-frames. Everything after --, plus nothing else, goes to
 anchoring.py; run it from the rgbd-us folder, as anchoring.py expects.
 
   cd $RGBD_US
   python <US_SCR>/tools/anchoring_kabsch.py --scr-gate 400 -- evaluate --anchor scr \\
       --scr-ckpt <US_SCR>/runs/v1-3XX/best.pt --root data/train_3XX --scan-runs room-301 room-302 ... --pgo
+
+anchoring.py options for SCR (rgbd-us, after the 24 Oct change): --gate-recover N (accept again when N
+consecutive rejected anchors agree), --scr-frames M (one anchor from M chain frames, solved here by
+localize_multi).
 """
 
 import argparse
@@ -21,10 +25,10 @@ from pathlib import Path
 import os                                                    # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import scr_anchor                                            # noqa: E402  (puts rgbdus/ first on sys.path)
+import scr_anchor                                            # noqa: E402  (puts this repo first on sys.path)
 
 # anchoring.py and its own imports (odometry, pose graph, evaluation) come from the rgbd-us repo;
-# dataloader / geometry / scr are already loaded from rgbdus/, identical copies.
+# dataloader / geometry / scr are already loaded from this repo, identical copies.
 RGBD_US = Path(os.environ.get("RGBD_US", Path(__file__).resolve().parents[2] / "rgbd-us")).resolve()
 sys.path.append(str(RGBD_US))
 
@@ -53,8 +57,26 @@ def install(ours):
             return None, n
         return T, n
 
+    def localize_multi(net, ck, ds, run, rows, rels, K, full_w, device, min_inliers=30):
+        """anchoring.py --scr-frames > 1: one anchor from several chain frames. Each frame's cell
+        correspondences are moved into the newest frame's camera with rels (from the odometry), then
+        pooled into one Kabsch RANSAC; the inlier gate scales with the number of frames."""
+        Cs, Ps = [], []
+        for row, rel in zip(rows, rels):
+            C, P = scr_anchor.cell_correspondences(net, ck, load_frame(ds, run, row)[0],
+                                                   scr.load_depth_mm(ds, ds.root, run, row), K, full_w, device,
+                                                   ours.kabsch_max_depth)
+            Cs.append(C @ rel[:3, :3].T + rel[:3, 3])
+            Ps.append(P)
+        T, n = scr_anchor.kabsch_ransac(np.concatenate(Cs), np.concatenate(Ps), ours.kabsch_thr, min_inliers,
+                                        rng=np.random.default_rng(ours.seed + rows[0]))
+        if T is not None and n < ours.scr_gate * len(rows):
+            return None, n
+        return T, n
+
     dataloader.RPRDataset.load_frame = remember
     scr.localize = localize
+    scr.localize_multi = localize_multi
     scr.load_scr = scr_anchor.load_model          # checkpoints with either head
 
 

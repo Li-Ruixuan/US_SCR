@@ -18,7 +18,8 @@ Protocol as rgbd-us `scr.py eval`: one frame every 30 usable rows of the test sw
 position / rotation error against Polaris, with a fixed RANSAC seed per frame.
 
 Checkpoints keep scr.py's format (plus "head"), so tools/anchoring_kabsch.py runs them in the full
-system. Data loading and the network come from rgbdus/ (unchanged copies of rgbd-us modules).
+system. Data loading and the network come from dataloader.py, geometry.py and scr.py in this repo
+(unchanged copies of rgbd-us modules).
 
   python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/v1-3XX \\
       --eval-root $DATA/train_3XX
@@ -34,7 +35,7 @@ import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
-sys.path.insert(0, str(REPO / "rgbdus"))
+sys.path.insert(0, str(REPO))         # dataloader.py, geometry.py, scr.py: copies of rgbd-us
 
 import cv2                                                              # noqa: E402
 import numpy as np                                                      # noqa: E402
@@ -199,13 +200,10 @@ def kabsch(P, Q):
 
 
 @torch.no_grad()
-def localize_kabsch(net, ck, rgb, depth_mm, K, full_w, device, thr=20.0, max_depth=2000.0, min_inliers=30,
-                    iters=256, rng=None):
-    """Camera pose T_world_cam from 3D-3D RANSAC: the measured depth at each cell centre,
-    back-projected to the camera frame, against the predicted room coordinate of that cell.
-    Hypotheses from 3 cells (Kabsch), inliers within `thr` mm, refit three times on the inliers.
-    Cells beyond `max_depth` are left out: depth noise grows with distance squared.
-    Returns (T or None, number of inliers)."""
+def cell_correspondences(net, ck, rgb, depth_mm, K, full_w, device, max_depth=2000.0):
+    """(C, P), each (N, 3) mm: for every cell with measured depth below `max_depth`, its depth
+    point in the camera frame (C) and its predicted room coordinate (P). Cells beyond max_depth are
+    left out: depth noise grows with distance squared."""
     pred = net(torch.from_numpy(rgb).float()[None].to(device))[0].double().cpu().numpy()
     h, w = pred.shape[1:]
     P = pred.reshape(3, -1).T * 1000.0 + np.asarray(ck["centre"])
@@ -215,10 +213,22 @@ def localize_kabsch(net, ck, rgb, depth_mm, K, full_w, device, thr=20.0, max_dep
     z = depth_mm[vi, ui].astype(np.float64)
     m = (z > 100) & (z < max_depth)
     C = np.stack([(uv[:, 0] - K[0, 2]) / K[0, 0] * z, (uv[:, 1] - K[1, 2]) / K[1, 1] * z, z], 1)[m]
-    P = P[m]
+    return C, P[m]
+
+
+def localize_kabsch(net, ck, rgb, depth_mm, K, full_w, device, thr=20.0, max_depth=2000.0, min_inliers=30,
+                    iters=256, rng=None):
+    """Camera pose T_world_cam of one frame: Kabsch RANSAC (kabsch_ransac) on its cell correspondences."""
+    C, P = cell_correspondences(net, ck, rgb, depth_mm, K, full_w, device, max_depth)
+    return kabsch_ransac(C, P, thr, min_inliers, iters, rng)
+
+
+def kabsch_ransac(C, P, thr=20.0, min_inliers=30, iters=256, rng=None):
+    """T (4x4) mapping camera points C onto room points P, by RANSAC: hypotheses from 3 random
+    correspondences (Kabsch), inliers within `thr` mm, refit three times on the inliers.
+    Returns (T or None, number of inliers)."""
     if len(P) < max(min_inliers, 3):
         return None, 0
-
     rng = rng or np.random.default_rng(0)
     idx = rng.integers(0, len(P), (iters, 3))
     Cs, Ps = C[idx], P[idx]                                                # (iters, 3, 3)

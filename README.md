@@ -18,7 +18,7 @@ Given `{I_t_rgb, D_t, I_t_US}`, output `T_t ∈ SE(3)` in a room-fixed frame est
 | coverage analysis, US diagnostics (`tools/coverage_error.py`, `tools/us_inplane.py`) | this repo + the data |
 | full system: odometry + anchors + pose graph, error at the US image (`tools/anchoring_kabsch.py`); 3D pages (`tools/volume_pages.py`) | additionally the `rgbd-us` repo with its odometry caches |
 
-`rgbdus/` holds unchanged copies of the three rgbd-us modules the core needs (data loading, geometry, the SCR network).
+`dataloader.py`, `geometry.py` and `scr.py` are unchanged copies of the three rgbd-us modules the core needs (data loading, geometry, the SCR network); keep them identical to rgbd-us, because the full-system tools load rgbd-us's `anchoring.py`, which imports these same modules.
 
 ## 1. Setup
 
@@ -105,7 +105,7 @@ python $U/tools/volume_pages.py --test-root data/train_3XX \
 | file | purpose |
 |---|---|
 | `scr_anchor.py` | `train` and `eval` |
-| `rgbdus/` | copies of rgbd-us `dataloader.py`, `geometry.py`, `scr.py` |
+| `dataloader.py`, `geometry.py`, `scr.py` | copies of the rgbd-us modules (data loading, geometry, SCR network) |
 | `tools/anchoring_kabsch.py` | full system with SCR + Kabsch anchors (needs rgbd-us) |
 | `tools/volume_pages.py` | interactive 3D pages of compounded sweeps (needs rgbd-us) |
 | `tools/coverage_error.py` | anchor error vs distance to the nearest room-scan pose |

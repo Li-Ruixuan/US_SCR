@@ -436,7 +436,7 @@ Fairness: both used depth (the anchor network took RGB-D pairs); SCR received mo
 
 | file | purpose |
 |---|---|
-| `scr_anchor.py` | `train` (final recipe by default; `--head`, label cleaning, viewpoint augmentation, `--label-poses`) and `eval` (`--solver kabsch/pnp`); uses `rgbdus/` (copies of rgbd-us `scr.py`, `dataloader.py`, `geometry.py`), runs without rgbd-us |
+| `scr_anchor.py` | `train` (final recipe by default; `--head`, label cleaning, viewpoint augmentation, `--label-poses`) and `eval` (`--solver kabsch/pnp`); uses `scr.py`, `dataloader.py`, `geometry.py` in the repo root (copies of rgbd-us), runs without rgbd-us |
 | `tools/anchoring_kabsch.py` | rgbd-us `anchoring.py` (full system) with SCR + Kabsch anchors and the inlier gate |
 | `tools/volume_pages.py` | interactive 3D pages from anchoring results (rgbd-us `poses.py` + `tools/volume_3d.py`) |
 | `tools/coverage_error.py` | anchor error vs distance to the nearest room-scan pose |

@@ -104,7 +104,7 @@ Network = `rgbd-us/scr.py` SCRNet, unchanged: RGB 360 × 640 → ImageNet Effici
 
 ## 5. Code and workflow
 
-- **`scr_anchor.py`**: `train` and `eval`. Uses `rgbdus/` (unchanged copies of rgbd-us `scr.py`, `dataloader.py`, `geometry.py`), so network, labels and frame selection are the rgbd-us ones and it runs without rgbd-us; checkpoints keep the `scr.py` format (`tools/anchoring_kabsch.py` runs them in the full system, which needs rgbd-us). Setup for new users: `README.md`. Every `--check-every` epochs a **fit check** on 120 fixed training frames (eval mode, no augmentation): coordinate error, the same after the best rigid fit, PnP pose of those frames.
+- **`scr_anchor.py`**: `train` and `eval`. Uses `scr.py`, `dataloader.py`, `geometry.py` in the repo root (unchanged copies of rgbd-us), so network, labels and frame selection are the rgbd-us ones and it runs without rgbd-us; checkpoints keep the `scr.py` format (`tools/anchoring_kabsch.py` runs them in the full system, which needs rgbd-us). Setup for new users: `README.md`. Every `--check-every` epochs a **fit check** on 120 fixed training frames (eval mode, no augmentation): coordinate error, the same after the best rigid fit, PnP pose of those frames.
 - **`tools/coverage_error.py`**: anchor error against the distance to the nearest room-scan pose, per eval file.
 - **`tools/draw_scr_anchor_diagram.py`** → `tools/scr_anchor_diagram.png/.pdf`: block diagram (its results box still shows PnP numbers).
 - The earlier scr1–4 code (pooled data incl. 1XX) and the copies of rgbd-us tools were removed on 23 Oct (clean-up); they are in git history and in rgbd-us.
@@ -201,12 +201,20 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
 
 
  
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
  
-for b in A B C; do
-python $U/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt $U/runs/v2-4XX$b/best.pt \
-  --root data/test_4XX$b --scan-runs $( [ $b = A ] && echo room-401 room-402 || ([ $b = B ] && echo room-403 room-404 || echo room-405 room-406) ) \
-  --test-root data/test_4XX$b --odometry-source classical-vo-test_4XX$b --odometry runs/rpr-rgb-gap8-123XX-gru8 \
-  --pairs runs/anchor-pairs/pairs_4XX$b.json --pgo --start anchor --out $U/runs/sys-v2-4XX$b
-done
-To commit the updated notes, on this machine:
