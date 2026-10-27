@@ -1,0 +1,74 @@
+{
+ "args": {
+  "cmd": "eval",
+  "root": "/data2/u0137815/rgbd-us/data/train_2XX",
+  "runs": [
+   "run-205",
+   "run-211"
+  ],
+  "out": "runs/li-transfer/zeroshot-2XX-asis",
+  "hand_eye": "/data2/u0137815/US_SCR/T_marker_cam.npy",
+  "calib": "/data2/u0137815/US_SCR/calib_matrix.csv",
+  "axes": "as-is",
+  "weights": "runs/li-repro-M2/saved_model/best_validation_dist_model",
+  "system": null
+ },
+ "scans": [
+  {
+   "run": "run-205",
+   "segment": 0,
+   "frames": 1097,
+   "path_mm": 670.9435966374342,
+   "e_frame": 0.9686689997930659,
+   "e_acc": 242.90638229374295,
+   "e_drift": 455.4272350775381,
+   "zero_e_frame": 0.6547268319446208,
+   "zero_e_acc": 27.224524473580615,
+   "zero_e_drift": 26.346389459684335
+  },
+  {
+   "run": "run-211",
+   "segment": 0,
+   "frames": 653,
+   "path_mm": 215.3853940233169,
+   "e_frame": 0.7600955114348391,
+   "e_acc": 155.75052693137886,
+   "e_drift": 364.68173489614605,
+   "zero_e_frame": 0.38549148380328807,
+   "zero_e_acc": 36.55860790589864,
+   "zero_e_drift": 13.517975310399297
+  }
+ ],
+ "relative": {
+  "1|US network": {
+   "in": 0.3980302746552379,
+   "out": 0.5160792371246168,
+   "true": 0.3404844568664078
+  },
+  "1|zero motion": {
+   "in": 0.11952220691672835,
+   "out": 0.3404844568664078,
+   "true": 0.3404844568664078
+  },
+  "5|US network": {
+   "in": 1.9391508412888365,
+   "out": 2.661316298578321,
+   "true": 1.8460882554611178
+  },
+  "5|zero motion": {
+   "in": 0.5899898485177376,
+   "out": 1.8460882554611178,
+   "true": 1.8460882554611178
+  },
+  "19|US network": {
+   "in": 6.690797879660265,
+   "out": 10.050367106815443,
+   "true": 7.427175265854906
+  },
+  "19|zero motion": {
+   "in": 2.1052822315219837,
+   "out": 7.427175265854906,
+   "true": 7.427175265854906
+  }
+ }
+}

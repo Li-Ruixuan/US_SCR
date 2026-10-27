@@ -1,0 +1,22 @@
+{
+ "cmd": "finetune",
+ "root": "/data2/u0137815/rgbd-us/data/train_2XX",
+ "runs": null,
+ "out": "runs/li-transfer/ft-2XX",
+ "hand_eye": "/data2/u0137815/US_SCR/T_marker_cam.npy",
+ "calib": "/data2/u0137815/US_SCR/calib_matrix.csv",
+ "axes": "as-is",
+ "val_runs": [
+  "run-205",
+  "run-211"
+ ],
+ "init": "runs/li-repro-M2/saved_model/best_validation_dist_model",
+ "steps": 20000,
+ "val_every": 500,
+ "val_stride": 2,
+ "batch_size": 32,
+ "lr": 0.0001,
+ "seed": 0,
+ "train_pairs": 11184,
+ "val_pairs": 874
+}

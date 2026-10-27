@@ -205,31 +205,9 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
 
 
 
- 
-Commands (training PC)
 
-git pull
-export DATA=/data2/u0137815/rgbd-us/data
-W=runs/li-repro-M2/saved_model/best_validation_dist_model
 
-# 1. Zero-shot on 2XX validation: choose the axis mapping (a few min each)
-python tools/li_transfer.py eval --weights $W --root $DATA/train_2XX --runs run-205 run-211 --axes as-is --out runs/li-transfer/zeroshot-2XX-asis
-python tools/li_transfer.py eval --weights $W --root $DATA/train_2XX --runs run-205 run-211 --axes swap --out runs/li-transfer/zeroshot-2XX-swap
 
-# 2. Zero-shot on 3XX against the SCR system (use the --axes that won in step 1 here and below)
-python tools/li_transfer.py eval --weights $W --root $DATA/train_3XX --axes as-is --system "runs/volume3d-final/3XX/poses/*anchored-pgo-scr-*.json" --out runs/li-transfer/zeroshot-3XX
-
-# 3. Fine-tune from their weights, and from scratch for comparison, on our 2XX (10 sweeps; validation 205, 211; ~20-30 min each)
-python tools/li_transfer.py finetune --init $W --root $DATA/train_2XX --val-runs run-205 run-211 --axes as-is --out runs/li-transfer/ft-2XX
-python tools/li_transfer.py finetune --init none --root $DATA/train_2XX --val-runs run-205 run-211 --axes as-is --out runs/li-transfer/scratch-2XX
-
-# 4. Test both on 3XX (new session), 4XX A (new session) and 4XX D (second subject)
-python tools/li_transfer.py eval --weights runs/li-transfer/ft-2XX/saved_model/best_model --root $DATA/train_3XX --axes as-is --system "runs/volume3d-final/3XX/poses/*anchored-pgo-scr-*.json" --out runs/li-transfer/ft-3XX
-python tools/li_transfer.py eval --weights runs/li-transfer/scratch-2XX/saved_model/best_model --root $DATA/train_3XX --axes as-is --system "runs/volume3d-final/3XX/poses/*anchored-pgo-scr-*.json" --out runs/li-transfer/scratch-3XX
-python tools/li_transfer.py eval --weights runs/li-transfer/ft-2XX/saved_model/best_model --root $DATA/test_4XXA --axes as-is --system "runs/volume3d-final/4XXA/poses/*anchored-pgo-scr-*.json" --out runs/li-transfer/ft-4XXA
-python tools/li_transfer.py eval --weights runs/li-transfer/scratch-2XX/saved_model/best_model --root $DATA/test_4XXA --axes as-is --system "runs/volume3d-final/4XXA/poses/*anchored-pgo-scr-*.json" --out runs/li-transfer/scratch-4XXA
-python tools/li_transfer.py eval --weights runs/li-transfer/ft-2XX/saved_model/best_model --root $DATA/test_4XXD --axes as-is --system "runs/volume3d-final/4XXD/poses/*anchored-pgo-scr-*.json" --out runs/li-transfer/ft-4XXD
-python tools/li_transfer.py eval --weights runs/li-transfer/scratch-2XX/saved_model/best_model --root $DATA/test_4XXD --axes as-is --system "runs/volume3d-final/4XXD/poses/*anchored-pgo-scr-*.json" --out runs/li-transfer/scratch-4XXD
 
 git rm -r --cached runs/li-repro-M2/saved_model
 git add -A && git commit -m "Li et al. transfer to our sweeps" && git push 
