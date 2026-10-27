@@ -115,3 +115,11 @@ Removed to keep this folder to what the paper and summary need; the files are in
 | `v1-4XXA-plus1` | map + run-401 | Kabsch 2.4 / 6.6, 0.27° |
 | `sys-final-2XX`, `-4XXA` … `4XXE` | v1 full system, start from anchors | US image 4.3; A 5.5, B 6.0, C 6.7, D 10.3, E 6.6 |
 | `sys-v2-4XXA`, `-4XXB`, `-4XXC` | v2 full system without gate recovery | run-404 locked out (US image 28.3 → 8.2 mm with recovery) |
+
+## 8. Li et al. reproduction (27 Oct; summary 3.18)
+
+| run | content | key result | status |
+|---|---|---|---|
+| `li-repro-M2` | Li et al. (TBME 2024) baseline M = 2, their code and forearm data, 20,000 epochs; `saved_model/` (weights, not in git from now on) | accumulated error 21.4 ± 11.2 mm vs paper 22.8 ± 17.5; zero motion 73.1 | final (reproduction) |
+
+The smoke test (`li-repro-smoke`, 20 epochs) was removed.

@@ -436,6 +436,18 @@ Final systems as in 3.16 (pose exports of the 3D pages). Error at the 5 US-image
 3. **The anchors do not cost smoothness:** the 1 s relative error is the same for both anchor types and for odometry alone; local motion is set by the odometry.
 4. **The remaining distortion (2–5 mm) is long-range** (1 s relative error 0.5–1 mm), on the scale between anchors and along the sweep. This is the only error a US-based method could still reduce (crossing planes); short-range US is ruled out (3.9, U3).
 
+### 3.18 Li et al. reproduced on their own data (27 Oct; `tools/li_repro.py`, `runs/li-repro-M2`)
+
+The authors' code (github.com/ucl-candi/freehand) and data (Zenodo 7740734: 19 volunteers, forearms, 228 scans, split 3:1:1 by scan, seed 0), their baseline (M = 2: two adjacent frames, EfficientNet-b1, frames 120 × 160), 20,000 epochs (1.7 h on the A4500), checkpoint with the best validation distance (epoch 11,300). Test fold, 45 scans, mean ± std (mm):
+
+| | frame to frame | **accumulated (every pixel, vs frame 0)** | final drift |
+|---|---|---|---|
+| this run | 0.65 ± 0.40 | **21.4 ± 11.2** | 40.2 ± 25.2 |
+| paper, Table I (CNN, M = 2) | 0.53 ± 0.46 | **22.8 ± 17.5** | 29.6 ± 19.5 |
+| zero motion | 1.13 ± 0.51 | 73.1 ± 12.9 | 148.5 ± 22.1 |
+
+**Reproduced** on the headline metric (criterion fixed in advance: within ±5 mm of 22.75 mm, i.e. two standard errors): 21.4 mm, better than zero motion on all 45 scans. Frame to frame and drift are somewhat worse (0.65 vs 0.53, 40 vs 30 mm), within one standard deviation of the paper but not of its mean; likely causes: one random split and seed, and overfitting (training loss 0.03 at the end, validation distance flat at 0.5–0.6 mm from epoch ~5,000, as the paper's Fig. 7). So the method works as published on its own data; the 60 mm on our 3XX (rgbd-us, trained on our 2XX) is a transfer / data-size problem, not a broken implementation.
+
 ## 4. Why SCR beats the RPR anchor network
 
 | | RPR anchor network | SCR |

@@ -10,3 +10,6 @@ data/
 *.pt
 __pycache__/
 runs/**/poses/
+
+# model weights without .pt extension (tools/li_repro.py)
+runs/**/saved_model/
