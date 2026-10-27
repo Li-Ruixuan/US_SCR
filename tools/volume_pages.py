@@ -48,10 +48,14 @@ def extra_label(source):
     return {"zero": "zero motion", "model": "RPRNet odometry only"}.get(source, source)
 
 
-def run(cmd, dry):
+def run(cmd, dry, check=True):
     print("$ " + " ".join(str(c) for c in cmd), flush=True)
     if not dry:
-        subprocess.run([str(c) for c in cmd], check=True)
+        ok = subprocess.run([str(c) for c in cmd]).returncode == 0
+        if not ok and check:
+            raise SystemExit("the command above failed")
+        return ok
+    return True
 
 
 def main():
@@ -96,15 +100,17 @@ def main():
         return f[0] if f else None
 
     sweeps = args.runs or sorted({Path(p).name.split("_")[1] for p in glob.glob(str(out / "poses" / "fold*_*.json"))})
+    failed = []
     for sweep in sweeps:                                # 2. one page per sweep
         js = [exported(s, sweep) for s, _ in sources]
         if not args.dry_run and None in js:
             print(f"{sweep}: skipped, not exported for {[s for (s, _), j in zip(sources, js) if j is None]}")
             continue
-        run([sys.executable, REPO / "tools" / "volume_3d.py", "--json", *[j or f"<{s}>" for (s, _), j in zip(sources, js)],
-             "--labels", *[l for _, l in sources], "--out", out / f"{sweep}.html",
-             "--voxel", args.voxel, "--stride", args.stride], args.dry_run)
-    print(f"pages -> {out}/<run>.html")
+        if not run([sys.executable, REPO / "tools" / "volume_3d.py", "--json", *[j or f"<{s}>" for (s, _), j in zip(sources, js)],
+                    "--labels", *[l for _, l in sources], "--out", out / f"{sweep}.html",
+                    "--voxel", args.voxel, "--stride", args.stride], args.dry_run, check=False):
+            failed.append(sweep)
+    print(f"pages -> {out}/<run>.html" + (f"; FAILED: {failed} (error above each)" if failed else ""))
 
 
 if __name__ == "__main__":

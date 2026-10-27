@@ -103,4 +103,6 @@ Classical + classical references are in rgbd-us (`runs/anchoring-classical-*`, `
 | `sys-v2r-3XX`, `sys-v2r-4XXA` … `4XXE` | **final SCR system**: v2, gate recovery 3, start from anchors, pose graph | US image 3XX 2.6, A 5.0, B 5.7, C 5.9, D 9.6, E 6.5 | final |
 | `sys-classical-r-3XX`, `-4XXA` … `4XXE` | **final classical system**, same settings | 3XX 3.1, A 4.2, B 3.4, C 4.9, D 6.3, E 5.0 | final |
 | `volume3d-final/<split>/run-*.html` | 3D pages of the two final systems + odometry only, every sweep (31) | mean pixel error 3XX 2.7 vs 3.2, A 5.3 vs 4.4, B 6.0 vs 3.7, C 6.9 vs 5.3, D 10.5 vs 7.2, E 7.8 vs 5.2 mm | final (figure) |
-| `shape-final.md`, `us-speckle-*` | (to run) shape of the reconstruction; per-patch speckle against the system (U3) | first check on run-316: the system's nearby-frame motion is 5–10× better than speckle | pending |
+| `us-speckle-3XX`, `-4XXA`, `-4XXD` | U3: per-patch speckle (curve from 2XX) against the final SCR system | system 2–5× better than speckle at 1–8 rows; no fusion helps | negative |
+| `us-speckle-2XX` | the curve (`curve.json`); its table has no system comparison (bug, fixed 27 Oct) | | input; rerun pending |
+| `shape-final.md` | (to run) shape of the reconstruction: error after a rigid fit of each sweep | run-316 classical: 2.1 of 2.3 mm left | pending |

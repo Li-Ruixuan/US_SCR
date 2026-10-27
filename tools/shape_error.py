@@ -38,9 +38,12 @@ def kabsch(P, Q):
 def sweep_metrics(doc, gaps):
     S = np.asarray(doc["S_us_px_to_mm"])
     P = S @ np.stack([PX[:, 0], PX[:, 1], np.zeros(5), np.ones(5)])           # (4, 5) US-plane mm
-    fr = [f for f in doc["frames"] if f["us"]]
-    Tp = np.array([f["T_world_us_pred"] for f in fr])
-    Tg = np.array([f["T_world_us_gt"] for f in fr])
+    fr = [f for f in doc["frames"] if f["us"] and np.all(np.isfinite(f["T_world_us_pred"]))
+          and np.all(np.isfinite(f["T_world_us_gt"]))]
+    if len(fr) < 2:
+        return None
+    Tp = np.array([f["T_world_us_pred"] for f in fr], float)
+    Tg = np.array([f["T_world_us_gt"] for f in fr], float)
     Xp, Xg = (Tp @ P)[:, :3].transpose(0, 2, 1), (Tg @ P)[:, :3].transpose(0, 2, 1)   # (N, 5, 3)
     m = {"absolute": float(np.median(np.linalg.norm(Xp - Xg, axis=2).mean(1)))}
     R, t = kabsch(Xp.reshape(-1, 3), Xg.reshape(-1, 3))
@@ -83,7 +86,15 @@ def main():
         split = Path(p).resolve().parent.parent.name
         if d["run"] in res[(split, d["source"])]:
             continue                                        # the same sweep from another fold
-        res[(split, d["source"])][d["run"]] = sweep_metrics(d, args.gaps)
+        try:
+            m = sweep_metrics(d, args.gaps)
+        except Exception as e:                              # report and go on with the other files
+            m = None
+            print(f"{p}: {type(e).__name__}: {e}")
+        if m is None:
+            print(f"{split} {d['run']} {short(d['source'])}: skipped (no valid frames)")
+            continue
+        res[(split, d["source"])][d["run"]] = m
         print(f"{split} {d['run']} {short(d['source'])}: " + ", ".join(
             f"{k} {v:.2f}" for k, v in res[(split, d['source'])][d['run']].items()), flush=True)
 
@@ -94,7 +105,7 @@ def main():
           "**out-of-plane**, true out-of-plane motion in brackets.", "",
           "| split | source | sweeps | absolute | **shape** | " + " | ".join(f"k = {k}: in / **out** (true)" for k in args.gaps) + " |",
           "|---|---|---|---|---|" + "---|" * len(args.gaps)]
-    for (split, src), runs in sorted(res.items(), key=lambda x: (x[0][0], short(x[0][1]))):
+    for (split, src), runs in sorted(((k, r) for k, r in res.items() if r), key=lambda x: (x[0][0], short(x[0][1]))):
         md.append(f"| {split} | {short(src)} | {len(runs)} | {mean(runs, 'absolute'):.2f} | **{mean(runs, 'shape'):.2f}** | "
                   + " | ".join(f"{mean(runs, f'in_{k}'):.2f} / **{mean(runs, f'out_{k}'):.2f}** ({mean(runs, f'true_out_{k}'):.1f})"
                                for k in args.gaps) + " |")

@@ -206,10 +206,16 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
 
 
 
-git add -A && git commit -m "Shape metric, U3 speckle diagnostic, final 3D pages, remove superseded runs" && git push 
 
+Commands to rerun only what failed
 
+git pull
+export DATA=/data2/u0137815/rgbd-us/data
 
+python tools/volume_pages.py --test-root $DATA/train_2XX --runs run-205 run-211 --anchoring runs/sys-v2r-2XX/anchor_eval_scr-bigclean-2XX-odometry-odo-classical-vo-train_2XX-recover3-startanchor-train_2XX.json runs/sys-classical-final-2XX/anchor_eval_classical-odometry-odo-classical-vo-train_2XX-startanchor-train_2XX.json --extra classical-vo-train_2XX --out runs/volume3d-final/2XX
 
+python tools/shape_error.py --json runs/volume3d-final/*/poses/*.json --out runs/shape-final.md
 
+python tools/us_speckle.py --root $DATA/train_2XX --system "runs/volume3d-final/2XX/poses/*anchored-pgo-scr-*.json" --out runs/us-speckle-2XX
 
+git add -A && git commit -m "Fix 2XX speckle and shape metric runs" && git push

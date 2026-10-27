@@ -16,7 +16,7 @@ Status 23 Oct 2026. Project: `US_SCR` (this repo), building on `rgbd-us` (`note_
 | SCR vs the RPR anchor network? | **SCR is 3–6× more accurate on every split** and always solves (RPR: 37–93 % accepted) | strong |
 | Bigger head, cleaner labels, refined pose fit, viewpoint augmentation, full resolution? | Big head + clean labels: lower p90 and rotation on 2XX for both seeds, median unchanged — adopted, effect on the test splits not yet measured; nothing on extended maps. Refined pose fit, viewpoint augmentation and full resolution: neutral or worse | moderate |
 | Is the classical odometry needed? | Only for smoothness: SCR anchors every 0.25 s without odometry give the same median error at the US image but 1.4–1.7× larger step-to-step error | moderate (three splits) |
-| Can US images help? | Not for in-plane motion (registration worse than assuming none); yes for out-of-plane distance (speckle decorrelation, 0.3–0.4 mm median, transfers across sessions and subjects) — not yet in the system | strong for the diagnostics, untested in the system |
+| Can US images help? | Not for in-plane motion (registration worse than assuming none), and not for out-of-plane motion either: speckle decorrelation measures the distance (0.3–0.4 mm median, transfers across sessions), but the camera system already gets the motion between nearby frames 2–5× better, and fusing them does not help on any test split | strong (U1, U2, U3 on 3XX, 4XX A, 4XX D) |
 
 ## 2. Setup
 
@@ -222,7 +222,15 @@ Out-of-plane distance predicted from a curve built on **2XX only**:
 
 The curve is the same in every collection and for both subjects, and transfers across sessions. It gives the distance only (the sign must come from the camera). Not yet tested inside the pose graph.
 
-**U3: per-patch speckle against the system (27 Oct, first check on run-316 only, classical system; `tools/shape_error.py`, `tools/us_speckle.py`).** The camera system already gets the motion between nearby US frames right: out-of-plane error of the relative pose at the 5 US-image points, median 0.07 mm at 1 row, 0.28 mm at 8 rows, 0.58 mm at 30 rows (1 s), against a true motion of 0.5, 4.1 and 15 mm. Per-patch speckle (12 mm patches, plane fit = elevational shift + two tilts) is 5–10× worse, even with the sign from Polaris and an in-sample curve: 0.33 / 0.75 / 2.4 mm at 1 / 4 / 8 rows; replacing the system where US disagrees by more than 1–3 mm makes the mean and p99 worse, not better. The error that is left is long-range: after the best rigid fit of the whole sweep it is still 2.1 of 2.3 mm (it is distortion, not an offset), and speckle cannot measure beyond a few mm. Running on every split (2XX decides) is pending; if confirmed, short-range US factors are dropped and only long-range constraints (crossing planes) remain.
+**U3: per-patch speckle against the system (27 Oct; `tools/us_speckle.py`, `runs/us-speckle-*`, curve built on 2XX, final SCR system).** The fan is cut into 12 mm patches; each patch's correlation gives a distance, a plane fit gives the elevational shift and two tilts, the sign comes from the system. Out-of-plane error at the 5 US-image points (mm, median / p99 over frame pairs):
+
+| split | k (rows) | true motion | **system** | US, Polaris sign | US, system sign | fused, tau 3 mm |
+|---|---|---|---|---|---|---|
+| 3XX | 1 / 4 / 8 | 0.4 / 1.4 / 2.9 | **0.07 / 0.19 / 0.24** (p99 0.58 / 2.03 / 2.99) | 0.19 / 0.78 / 1.83 | 0.20 / 0.79 / 1.88 | 0.07 / 0.19 / 0.39 (p99 0.58 / 4.22 / 8.17) |
+| 4XX A | 1 / 4 / 8 | 0.3 / 1.0 / 2.0 | **0.09 / 0.23 / 0.33** (p99 0.96 / 3.06 / 4.52) | 0.17 / 0.54 / 1.08 | 0.20 / 0.57 / 1.16 | 0.09 / 0.24 / 0.40 (p99 0.96 / 4.08 / 8.78) |
+| 4XX D | 1 / 4 / 8 | 0.2 / 1.0 / 2.0 | **0.08 / 0.23 / 0.34** (p99 0.65 / 1.95 / 2.95) | 0.16 / 0.52 / 1.06 | 0.18 / 0.56 / 1.14 | 0.08 / 0.23 / 0.38 (p99 0.65 / 2.03 / 5.75) |
+
+**Negative on every test split:** the camera system measures the motion between nearby US frames 2–5× better than speckle, even when speckle gets the sign from Polaris, and in the tails too; no fusion threshold (1, 2, 3 mm) beats the system on the median, mean or p99, the larger gaps get worse. Short-range US factors are dropped. (2XX had no system comparison because of a bug, fixed; it cannot change the verdict since no threshold helps anywhere.) The error that is left is long-range (run-316: 2.1 of 2.3 mm remains after a rigid fit of the sweep), which speckle cannot measure; only long-range constraints (crossing planes) remain as a US idea.
 
 ### 3.10 Further experiments (23 Oct)
 

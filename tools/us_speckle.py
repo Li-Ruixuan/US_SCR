@@ -136,8 +136,13 @@ def main():
         d = json.load(open(p))
         if d["run"] in sweeps and d["run"] not in system:
             system[d["run"]] = {(f["segment"], f["row"]): np.asarray(f["T_world_us_pred"]) for f in d["frames"] if f["us"]}
-    if args.system and not system:
-        raise SystemExit(f"--system: no exports of {sweeps} match {args.system}")
+    system = {sw: T for sw, T in system.items() if T}
+    if args.system:
+        if not system:
+            raise SystemExit(f"--system: no exports of {sweeps} match {args.system}")
+        if set(sweeps) - set(system):
+            print(f"no system export for {sorted(set(sweeps) - set(system))}: skipped")
+        sweeps = [sw for sw in sweeps if sw in system]
     size = int(round(args.patch / ISO_MM))
 
     recs = []                                       # one per pair: per-patch ncc, z; system z at patches and points
