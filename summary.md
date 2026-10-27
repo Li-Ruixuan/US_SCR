@@ -151,6 +151,8 @@ Not adopted: with Kabsch the gain on 4XX A is within noise and the cost on both 
 
 ### 3.7 Full system: error at the US image (median per sweep, mean over sweeps; mean step-to-step error in brackets)
 
+v1 model, each segment started at the true pose; superseded by 3.14 and 3.16 (the `sys-kabsch-*` files of this table were removed on 27 Oct and are in git commit 1648fcf, except the extended-map runs of 3.11).
+
 Same pipeline, classical odometry, frames and settings for every column (pose graph: anchor σ 11 mm / 1°).
 
 | split | classical odometry only | + classical anchors | + first SCR anchors | **+ SCR v1 + Kabsch** | + SCR v1 + Kabsch, no pose graph | + classical anchors, no pose graph |
@@ -167,21 +169,20 @@ Pose-graph setting for SCR anchors (2XX validation): anchor σ 11 mm / 1° → 4
 
 The camera-position anchor error does not carry over one to one: on 4XX C the SCR anchors are better at the camera (5.2 vs 5.9 mm) but worse at the US image (6.4 vs 4.6 mm) because their rotation is worse (0.74 vs 0.39°).
 
-### 3.8 3D pages: mean pixel error over the compounded US images (`runs/volume3d-*`)
+### 3.8 3D pages: mean pixel error over the compounded US images (`runs/volume3d-final/<split>/`)
 
-| sweep | **SCR + Kabsch + classical odometry** | classical + classical | classical odometry only |
-|---|---|---|---|
-| run-313 | **2.6** | 3.9 | 12.2 |
-| run-314 | **2.7** | 3.3 | 7.0 |
-| run-315 | **2.2** | 3.0 | 9.4 |
-| run-316 | 2.4 | 2.4 | 11.6 |
-| run-317 | 4.2 | 4.1 | 10.3 |
-| **3XX mean** | **2.8** | 3.3 | 10.1 |
-| run-405 (A) | 6.1 | **4.0** | 7.2 |
-| run-410 (B) | 4.9 | **3.6** | 11.5 |
-| run-414 (C) | 9.1 | **4.4** | 10.7 |
-| run-419 (D) | 10.1 | **7.0** | 11.9 |
-| run-426 (E) | 6.3 | **3.6** | 13.5 |
+Final configuration as in 3.16 (v2 model, gate recovery, every segment started from an anchor, pose graph; classical anchors with the same settings), every sweep. Mean pixel error (mm) per sweep, mean over the split's sweeps in bold.
+
+| split | sweeps | **SCR + classical odometry** | classical + classical | classical odometry only | per sweep (SCR / classical) |
+|---|---|---|---|---|---|
+| 3XX | 5 | **2.7** | 3.2 | 10.1 | 313 2.5/3.8, 314 2.8/3.1, 315 2.3/2.9, 316 2.2/2.6, 317 3.7/3.8 |
+| 4XX A | 8 | 5.3 | **4.4** | 14.5 | 401 4.1/3.1, 402 5.7/3.6, 403 4.9/3.8, 404 10.1/5.6, 405 5.9/4.0, 406 3.4/5.6, 407 4.2/3.7, 408 4.0/5.7 |
+| 4XX B | 4 | 6.0 | **3.7** | 11.1 | 409 6.8/2.5, 410 5.8/3.8, 411 3.9/3.9, 412 7.5/4.5 |
+| 4XX C | 4 | 6.9 | **5.3** | 9.8 | 413 4.2/4.7, 414 9.8/4.6, 415 5.5/5.1, 416 8.1/6.8 |
+| 4XX D | 6 | 10.5 | **7.2** | 13.1 | 418 8.6/5.1, 419 9.8/7.0, 420 13.0/6.9, 421 10.9/7.3, 423 11.7/9.9, 424 8.9/6.7 |
+| 4XX E | 4 | 7.8 | **5.2** | 13.8 | 425 6.1/5.1, 426 6.7/3.6, 427 13.7/8.2, 428 4.6/4.1 |
+
+SCR is better on all five 3XX sweeps and on 3 of the 26 4XX sweeps (406, 408, 413; equal on 411). The pages of the earlier v1 / true-start runs (`volume3d-3XX`, `volume3d-4XX`, one sweep per 4XX block; 3XX 2.8 vs 3.3 mm) were removed on 27 Oct (git commit 1648fcf).
 
 For reference (rgbd-us, same metric): classical odometry + first SCR 6.5 mm on 3XX, 12.0–21.4 mm on 4XX (run-426: 11.6 mm); classical odometry + adapted anchor network 5.7 mm on 3XX, 26.4–54.4 mm on 4XX.
 
@@ -220,6 +221,8 @@ Out-of-plane distance predicted from a curve built on **2XX only**:
 | 4XX D (second subject) | 0.27 / 1.76 | 0.72 / 3.44 | 0.86 (2.85) |
 
 The curve is the same in every collection and for both subjects, and transfers across sessions. It gives the distance only (the sign must come from the camera). Not yet tested inside the pose graph.
+
+**U3: per-patch speckle against the system (27 Oct, first check on run-316 only, classical system; `tools/shape_error.py`, `tools/us_speckle.py`).** The camera system already gets the motion between nearby US frames right: out-of-plane error of the relative pose at the 5 US-image points, median 0.07 mm at 1 row, 0.28 mm at 8 rows, 0.58 mm at 30 rows (1 s), against a true motion of 0.5, 4.1 and 15 mm. Per-patch speckle (12 mm patches, plane fit = elevational shift + two tilts) is 5–10× worse, even with the sign from Polaris and an in-sample curve: 0.33 / 0.75 / 2.4 mm at 1 / 4 / 8 rows; replacing the system where US disagrees by more than 1–3 mm makes the mean and p99 worse, not better. The error that is left is long-range: after the best rigid fit of the whole sweep it is still 2.1 of 2.3 mm (it is distortion, not an offset), and speckle cannot measure beyond a few mm. Running on every split (2XX decides) is pending; if confirmed, short-range US factors are dropped and only long-range constraints (crossing planes) remain.
 
 ### 3.10 Further experiments (23 Oct)
 
@@ -481,23 +484,8 @@ Fairness: both used depth (the anchor network took RGB-D pairs); SCR received mo
 | `runs/aug-2XX`, `aug-4XXA` | viewpoint augmentation (3.5); the room-202-only validation runs were removed (numbers in 3.5, files in git commit 5f80808) |
 | `runs/coverage_error.md` | coverage analysis (3.4) |
 | `runs/README.md` | index of every run: purpose, data, settings, key result, status |
-| `runs/sys-kabsch-*` | full system, error at the US image (3.7) |
-| `runs/volume3d-3XX`, `volume3d-4XX` | 3D pages (3.8) |
+| `runs/sys-final-*`, `sys-v2r-*`, `sys-classical-r-*` | full system, error at the US image (3.14, 3.16) |
+| `runs/volume3d-final/<split>/` | 3D pages, every sweep (3.8) |
 | `runs/us-*` | US diagnostics (3.9) |
 
-```bash
-export RGBD_US=/data2/u0137815/rgbd-us DATA=/data2/u0137815/rgbd-us/data
-# train v1 on a session's room scans and evaluate its sweeps (PnP), then with Kabsch
-python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/v1-3XX \
-  --epochs 120 --check-every 6 --workers 16 --eval-root $DATA/train_3XX
-python scr_anchor.py eval --ckpt runs/v1-3XX/best.pt --test-root $DATA/train_3XX --solver kabsch
-# full system and 3D pages (from the rgbd-us folder)
-cd $RGBD_US
-python <US_SCR>/tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt <US_SCR>/runs/v1-3XX/best.pt \
-  --root data/train_3XX --scan-runs room-301 room-302 --test-root data/train_3XX \
-  --odometry-source classical-vo-train_3XX --odometry runs/rpr-rgb-gap8-12XX-gru8 --pairs runs/anchor-pairs/pairs_3XX.json \
-  --pgo --out <US_SCR>/runs/sys-kabsch-3XX
-python <US_SCR>/tools/volume_pages.py --test-root data/train_3XX \
-  --anchoring <US_SCR>/runs/sys-kabsch-3XX/anchor_eval_scr-v1-3XX-odometry-odo-classical-vo-train_3XX-train_3XX.json \
-  --extra classical-vo-train_3XX --out <US_SCR>/runs/volume3d-3XX
-```
+Commands to reproduce everything from this repo: `README.md`.

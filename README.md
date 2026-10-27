@@ -96,7 +96,7 @@ python tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt runs/v1-3XX
   --pgo --start anchor --out runs/sys-final-3XX
 python tools/volume_pages.py --test-root $DATA/train_3XX \
   --anchoring runs/sys-final-3XX/anchor_eval_scr-v1-3XX-odometry-odo-classical-vo-train_3XX-startanchor-train_3XX.json \
-  --extra classical-vo-train_3XX --out runs/volume3d-3XX
+  --extra classical-vo-train_3XX --out runs/volume3d-final/3XX
 ```
 
 Classical anchors for comparison: `python anchoring.py evaluate --anchor classical` with the same data options. Options: `--start anchor` (no ground-truth pose at the start of a segment), `--gate-recover 3` (accept anchors again after a wrong one was accepted), `--scr-frames M` (one SCR anchor from M chain frames).
@@ -113,6 +113,8 @@ Classical anchors for comparison: `python anchoring.py evaluate --anchor classic
 | `tools/anchor_classical.py`, `tools/anchor_saliency.py` | classical (SIFT) anchors, used by `anchoring.py` (from rgbd-us) |
 | `tools/coverage_error.py` | anchor error vs distance to the nearest room-scan pose |
 | `tools/us_inplane.py` | US diagnostics: in-plane registration and speckle decorrelation |
+| `tools/us_speckle.py` | US diagnostic U3: per-patch speckle decorrelation (out-of-plane shift + tilts) against Polaris and the pose system |
+| `tools/shape_error.py` | shape of the reconstruction: error after a rigid fit of each sweep, relative error between nearby frames |
 | `tools/draw_scr_anchor_diagram.py` | block diagram (`tools/scr_anchor_diagram.pdf/.png`) |
 | `T_marker_cam.npy`, `calib_matrix.csv` | hand–eye and US calibration |
 | `summary.md`, `note.md` | results; working notes and data guide |

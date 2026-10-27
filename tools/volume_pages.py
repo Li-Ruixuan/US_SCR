@@ -17,7 +17,7 @@ relative paths).
 
   python tools/volume_pages.py --test-root $DATA/train_3XX \\
       --anchoring runs/sys-final-3XX/anchor_eval_scr-v1-3XX-odometry-odo-classical-vo-train_3XX-startanchor-train_3XX.json \\
-      --extra classical-vo-train_3XX --out runs/volume3d-3XX
+      --extra classical-vo-train_3XX --out runs/volume3d-final/3XX
 """
 
 import argparse

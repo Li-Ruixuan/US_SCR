@@ -68,13 +68,11 @@ Test only on later sweeps: A on run-405…408, D on run-421, 423, 424 (Kabsch).
 
 | run | anchors | US image (step-to-step) | status |
 |---|---|---|---|
-| `sys-kabsch-2XX` | SCR + Kabsch, gate ≥ 400 (also pose-graph σ 5 mm / 0.5° and 3 mm / 0.3°: 4.4, 4.5) | 4.4 (2.23) | final (validation) |
-| `sys-kabsch-3XX` | ″ | 2.6 (1.07); offline without pose graph 2.1 | final |
-| `sys-kabsch-4XXA` … `4XXE` | ″ | A 5.5, B 5.7, C 6.4, D 10.2, E 6.4 | final |
-| `sys-kabsch-nogate-4XXD`, `-4XXE` | without the inlier gate | D 10.1, E 6.5 | check (gate does not matter) |
 | `sys-kabsch-4XXA-plus4`, `sys-kabsch-4XXD-plus3` | SCR on extended maps | A 2.3, D 4.5 | study |
 | `sys-classical-4XXA-plus4`, `sys-classical-4XXD-plus3` | classical anchors with the same extra keyframes | A 3.2, D 5.8 | study (fair comparison) |
 | `sys-scronly-2XX`, `-3XX`, `-4XXA` | SCR anchors every 0.25 s, no odometry (read the "offline" column) | 2XX 3.8 (2.87), 3XX 2.1 (1.69), A 5.9 (1.85) | study |
+
+The v1 system runs with segments started at the true pose (`sys-kabsch-2XX`, `-3XX`, `-4XXA` … `4XXE`, `sys-kabsch-nogate-4XXD/E`; summary 3.7, 3.13) and their 3D pages (`volume3d-3XX`, `volume3d-4XX`) were removed on 27 Oct: superseded by `sys-final-*` (same model, started from an anchor, same results) and section 7. Numbers in the summary, files in git commit 1648fcf.
 
 Classical + classical references are in rgbd-us (`runs/anchoring-classical-*`, `runs/val-classical-2XX`): 2XX 4.2, 3XX 3.2, A 4.2, B 3.4, C 4.6, D 6.3, E 4.8 mm.
 
@@ -82,7 +80,6 @@ Classical + classical references are in rgbd-us (`runs/anchoring-classical-*`, `
 
 | run | content | status |
 |---|---|---|
-| `volume3d-3XX`, `volume3d-4XX` | 3D pages: true poses vs SCR + classical odometry vs classical + classical vs odometry only; mean pixel error 3XX 2.8 vs 3.3 mm | final (figure) |
 | `coverage_error.md` | anchor error vs distance to the nearest room-scan pose (PnP, v1 models): covered 4.1, uncovered 13.4 mm | final |
 | `us-2XX`, `us-3XX`, `us-4XXA`, `us-4XXD` | US diagnostics: in-plane registration (U1, no better than zero motion) and speckle decorrelation vs out-of-plane distance (U2, transfers across sessions) | study |
 
@@ -97,3 +94,13 @@ Classical + classical references are in rgbd-us (`runs/anchoring-classical-*`, `
 | `sys-classical-final-2XX` | classical anchors, 2XX validation, start from anchors (the 3XX and 4XX ones are in rgbd-us `runs/anchoring-classical-*`, files with `startanchor`) | 4.2 | final (reference) |
 | `v2-3XX`, `v2-4XXA`, `v2-4XXB`, `v2-4XXC` | big head + clean labels on the test splits (`v2-4XXC` also on D, E) | Kabsch 3XX 1.8, A 5.4, B 5.6, C 4.8, D 8.6, E 5.7 | study (small gain on every split) |
 
+## 7. Final configuration (24–27 Oct; summary 3.15, 3.16, 3.8)
+
+| run | content | key result | status |
+|---|---|---|---|
+| `sys-v2-4XXA`, `-4XXB`, `-4XXC` | v2 model, start from anchors, no gate recovery | run-404 locked out (US image 28.3 mm) | study (why recovery) |
+| `sys-v2r-2XX` | v2 (`bigclean-2XX`) + gate recovery 3; also `--scr-frames 3`, `5` | US image M = 1 4.2, M = 3 4.4, M = 5 4.5 mm | final (validation); multi-frame negative |
+| `sys-v2r-3XX`, `sys-v2r-4XXA` … `4XXE` | **final SCR system**: v2, gate recovery 3, start from anchors, pose graph | US image 3XX 2.6, A 5.0, B 5.7, C 5.9, D 9.6, E 6.5 | final |
+| `sys-classical-r-3XX`, `-4XXA` … `4XXE` | **final classical system**, same settings | 3XX 3.1, A 4.2, B 3.4, C 4.9, D 6.3, E 5.0 | final |
+| `volume3d-final/<split>/run-*.html` | 3D pages of the two final systems + odometry only, every sweep (31) | mean pixel error 3XX 2.7 vs 3.2, A 5.3 vs 4.4, B 6.0 vs 3.7, C 6.9 vs 5.3, D 10.5 vs 7.2, E 7.8 vs 5.2 mm | final (figure) |
+| `shape-final.md`, `us-speckle-*` | (to run) shape of the reconstruction; per-patch speckle against the system (U3) | first check on run-316: the system's nearby-frame motion is 5–10× better than speckle | pending |

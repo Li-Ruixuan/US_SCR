@@ -54,7 +54,7 @@ Classical anchors without the pose graph: 2XX 5.0, 3XX 2.9, A 5.1, B 3.1, C 5.5,
 
 Pose-graph setting for SCR anchors, chosen on 2XX validation: anchor σ 11 mm / 1° → 4.4 (2.23), 5 mm / 0.5° → 4.4 (2.20), 3 mm / 0.3° → 4.5 (2.22) mm; no difference, so the rgbd-us default (11 mm / 1°) stays. 2XX validation is dominated by run-205, where the odometry alone drifts to 64 mm.
 
-**3D pages** (`tools/volume_pages.py` → `runs/volume3d-3XX/`, `runs/volume3d-4XX/`, pose graph): mean pixel error over the compounded US images, the metric of rgbd-us's headline table (classical + classical: 3.3 mm on 3XX).
+**3D pages** (`tools/volume_pages.py`, pose graph): mean pixel error over the compounded US images, the metric of rgbd-us's headline table. The table below is the earlier v1 / true-start version (pages removed 27 Oct); the final pages of every sweep are `runs/volume3d-final/<split>/`, numbers in summary 3.8 (3XX 2.7 vs 3.2 mm, classical better on 4XX).
 
 | sweep | **SCR (Kabsch) + classical odometry** | classical + classical | classical odometry only |
 |---|---|---|---|
@@ -202,7 +202,27 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
 
  
   
-  
+  Commands (training PC, from your US_SCR clone)
+
+git pull
+export DATA=/data2/u0137815/rgbd-us/data
+
+# 1. Pose exports for 2XX validation (+ 2 pages), needed to choose settings on 2XX
+python tools/volume_pages.py --test-root $DATA/train_2XX --anchoring runs/sys-v2r-2XX/anchor_eval_scr-bigclean-2XX-odometry-odo-classical-vo-train_2XX-recover3-startanchor-train_2XX.json runs/sys-classical-final-2XX/anchor_eval_classical-odometry-odo-classical-vo-train_2XX-startanchor-train_2XX.json --extra classical-vo-train_2XX --out runs/volume3d-final/2XX
+
+# 2. Shape metric for every split and pose source (~1 min)
+python tools/shape_error.py --json runs/volume3d-final/*/poses/*.json --out runs/shape-final.md
+
+# 3. Speckle on 2XX: builds the calibration curve, decides (a few min)
+python tools/us_speckle.py --root $DATA/train_2XX --system "runs/volume3d-final/2XX/poses/*anchored-pgo-scr-*.json" --out runs/us-speckle-2XX
+
+# 4. Test splits with the 2XX curve (a few min each)
+python tools/us_speckle.py --root $DATA/train_3XX --curve runs/us-speckle-2XX/curve.json --system "runs/volume3d-final/3XX/poses/*anchored-pgo-scr-*.json" --out runs/us-speckle-3XX
+python tools/us_speckle.py --root $DATA/test_4XXA --curve runs/us-speckle-2XX/curve.json --system "runs/volume3d-final/4XXA/poses/*anchored-pgo-scr-*.json" --out runs/us-speckle-4XXA
+python tools/us_speckle.py --root $DATA/test_4XXD --curve runs/us-speckle-2XX/curve.json --system "runs/volume3d-final/4XXD/poses/*anchored-pgo-scr-*.json" --out runs/us-speckle-4XXD
+
+git add -A && git commit -m "Shape metric, U3 speckle diagnostic, final 3D pages, remove superseded runs" && git push
+Everything runs on CPU. Step 3 decides, using the rule fixed in advance: the combined system + US estimate must beat the system alone on the mean or the 99th-percentile error. Results go to runs/shape-final.md and runs/us-speckle-*/us_speckle.md.
 
 
 
