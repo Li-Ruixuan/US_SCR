@@ -205,6 +205,26 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
  
 
  
+This is CPU work: a few minutes per block for exporting the trajectories, then about 1 min per sweep for its page.
 
+
+cd <your US_SCR clone> && git pull
+export DATA=/data2/u0137815/rgbd-us/data
+for b in 3XX 4XXA 4XXB 4XXC 4XXD 4XXE; do
+  case $b in
+    3XX)  root=$DATA/train_3XX; t=train_3XX; ck=v2-3XX ;;
+    4XXA) root=$DATA/test_4XXA; t=test_4XXA; ck=v2-4XXA ;;
+    4XXB) root=$DATA/test_4XXB; t=test_4XXB; ck=v2-4XXB ;;
+    4XXC) root=$DATA/test_4XXC; t=test_4XXC; ck=v2-4XXC ;;
+    4XXD) root=$DATA/test_4XXD; t=test_4XXD; ck=v2-4XXC ;;
+    4XXE) root=$DATA/test_4XXE; t=test_4XXE; ck=v2-4XXC ;;
+  esac
+  python tools/volume_pages.py --test-root $root \
+    --anchoring runs/sys-v2r-$b/anchor_eval_scr-$ck-odometry-odo-classical-vo-$t-recover3-startanchor-$t.json \
+                runs/sys-classical-r-$b/anchor_eval_classical-odometry-odo-classical-vo-$t-recover3-startanchor-$t.json \
+    --extra classical-vo-$t \
+    --labels "SCR anchors + classical odometry" "classical anchors + classical odometry" "classical odometry only" \
+    --out runs/volume3d-final/$b
+done
 
 

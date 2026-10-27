@@ -390,6 +390,21 @@ Full system, v2 model (big head + clean labels), every segment started from an a
 
 Multi-frame anchors are not adopted (rule fixed in advance: > 0.2 mm better than one frame; they are 0.2–0.3 mm worse). Pooling triples the inliers but the odometry linking the frames adds its own error, and the rotation barely changes (0.29 → 0.28°): the rotation error of single-frame anchors is not mainly noise that more correspondences average out. Gate recovery never triggered on 2XX (no wrongly accepted anchor), so it changes nothing there; it is kept for the 4XX failure (run-404).
 
+### 3.16 Final system on the test splits (27 Oct)
+
+Both anchor types with gate recovery (3), every segment started from an anchor (no Polaris pose at test time), classical odometry, pose graph. SCR: v2 model (big head + clean labels), one frame per anchor. Median error at the US image (mm), step-to-step error in brackets; anchors median / p90, rotation.
+
+| split | SCR anchors | classical anchors | **SCR system** | **classical system** | ratio |
+|---|---|---|---|---|---|
+| 3XX | 1.9 / 3.3, 0.19° | 2.6 / 6.9, 0.34° | **2.6** (1.08) | 3.1 (1.09) | 0.8 |
+| 4XX A | 5.5 / 8.2, 0.48° | 5.3 / 10.0, 0.48° | 5.0 (1.10) | **4.2** (1.13) | 1.2 |
+| 4XX B | 5.8 / 7.8, 0.35° | 3.2 / 5.0, 0.25° | 5.7 (1.33) | **3.4** (1.32) | 1.7 |
+| 4XX C | 4.9 / 10.5, 0.64° | 6.0 / 11.1, 0.39° | 5.9 (1.17) | **4.9** (1.19) | 1.2 |
+| 4XX D | 8.3 / 12.8, 0.65° | 7.1 / 16.6, 0.41° | 9.6 (1.18) | **6.3** (1.19) | 1.5 |
+| 4XX E | 5.3 / 9.3, 0.40° | 5.2 / 8.4, 0.36° | 6.5 (1.65) | **5.0** (1.57) | 1.3 |
+
+Gate recovery fixed the v2 failure on run-404 (US image 28.3 → 8.2 mm, anchors accepted 38 → 95 %) and changed nothing for classical anchors (identical results). Against v1 (3.14), v2 lowers the 4XX system error by up to 0.8 mm; the gap to classical is now 1.2–1.7× on 4XX.
+
 ## 4. Why SCR beats the RPR anchor network
 
 | | RPR anchor network | SCR |
