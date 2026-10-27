@@ -200,34 +200,16 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
 
 
 
- 
-  
-  Commands (training PC, from your US_SCR clone)
-
-git pull
-export DATA=/data2/u0137815/rgbd-us/data
-
-# 1. Pose exports for 2XX validation (+ 2 pages), needed to choose settings on 2XX
-python tools/volume_pages.py --test-root $DATA/train_2XX --anchoring runs/sys-v2r-2XX/anchor_eval_scr-bigclean-2XX-odometry-odo-classical-vo-train_2XX-recover3-startanchor-train_2XX.json runs/sys-classical-final-2XX/anchor_eval_classical-odometry-odo-classical-vo-train_2XX-startanchor-train_2XX.json --extra classical-vo-train_2XX --out runs/volume3d-final/2XX
-
-# 2. Shape metric for every split and pose source (~1 min)
-python tools/shape_error.py --json runs/volume3d-final/*/poses/*.json --out runs/shape-final.md
-
-# 3. Speckle on 2XX: builds the calibration curve, decides (a few min)
-python tools/us_speckle.py --root $DATA/train_2XX --system "runs/volume3d-final/2XX/poses/*anchored-pgo-scr-*.json" --out runs/us-speckle-2XX
-
-# 4. Test splits with the 2XX curve (a few min each)
-python tools/us_speckle.py --root $DATA/train_3XX --curve runs/us-speckle-2XX/curve.json --system "runs/volume3d-final/3XX/poses/*anchored-pgo-scr-*.json" --out runs/us-speckle-3XX
-python tools/us_speckle.py --root $DATA/test_4XXA --curve runs/us-speckle-2XX/curve.json --system "runs/volume3d-final/4XXA/poses/*anchored-pgo-scr-*.json" --out runs/us-speckle-4XXA
-python tools/us_speckle.py --root $DATA/test_4XXD --curve runs/us-speckle-2XX/curve.json --system "runs/volume3d-final/4XXD/poses/*anchored-pgo-scr-*.json" --out runs/us-speckle-4XXD
-
-git add -A && git commit -m "Shape metric, U3 speckle diagnostic, final 3D pages, remove superseded runs" && git push
-Everything runs on CPU. Step 3 decides, using the rule fixed in advance: the combined system + US estimate must beat the system alone on the mean or the 99th-percentile error. Results go to runs/shape-final.md and runs/us-speckle-*/us_speckle.md.
 
 
 
 
 
 
+git add -A && git commit -m "Shape metric, U3 speckle diagnostic, final 3D pages, remove superseded runs" && git push 
 
-  
+
+
+
+
+

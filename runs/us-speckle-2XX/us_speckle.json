@@ -1,0 +1,41 @@
+{
+ "args": {
+  "root": "/data2/u0137815/rgbd-us/data/train_2XX",
+  "runs": null,
+  "gaps": [
+   1,
+   4,
+   8
+  ],
+  "every": 5,
+  "patch": 12.0,
+  "curve": null,
+  "system": "runs/volume3d-final/2XX/poses/*anchored-pgo-scr-*.json",
+  "out": "runs/us-speckle-2XX",
+  "hand_eye": "/data2/u0137815/US_SCR/T_marker_cam.npy",
+  "calib": "/data2/u0137815/US_SCR/calib_matrix.csv"
+ },
+ "errors": {
+  "1|US, Polaris sign (upper bound)": {
+   "n": 1595,
+   "median": 0.22026458144480943,
+   "mean": 0.29066151500908194,
+   "p90": 0.6061049698702495,
+   "p99": 1.2174260788682427
+  },
+  "4|US, Polaris sign (upper bound)": {
+   "n": 1587,
+   "median": 0.6180304067356139,
+   "mean": 0.8611703562711737,
+   "p90": 1.993621035476862,
+   "p99": 3.7635811905947305
+  },
+  "8|US, Polaris sign (upper bound)": {
+   "n": 1575,
+   "median": 1.308565779879579,
+   "mean": 1.9117387257692144,
+   "p90": 4.409990329437265,
+   "p99": 8.200232161672995
+  }
+ }
+}
