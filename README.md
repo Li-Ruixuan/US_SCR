@@ -115,6 +115,7 @@ Classical anchors for comparison: `python anchoring.py evaluate --anchor classic
 | `tools/us_inplane.py` | US diagnostics: in-plane registration and speckle decorrelation |
 | `tools/us_speckle.py` | US diagnostic U3: per-patch speckle decorrelation (out-of-plane shift + tilts) against Polaris and the pose system |
 | `tools/shape_error.py` | shape of the reconstruction: error after a rigid fit of each sweep, relative error between nearby frames |
+| `tools/li_repro.py` | reproduction of Li et al. (TBME 2024) with the authors' code (github.com/ucl-candi/freehand) and data (Zenodo 7740734): training with a fixed split, and the paper's metrics |
 | `tools/draw_scr_anchor_diagram.py` | block diagram (`tools/scr_anchor_diagram.pdf/.png`) |
 | `T_marker_cam.npy`, `calib_matrix.csv` | hand–eye and US calibration |
 | `summary.md`, `note.md` | results; working notes and data guide |

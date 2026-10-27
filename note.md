@@ -201,5 +201,21 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
 
 
 
+Commands (training PC)
 
+# 1. Their code and data (once; ~8.5 GB download + unzip + h5)
+cd /data2/u0137815 && git clone https://github.com/ucl-candi/freehand.git && cd freehand
+pip install h5py SimpleITK openpyxl zenodo_get
+zenodo_get 7740734
+mv Freehand_US_data.zip data/ && unzip data/Freehand_US_data.zip -d data
+python data/prep.py
+
+# 2. Smoke test (a few minutes): checks the pipeline and shows the speed per epoch
+cd <your US_SCR clone> && git pull
+python tools/li_repro.py train --repo /data2/u0137815/freehand --h5 /data2/u0137815/freehand/data/Freehand_US_data/frames_res4.h5 --M 2 --epochs 20 --val-every 10 --out runs/li-repro-smoke
+python tools/li_repro.py eval --repo /data2/u0137815/freehand --out runs/li-repro-smoke
+
+# 3. The reproduction: the paper's baseline, M = 2, 20,000 epochs
+python tools/li_repro.py train --repo /data2/u0137815/freehand --h5 /data2/u0137815/freehand/data/Freehand_US_data/frames_res4.h5 --M 2 --out runs/li-repro-M2
+python tools/li_repro.py eval --repo /data2/u0137815/freehand --out runs/li-repro-M2
 

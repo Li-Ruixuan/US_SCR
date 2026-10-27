@@ -17,6 +17,7 @@ Status 23 Oct 2026. Project: `US_SCR` (this repo), building on `rgbd-us` (`note_
 | Bigger head, cleaner labels, refined pose fit, viewpoint augmentation, full resolution? | Big head + clean labels: lower p90 and rotation on 2XX for both seeds, median unchanged — adopted, effect on the test splits not yet measured; nothing on extended maps. Refined pose fit, viewpoint augmentation and full resolution: neutral or worse | moderate |
 | Is the classical odometry needed? | Only for smoothness: SCR anchors every 0.25 s without odometry give the same median error at the US image but 1.4–1.7× larger step-to-step error | moderate (three splits) |
 | Can US images help? | Not for in-plane motion (registration worse than assuming none), and not for out-of-plane motion either: speckle decorrelation measures the distance (0.3–0.4 mm median, transfers across sessions), but the camera system already gets the motion between nearby frames 2–5× better, and fusing them does not help on any test split | strong (U1, U2, U3 on 3XX, 4XX A, 4XX D) |
+| Is the 4XX gap distortion or offset? | **Mostly a rigid offset of each sweep:** after the best rigid fit, SCR and classical give the same volume shape on 4XX (3.5 vs 3.3 mm, SCR better on 12 of 26 sweeps) and SCR is better on 3XX (2.1 vs 2.5); SCR's anchors on a poorly covered map shift a whole sweep together (3.17) | moderate (metric chosen after the gap was known) |
 
 ## 2. Setup
 
@@ -230,7 +231,7 @@ The curve is the same in every collection and for both subjects, and transfers a
 | 4XX A | 1 / 4 / 8 | 0.3 / 1.0 / 2.0 | **0.09 / 0.23 / 0.33** (p99 0.96 / 3.06 / 4.52) | 0.17 / 0.54 / 1.08 | 0.20 / 0.57 / 1.16 | 0.09 / 0.24 / 0.40 (p99 0.96 / 4.08 / 8.78) |
 | 4XX D | 1 / 4 / 8 | 0.2 / 1.0 / 2.0 | **0.08 / 0.23 / 0.34** (p99 0.65 / 1.95 / 2.95) | 0.16 / 0.52 / 1.06 | 0.18 / 0.56 / 1.14 | 0.08 / 0.23 / 0.38 (p99 0.65 / 2.03 / 5.75) |
 
-**Negative on every test split:** the camera system measures the motion between nearby US frames 2–5× better than speckle, even when speckle gets the sign from Polaris, and in the tails too; no fusion threshold (1, 2, 3 mm) beats the system on the median, mean or p99, the larger gaps get worse. Short-range US factors are dropped. (2XX had no system comparison because of a bug, fixed; it cannot change the verdict since no threshold helps anywhere.) The error that is left is long-range (run-316: 2.1 of 2.3 mm remains after a rigid fit of the sweep), which speckle cannot measure; only long-range constraints (crossing planes) remain as a US idea.
+**Negative on every test split:** the camera system measures the motion between nearby US frames 2–5× better than speckle, even when speckle gets the sign from Polaris, and in the tails too; no fusion threshold (1, 2, 3 mm) beats the system on the median, mean or p99, the larger gaps get worse. Short-range US factors are dropped. On 2XX validation (rerun after a bug fix) the system is better too (k = 1 / 4 / 8: 0.10 / 0.44 / 0.77 vs US 0.27 / 0.72 / 1.45 mm); the best fusion (tau 2 mm) changes k = 1 by 0.01 mm mean and is worse at k = 4 and 8, so no threshold is adopted. The error that is left is long-range (run-316: 2.1 of 2.3 mm remains after a rigid fit of the sweep), which speckle cannot measure; only long-range constraints (crossing planes) remain as a US idea.
 
 ### 3.10 Further experiments (23 Oct)
 
@@ -416,6 +417,25 @@ Both anchor types with gate recovery (3), every segment started from an anchor (
 
 Gate recovery fixed the v2 failure on run-404 (US image 28.3 → 8.2 mm, anchors accepted 38 → 95 %) and changed nothing for classical anchors (identical results). Against v1 (3.14), v2 lowers the 4XX system error by up to 0.8 mm; the gap to classical is now 1.2–1.7× on 4XX.
 
+### 3.17 Shape of the reconstruction (27 Oct; `tools/shape_error.py`, `runs/shape-final.md`)
+
+Final systems as in 3.16 (pose exports of the 3D pages). Error at the 5 US-image points (mm), median per sweep, mean over sweeps: **absolute** (as 3.16) and **shape** = after the best rigid fit of the whole sweep to Polaris, i.e. the distortion of the reconstructed volume, without its placement in the room. Relative out-of-plane error between frames 1 s apart in the last columns.
+
+| split | SCR: absolute | **SCR: shape** | classical: absolute | **classical: shape** | odometry only: shape | SCR better shape (sweeps) | 1 s out-of-plane SCR / classical |
+|---|---|---|---|---|---|---|---|
+| 2XX val | 4.2 | **3.3** | 4.2 | 4.0 | 14.3 | 1 / 2 | 1.32 / 1.42 |
+| 3XX | 2.5 | **2.1** | 3.1 | 2.5 | 6.2 | 3 / 5 | 0.47 / 0.62 |
+| 4XX A | 5.0 | **2.7** | 4.2 | 3.1 | 5.0 | 5 / 8 | 0.56 / 0.63 |
+| 4XX B | 5.7 | 3.2 | 3.4 | **2.5** | 6.6 | 1 / 4 | 0.70 / 0.67 |
+| 4XX C | 5.9 | **3.2** | 4.9 | 3.4 | 4.8 | 3 / 4 | 0.75 / 0.70 |
+| 4XX D | 9.6 | 3.8 | 6.3 | **3.6** | 8.4 | 2 / 6 | 0.77 / 0.76 |
+| 4XX E | 6.5 | 4.8 | 5.0 | **4.2** | 8.6 | 1 / 4 | 1.06 / 1.02 |
+
+1. **Most of SCR's 4XX gap is a rigid offset of the whole sweep, not distortion.** The rigid fit removes 1.7–5.9 mm from SCR and 0.8–2.7 mm from classical; after it, the 4XX ratio SCR / classical is 0.86–1.30 (mean 3.5 vs 3.3 mm, SCR better on 12 of 26 sweeps) instead of 1.2–1.7 for the absolute error. This fits the correlated anchor errors (consecutive SCR anchors on 4XX have error correlation 0.6–0.8): a poorly covered map shifts all anchors of a sweep the same way.
+2. **For the volume itself (shape, measurements inside it) SCR is on par with classical on new sessions and better on 3XX**; for placing it in the room (navigation against an earlier scan) classical is better on 4XX. Caveat: this metric was introduced after the 4XX gap was known; report it next to the absolute error, not instead of it.
+3. **The anchors do not cost smoothness:** the 1 s relative error is the same for both anchor types and for odometry alone; local motion is set by the odometry.
+4. **The remaining distortion (2–5 mm) is long-range** (1 s relative error 0.5–1 mm), on the scale between anchors and along the sweep. This is the only error a US-based method could still reduce (crossing planes); short-range US is ruled out (3.9, U3).
+
 ## 4. Why SCR beats the RPR anchor network
 
 | | RPR anchor network | SCR |
@@ -493,6 +513,7 @@ Fairness: both used depth (the anchor network took RGB-D pairs); SCR received mo
 | `runs/coverage_error.md` | coverage analysis (3.4) |
 | `runs/README.md` | index of every run: purpose, data, settings, key result, status |
 | `runs/sys-final-*`, `sys-v2r-*`, `sys-classical-r-*` | full system, error at the US image (3.14, 3.16) |
+| (removed 27 Oct) | `s0a-scr-3XX`, `s1-2XX`, `s1-e60-*`, `s3-full-2XX`, `aug-*`, `v1-4XXA-plus1`, `sys-final-2XX/4XX*`, `sys-v2-4XX*`: numbers stay in this summary, files in git commit 52d7892 (list in `runs/README.md`) |
 | `runs/volume3d-final/<split>/` | 3D pages, every sweep (3.8) |
 | `runs/us-*` | US diagnostics (3.9) |
 
