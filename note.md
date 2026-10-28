@@ -208,14 +208,6 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
 
 
 
-Commands for step 2 (same as before, new name)
 
-git pull
-export DATA=/data2/u0137815/rgbd-us/data
-python scr_anchor.py track --ckpt runs/bigclean-2XX/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --every 2 --out runs/track-2XX
-python scr_anchor.py track --ckpt runs/v2-3XX/best.pt  --test-root $DATA/train_3XX  --every 2 --out runs/track-3XX
-python scr_anchor.py track --ckpt runs/v2-4XXA/best.pt --test-root $DATA/test_4XXA --every 2 --out runs/track-4XXA
-python scr_anchor.py track --ckpt runs/v2-4XXC/best.pt --test-root $DATA/test_4XXD --every 2 --out runs/track-4XXD
-git add -A && git commit -m "Clean-up: merge tools; single-model tracking" && git push
-Commit the clean-up first if you prefer (git add -A && git commit -m "Clean-up" && git push), then pull on the training PC and run these.
+
 
