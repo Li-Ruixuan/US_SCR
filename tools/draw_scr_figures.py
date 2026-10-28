@@ -1,11 +1,11 @@
 """
 Two figures of the SCR system, in tools/:
   scr_pipeline      how the project works: map the room before the exam, then track the probe
-                    during it (classical SIFT odometry + SCR anchors + pose graph -> pose of every
-                    US image); colours: blue sensors and data, purple learned, green training,
+                    during it with the SCR network alone (every frame, Kabsch RANSAC, temporal
+                    smoothing -> pose of every US image; summary 3.1); colours: blue sensors and data, purple learned, green training,
                     orange geometry (no learning), white result
   scr_architecture  the SCR anchor in paper style (one column of a two-column page, 7.4 x 2.75 in):
-                    image encoder, coordinate head, scene coordinates, geometric pose solver, with
+                    image encoder, coordinate head, scene coordinates, pose solver + smoothing, with
                     tensor shapes and real thumbnails of one sweep frame (RGB, depth, and the
                     room-coordinate labels of its 45 x 80 cells); flame = trained on the room scan
 
@@ -78,10 +78,10 @@ def band(ax, y0, y1, label, xl):
 # ---------------------------------------------------------------- 1. pipeline
 def pipeline():
     fig, ax = canvas(16, 8.6, 160, 86)
-    ax.text(2, 83.2, "Markerless probe tracking with scene coordinate regression (SCR) anchors", fontsize=15.5,
+    ax.text(2, 83.2, "Markerless probe tracking with one scene coordinate regression (SCR) network", fontsize=15.5,
             weight="bold", color=INK)
-    ax.text(2, 79.8, "one RGB-D camera on the ultrasound probe; nothing outside the probe during the exam",
-            fontsize=10, color=MUTED)
+    ax.text(2, 79.8, "one RGB-D camera on the ultrasound probe, one network, no odometry; nothing outside the probe "
+            "during the exam", fontsize=10, color=MUTED)
 
     # A. before the exam
     band(ax, 50, 77, "A   Before the exam: map the room (once per room / session)", 160)
@@ -94,29 +94,33 @@ def pipeline():
     arrow(ax, 130.4, 61.5, 139.6, 61.5)
 
     # B. during the exam
-    band(ax, 4, 47, "B   During the exam: track the probe, no tracker", 160)
-    box(ax, 4, 12, 26, 27, "Probe", "RGB-D camera (D435i)\n+ ultrasound probe\n\nRGB, depth, US image\n~30 frames/s", DATA)
-    box(ax, 42, 27, 36, 14.5, "SCR anchor (every 1 s)", "SCR network -> room coordinate per cell\n+ measured depth -> Kabsch RANSAC\n"
-        "-> absolute camera pose in the room\n(the only anchors; no features)", NET)
-    box(ax, 42, 10, 36, 11.5, "Odometry", "camera motion between frames 0.27 s apart\nSIFT features + depth, PnP-RANSAC\n(classical, not learned); drifts", GEO)
-    box(ax, 90, 18, 26, 14, "Pose graph", "anchors remove drift,\nodometry fills the gaps\n-> camera pose\nof every frame", GEO)
-    box(ax, 128, 25, 29, 13, "Pose of every\nUS image", "camera pose x hand-eye\nx US calibration", GEO, sfs=8.4)
-    box(ax, 128, 8, 29, 12.5, "3D ultrasound volume", "US images placed in the room\nand compounded", OUT)
-    arrow(ax, 30.4, 34.2, 41.6, 34.2)
-    arrow(ax, 30.4, 15.8, 41.6, 15.8)
-    arrow(ax, 78.4, 34.2, 89.6, 27.5)
-    arrow(ax, 78.4, 15.8, 89.6, 22.5)
-    arrow(ax, 116.4, 25.0, 127.6, 30.5)
-    arrow(ax, 142.5, 24.6, 142.5, 20.9)
-    # the room model feeds the anchors
-    ax.plot([148.5, 148.5, 60], [56.1, 49.5, 49.5], color=NET[1], lw=1.35)
-    arrow(ax, 60, 49.5, 60, 41.9, color=NET[1])
-    ax.text(104, 50.6, "room model", fontsize=8.6, color=NET[1], ha="center")
+    band(ax, 4, 47, "B   During the exam: track the probe with the network alone", 160)
+    box(ax, 4, 15, 24, 25, "Probe", "RGB-D camera (D435i)\n+ ultrasound probe\n\nRGB, depth, US image\n~30 frames/s", DATA)
+    box(ax, 35, 23, 28, 15, "SCR network", "every frame:\nroom coordinate of\nevery image cell", NET)
+    box(ax, 70, 23, 26, 15, "Kabsch RANSAC", "+ measured depth\n-> camera pose in the room\n(dropped if < 400 inliers)", GEO)
+    box(ax, 103, 23, 22, 15, "Temporal\nsmoothing", "robust local fit\nover +-1 s", GEO, sfs=8.4)
+    box(ax, 131, 26, 26, 12, "Pose of every\nUS image", "camera pose x hand-eye\nx US calibration", GEO, sfs=8.2)
+    box(ax, 131, 8, 26, 12, "3D ultrasound volume", "US images placed in the\nroom and compounded", OUT, sfs=8.4)
+    arrow(ax, 28.4, 32, 34.6, 32, label="RGB", ly=1.3)
+    arrow(ax, 63.4, 30.5, 69.6, 30.5)
+    arrow(ax, 96.4, 30.5, 102.6, 30.5)
+    arrow(ax, 125.4, 30.5, 130.6, 31.5)
+    arrow(ax, 144, 25.6, 144, 20.4)
+    ax.plot([28.4, 32, 32, 83], [19, 19, 17.6, 17.6], color=MUTED, lw=1.35)               # depth -> Kabsch
+    arrow(ax, 83, 17.6, 83, 22.6)
+    ax.text(57, 18.8, "depth", fontsize=8.3, color=MUTED, ha="center")
+    ax.plot([16, 16, 120], [14.6, 11.5, 11.5], color=MUTED, lw=1.35)                       # US images -> volume
+    arrow(ax, 120, 11.5, 130.6, 11.5)
+    ax.text(70, 12.6, "US images", fontsize=8.3, color=MUTED, ha="center")
+    # the room model feeds the network
+    ax.plot([148.5, 148.5, 49], [56.1, 49.5, 49.5], color=NET[1], lw=1.35)
+    arrow(ax, 49, 49.5, 49, 38.4, color=NET[1])
+    ax.text(100, 50.6, "room model", fontsize=8.6, color=NET[1], ha="center")
 
     # evaluation note
-    ax.text(4, 5.2, "Evaluation (not part of the system): a Polaris marker on the probe gives the true pose; errors are "
-            "measured at the US image, ~16 cm from the camera, where 1 degree of rotation is ~1.6 mm.",
-            fontsize=9, color=MUTED)
+    ax.text(4, 5.2, "Evaluation only: a Polaris marker on the probe gives the true pose; errors at the US image (~16 cm "
+            "from the camera, 1 degree ~ 1.6 mm). The earlier hybrid (SCR anchors + SIFT odometry + pose graph) is no better.",
+            fontsize=8.8, color=MUTED)
     legend(ax, 4, 0.8, [(DATA, "sensors and data"), (NET, "learned"), (TRAIN, "training"), (GEO, "geometry, no learning"),
                         (OUT, "result")])
     return fig
@@ -267,7 +271,7 @@ def architecture(thumbs=None):
     arr(114.0, 39.0, 121.6, 51.5)
 
     # 3. pose solver
-    panel(143, 6, 40, 54, "Geometric Pose Solver", P_SOLV)
+    panel(143, 6, 40, 54, "Pose Solver + Smoothing", P_SOLV)
     sub(145.5, 43, 35, 13.5, "", fs=5.4)
     ax.text(163, 53.6, "3D–3D correspondences", ha="center", fontsize=5.6, color=INK)
     import numpy as np
@@ -282,19 +286,19 @@ def architecture(thumbs=None):
     ax.text(148.9, 49.1, r"$C$", fontsize=5.6, color=INK, ha="right", va="center")
     ax.text(177.1, 49.1, r"$\hat{P}$", fontsize=5.6, color=INK, ha="left", va="center")
     ax.text(163, 44.4, r"$C$: back-projected depth    $\hat{P}$: network", ha="center", fontsize=4.6, color=MUTED)
-    sub(145.5, 26.5, 21.5, 11.5, "Kabsch RANSAC\n256 hypotheses\ninlier < 20 mm\n3 refits", fs=5.0)
-    sub(145.5, 11, 21.5, 11.5, "Inlier gate\n≥ 400 inliers\n(recovery after\n3 agreeing anchors)", fs=5.0)
-    arr(156.2, 42.8, 156.2, 38.3)
-    arr(156.2, 26.3, 156.2, 22.8)
+    sub(145.5, 26.0, 21.5, 13.0, "Kabsch RANSAC\n256 hyp., < 20 mm\n3 refits\n≥ 400 inliers,\nelse frame dropped", fs=4.9)
+    sub(145.5, 9, 35, 11.5, "Temporal smoothing (no odometry)\nrobust local fit of the poses over ±1 s\n"
+        "→ camera pose of every frame", fs=5.0)
+    arr(156.2, 42.8, 156.2, 39.2)
     for k in range(3):                                                          # 6-DoF output, R and t
         ax.add_patch(plt.Circle((173.0, 34.8 - k * 2.6), 1.0, fc="#f2c9c3", ec="#b07a73", lw=0.5))
         ax.add_patch(plt.Circle((177.6, 34.8 - k * 2.6), 1.0, fc="#d9d2ee", ec="#7f73a6", lw=0.5))
     ax.text(173.0, 37.6, "R", ha="center", fontsize=5.4, color=INK)
     ax.text(177.6, 37.6, "t", ha="center", fontsize=5.4, color=INK)
-    ax.text(175.3, 26.6, "anchor\n" r"$T_\mathrm{world,cam}$" "\n" r"$\in SE(3)$", ha="center", va="top", fontsize=5.0,
+    ax.text(175.3, 28.0, "per frame\n" r"$T_\mathrm{world,cam}$", ha="center", va="top", fontsize=5.0,
             color=INK, linespacing=1.4)
-    arr(167.2, 32.0, 171.6, 32.0)
-    ax.text(175.3, 13.5, "no learning", ha="center", fontsize=4.8, color=MUTED, style="italic")
+    arr(175.3, 23.3, 175.3, 20.7)
+    arr(167.2, 32.5, 171.6, 32.5)
     arr(139.4, 52.0, 145.3, 49.5)
 
     # depth: labels (training, dashed) and camera points (use)

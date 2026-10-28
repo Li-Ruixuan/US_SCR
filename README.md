@@ -1,6 +1,6 @@
 # US_SCR
 
-Markerless pose estimation of a freehand ultrasound probe from a probe-mounted RGB-D camera, with **scene coordinate regression (SCR) anchors**: a network trained on a room scan predicts the room coordinate of every image cell, and a 3D–3D RANSAC (Kabsch) on the measured depth turns them into the camera pose. Results and discussion: `summary.md`; working notes and data guide: `note.md`.
+Markerless pose estimation of a freehand ultrasound probe from a probe-mounted RGB-D camera with **one scene coordinate regression (SCR) network**: trained on a room scan, it predicts the room coordinate of every image cell; a 3D–3D RANSAC (Kabsch) on the measured depth turns them into the camera pose of every frame, smoothed over time. No odometry, no tracker at test time. Results and discussion: `summary.md`; working notes and data guide: `note.md`.
 
 ## Problem and claim
 
@@ -64,38 +64,39 @@ python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 --out run
 
 It should print the frames found, one line per epoch, and an evaluation table (errors of several cm: three epochs on 200 frames only test the pipeline).
 
-## 4. Train and evaluate
+## 4. Train, evaluate, track
 
-Train on a collection's room scans (defaults are the final recipe: 120 epochs, about 25–50 min on an A4500), then evaluate on its sweeps, one frame per second:
+Train the final model (v2) on a collection's room scans (about 25–50 min on an A4500; the flags are needed, `train`'s defaults are the earlier v1 recipe), evaluate its anchors on the sweeps (one frame per second), and track every frame with the network alone:
 
 ```bash
-python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/v1-3XX --eval-root $DATA/train_3XX
-python scr_anchor.py eval --ckpt runs/v1-3XX/best.pt --test-root $DATA/train_3XX                 # Kabsch (default)
-python scr_anchor.py eval --ckpt runs/v1-3XX/best.pt --test-root $DATA/train_3XX --solver pnp    # PnP, without depth
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --head big --label-max-depth 2000 --drop-depth-edges --out runs/v2-3XX
+python scr_anchor.py eval  --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX                  # anchors, Kabsch (default)
+python scr_anchor.py eval  --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX --solver pnp     # anchors, PnP without depth
+python scr_anchor.py track --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-3XX   # the system
 ```
 
-Outputs in `runs/v1-3XX/`: `config.json` (all settings), `history.json` (loss and fit check per epoch), `best.pt` (the model after the last epoch), and per evaluation `eval_<test>[_kabsch]/scr_eval.md` (table per sweep: position / rotation error against Polaris, median and p90, inliers, ms per frame) and `scr_eval.json` (every frame).
+Outputs: `runs/v2-3XX/` `config.json` (all settings), `history.json` (loss and fit check per epoch), `best.pt`, and per evaluation `eval_<test>[_kabsch]/scr_eval.md` / `.json`; `runs/track-3XX/scr_track.md` (error at the US image, raw and smoothed with 0.25–2 s windows; the final system uses 2 s), `scr_track.json`, `poses.npz` (raw poses, reused when re-smoothing with other `--windows`).
 
-Options of `train`: `--head big` (larger head), `--label-max-depth 2000 --drop-depth-edges` (cleaner labels), `--aug-scale 0.67 1.5 --aug-rot 15` (viewpoint augmentation), and map extension: add sweeps to `--scan-runs` (labelled with their Polaris poses) or label them with the system's own estimate via `--label-poses <poses.py JSON>`. `python scr_anchor.py train -h` lists everything.
+Other options of `train`: `--aug-scale 0.67 1.5 --aug-rot 15` (viewpoint augmentation), map extension (add sweeps to `--scan-runs`, labelled with Polaris, or with the system's own estimate via `--label-poses <poses.py JSON>`). `python scr_anchor.py train -h` lists everything.
 
 Coverage analysis of an evaluation:
 
 ```bash
-python tools/coverage_error.py runs/v1-3XX/eval_train_3XX_kabsch/scr_eval.json --out runs/coverage_3XX.md
+python tools/coverage_error.py runs/v2-3XX/eval_train_3XX_kabsch/scr_eval.json --out runs/coverage_3XX.md
 ```
 
-## 5. Full system (odometry + anchors + pose graph)
+## 5. Hybrid system for comparison (anchors every 1 s + SIFT odometry + pose graph)
 
-Needs the odometry run and the anchor pairs, result folders of rgbd-us (`runs/rpr-rgb-gap8-12XX-gru8` for 2XX/3XX, `runs/rpr-rgb-gap8-123XX-gru8` for 4XX, with the classical odometry caches in `preds/`; `runs/anchor-pairs/`). Set `ODO` to the folder that holds them and run from this repo's folder (anchoring writes its trajectories into `$ODO/<odometry run>/preds/`):
+The earlier system, kept as the comparison with classical anchors. Needs the odometry run and the anchor pairs, result folders of rgbd-us (`runs/rpr-rgb-gap8-12XX-gru8` for 2XX/3XX, `runs/rpr-rgb-gap8-123XX-gru8` for 4XX, with the classical odometry caches in `preds/`; `runs/anchor-pairs/`). Set `ODO` to the folder that holds them and run from this repo's folder (anchoring writes its trajectories into `$ODO/<odometry run>/preds/`):
 
 ```bash
 export DATA=/path/to/data ODO=/path/to/rgbd-us/runs
-python tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt runs/v1-3XX/best.pt \
+python tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt runs/v2-3XX/best.pt --gate-recover 3 \
   --root $DATA/train_3XX --scan-runs room-301 room-302 --test-root $DATA/train_3XX \
   --odometry-source classical-vo-train_3XX --odometry $ODO/rpr-rgb-gap8-12XX-gru8 --pairs $ODO/anchor-pairs/pairs_3XX.json \
-  --pgo --start anchor --out runs/sys-final-3XX
+  --pgo --start anchor --out runs/sys-v2r-3XX
 python tools/volume_pages.py --test-root $DATA/train_3XX \
-  --anchoring runs/sys-final-3XX/anchor_eval_scr-v1-3XX-odometry-odo-classical-vo-train_3XX-startanchor-train_3XX.json \
+  --anchoring runs/sys-v2r-3XX/anchor_eval_scr-v2-3XX-odometry-odo-classical-vo-train_3XX-recover3-startanchor-train_3XX.json \
   --extra classical-vo-train_3XX --out runs/volume3d-final/3XX
 ```
 
