@@ -207,35 +207,6 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
 
 
 
-The code already supports this (--odometry-source model is the RPRNet cache in rgbd-us), so no code changes are needed. There are three arms: SCR every 1 s + RPRNet, SCR every 0.25 s + RPRNet, and SCR every 0.25 s with no odometry (the v2 version of E3). The final SCR + SIFT system is the reference.
 
 
-git pull
-export DATA=/data2/u0137815/rgbd-us/data ODO=/data2/u0137815/rgbd-us/runs
-S="python tools/anchoring_kabsch.py -- evaluate --anchor scr --pgo --start anchor --gate-recover 3"
 
-# 2XX validation (decides)
-A="--scr-ckpt runs/bigclean-2XX/best.pt --root $DATA/train_2XX --scan-runs room-201 room-202 --test-root $DATA/train_2XX --odometry $ODO/rpr-rgb-gap8-12XX-gru8 --pairs $ODO/anchor-pairs/pairs_2XX.json --out runs/sys-learned-2XX"
-$S $A --odometry-source model --interval 1
-$S $A --odometry-source model --interval 0.25
-$S $A --odometry-source zero  --interval 0.25
-
-# 3XX
-A="--scr-ckpt runs/v2-3XX/best.pt --root $DATA/train_3XX --scan-runs room-301 room-302 --test-root $DATA/train_3XX --odometry $ODO/rpr-rgb-gap8-12XX-gru8 --pairs $ODO/anchor-pairs/pairs_3XX.json --out runs/sys-learned-3XX"
-$S $A --odometry-source model --interval 1
-$S $A --odometry-source model --interval 0.25
-$S $A --odometry-source zero  --interval 0.25
-
-# 4XX A (new session)
-A="--scr-ckpt runs/v2-4XXA/best.pt --root $DATA/test_4XXA --scan-runs room-401 room-402 --test-root $DATA/test_4XXA --odometry $ODO/rpr-rgb-gap8-123XX-gru8 --pairs $ODO/anchor-pairs/pairs_4XXA.json --out runs/sys-learned-4XXA"
-$S $A --odometry-source model --interval 1
-$S $A --odometry-source model --interval 0.25
-$S $A --odometry-source zero  --interval 0.25
-
-# 4XX D (second subject, C's map)
-A="--scr-ckpt runs/v2-4XXC/best.pt --root $DATA/test_4XXD --scan-runs room-405 room-406 --test-root $DATA/test_4XXD --odometry $ODO/rpr-rgb-gap8-123XX-gru8 --pairs $ODO/anchor-pairs/pairs_4XXD.json --out runs/sys-learned-4XXD"
-$S $A --odometry-source model --interval 1
-$S $A --odometry-source model --interval 0.25
-$S $A --odometry-source zero  --interval 0.25
-
-git add -A && git commit -m "Fully learned system: SCR + RPRNet odometry" && git push
