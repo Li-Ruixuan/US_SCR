@@ -17,6 +17,7 @@ Status 23 Oct 2026. Project: `US_SCR` (this repo), building on `rgbd-us` (`note_
 | Bigger head, cleaner labels, refined pose fit, viewpoint augmentation, full resolution? | Big head + clean labels: lower p90 and rotation on 2XX for both seeds, median unchanged — adopted, effect on the test splits not yet measured; nothing on extended maps. Refined pose fit, viewpoint augmentation and full resolution: neutral or worse | moderate |
 | Is the classical odometry needed? | Only for smoothness: SCR anchors every 0.25 s without odometry give the same median error at the US image but 1.4–1.7× larger step-to-step error | moderate (three splits) |
 | Can US images help? | Not for in-plane motion (registration worse than assuming none), and not for out-of-plane motion either: speckle decorrelation measures the distance (0.3–0.4 mm median, transfers across sessions), but the camera system already gets the motion between nearby frames 2–5× better, and fusing them does not help on any test split | strong (U1, U2, U3 on 3XX, 4XX A, 4XX D) |
+| Does a learned sensorless US network (Li et al.) help? | **No.** Reproduced on its own data (21.4 vs 22.8 mm published), but on ours zero-shot and fine-tuned are worse than zero motion and from scratch equals it; the camera system is 15–30× better at 1 s (3.18, 3.19) | strong (3 test splits, rules fixed in advance) |
 | Is the 4XX gap distortion or offset? | **Mostly a rigid offset of each sweep:** after the best rigid fit, SCR and classical give the same volume shape on 4XX (3.5 vs 3.3 mm, SCR better on 12 of 26 sweeps) and SCR is better on 3XX (2.1 vs 2.5); SCR's anchors on a poorly covered map shift a whole sweep together (3.17) | moderate (metric chosen after the gap was known) |
 
 ## 2. Setup
@@ -448,6 +449,35 @@ The authors' code (github.com/ucl-candi/freehand) and data (Zenodo 7740734: 19 v
 
 **Reproduced** on the headline metric (criterion fixed in advance: within ±5 mm of 22.75 mm, i.e. two standard errors): 21.4 mm, better than zero motion on all 45 scans. Frame to frame and drift are somewhat worse (0.65 vs 0.53, 40 vs 30 mm), within one standard deviation of the paper but not of its mean; likely causes: one random split and seed, and overfitting (training loss 0.03 at the end, validation distance flat at 0.5–0.6 mm from epoch ~5,000, as the paper's Fig. 7). So the method works as published on its own data; the 60 mm on our 3XX (rgbd-us, trained on our 2XX) is a transfer / data-size problem, not a broken implementation.
 
+### 3.19 Li et al. on our sweeps: zero-shot, fine-tuned, from scratch (27 Oct; `tools/li_transfer.py`, `runs/li-transfer/`)
+
+The reproduced model (3.18) on our sweeps, new US frames only (~19/s; theirs 20/s), predicted image-plane motion mapped into our calibration (axis mapping chosen on 2XX validation: as-is 199 vs swapped 218 mm). Fine-tuning from it and training from scratch: our 2XX (10 sweeps), validation run-205 / 211, 20,000 steps, best validation checkpoint (fine-tuned 0.57 mm corner distance, scratch 0.54 mm). One setting each, fixed in advance.
+
+Accumulated error (paper metric, every pixel, all frames vs the segment's first frame; mm, mean over segments):
+
+| model | 3XX | 4XX A | 4XX D |
+|---|---|---|---|
+| zero-shot (their weights) | 129.0 | – | – |
+| fine-tuned from their weights | 75.2 | 125.4 | 81.7 |
+| from scratch on our 2XX | 56.0 | 49.1 | 52.4 |
+| **zero motion** | **57.8** | **49.3** | **53.3** |
+
+Out-of-plane error of the relative motion between frames ~1 s apart (19 new US frames), median (mm); true motion in brackets:
+
+| model | 3XX (8.9) | 4XX A (6.2) | 4XX D (5.8) |
+|---|---|---|---|
+| fine-tuned | 12.49 | 7.94 | 6.79 |
+| from scratch | 8.75 | 5.88 | 5.77 |
+| zero motion | 8.86 | 6.22 | 5.79 |
+| **camera system (SCR)** | **0.38** | **0.49** | **0.61** |
+
+1. **Their weights do not transfer:** zero-shot the model is 2× worse than zero motion (it predicts its training protocol's steady distal-to-proximal motion, ~0.5 mm per frame, on our back-and-forth sweeps), and fine-tuning from it stays worse than zero motion on every split. Pretraining on their data hurts.
+2. **Trained on our data alone it learns zero motion:** from scratch it equals zero motion on every metric and split (56.0 vs 57.8, 49.1 vs 49.3, 52.4 vs 53.3 mm; same relative errors), as rgbd-us found (60.3 vs 58.0 mm).
+3. **The camera system is 15–30× better** than any US network at 1 s and 2–8× better between adjacent frames.
+4. Both rules fixed in advance fail: no US network beats zero motion on 3XX, none beats the camera system anywhere. The same network reaches its published 21.4 mm on its own data (3.18), so this is a transfer limit (one protocol, different images and anatomy, 10 training sweeps), not an implementation error.
+
+**US line closed:** in-plane registration (U1), speckle decorrelation (U2, U3) and the learned sensorless network (Li et al., reproduced, zero-shot, fine-tuned, scratch) all fail to add to the camera; handcrafted speckle at least measures out-of-plane distance better than zero motion, the learned network does not.
+
 ## 4. Why SCR beats the RPR anchor network
 
 | | RPR anchor network | SCR |
@@ -513,7 +543,7 @@ Fairness: both used depth (the anchor network took RGB-D pairs); SCR received mo
 | `tools/volume_pages.py` | interactive 3D pages from anchoring results (rgbd-us `poses.py` + `tools/volume_3d.py`) |
 | `tools/coverage_error.py` | anchor error vs distance to the nearest room-scan pose |
 | `tools/us_inplane.py` | US diagnostics U1 (in-plane registration) and U2 (speckle decorrelation) |
-| `tools/draw_scr_anchor_diagram.py` | block diagram of the pipeline |
+| `tools/draw_scr_figures.py` | figures: `tools/scr_pipeline` (workflow) and `tools/scr_architecture` (network and pose solver) |
 | `note.md` | working notes, data guide, full history |
 
 | runs | content |

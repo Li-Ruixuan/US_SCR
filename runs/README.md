@@ -121,5 +121,10 @@ Removed to keep this folder to what the paper and summary need; the files are in
 | run | content | key result | status |
 |---|---|---|---|
 | `li-repro-M2` | Li et al. (TBME 2024) baseline M = 2, their code and forearm data, 20,000 epochs; `saved_model/` (weights, not in git from now on) | accumulated error 21.4 ± 11.2 mm vs paper 22.8 ± 17.5; zero motion 73.1 | final (reproduction) |
+| `li-transfer/zeroshot-2XX-asis`, `-swap` | their weights on 2XX validation, two axis mappings | as-is 199 vs swap 218 mm (zero motion 32): as-is chosen | input |
+| `li-transfer/zeroshot-3XX` | their weights on 3XX | 129.0 mm (zero motion 57.8) | negative |
+| `li-transfer/ft-2XX`, `scratch-2XX` | fine-tuned from their weights / from scratch on our 2XX (weights in `saved_model/`, not in git) | validation corner distance 0.57 / 0.54 mm | input |
+| `li-transfer/ft-3XX`, `-4XXA`, `-4XXD` | fine-tuned, tested | 75.2, 125.4, 81.7 mm (zero motion 57.8, 49.3, 53.3) | negative |
+| `li-transfer/scratch-3XX`, `-4XXA`, `-4XXD` | from scratch, tested | 56.0, 49.1, 52.4 mm: = zero motion | negative |
 
 The smoke test (`li-repro-smoke`, 20 epochs) was removed.
