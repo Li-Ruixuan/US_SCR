@@ -9,25 +9,94 @@ Two steps, chained:
      (from the trajectories anchoring.py saved in <odometry arm>/preds/; CPU, no network);
   2. tools/volume_3d.py --json <one JSON per estimate> builds the page of each sweep.
 
+--track adds the single-network system (scr_anchor.py track): its raw poses (<track dir>/poses.npz)
+are smoothed with --track-window (2 s, the chosen window) at every row of the reference export (the
+first --anchoring or --extra source) and written in the poses.py format, first on the page.
+
+Every run also rewrites <parent of --out>/index.html: one table per split (sub-folder), one row per
+sweep, the mean pixel error of each source and a link to its page.
+
 --anchoring takes anchor_eval_<tag>.json files (from tools/anchoring_kabsch.py or anchoring.py):
 the tag and the odometry arm are read from them, so no source name has to be typed. --extra adds
 plain sources such as classical-vo-train_3XX (odometry only). The odometry run is the path stored in
 the anchoring file; give --odometry if that path is not valid here (e.g. files written in rgbd-us with
 relative paths).
 
-  python tools/volume_pages.py --test-root $DATA/train_3XX \\
-      --anchoring runs/sys-final-3XX/anchor_eval_scr-v1-3XX-odometry-odo-classical-vo-train_3XX-startanchor-train_3XX.json \\
-      --extra classical-vo-train_3XX --out runs/volume3d-final/3XX
+  python tools/volume_pages.py --test-root $DATA/train_3XX --track runs/track-3XX \\
+      --anchoring runs/sys-classical-r-3XX/anchor_eval_classical-odometry-odo-classical-vo-train_3XX-recover3-startanchor-train_3XX.json \\
+      --extra classical-vo-train_3XX --out runs/volume3d/3XX
 """
 
 import argparse
 import glob
+import html
 import json
 import subprocess
 import sys
 from pathlib import Path
 
+import numpy as np
+
 REPO = Path(__file__).resolve().parents[1]
+TRACK = "scr-track"
+
+
+def track_export(track_dir, ref_path, window, out_path):
+    """The single-network trajectory of one sweep in the poses.py format, on the rows of a reference export."""
+    sys.path.insert(0, str(REPO))
+    from scr_anchor import smooth_poses
+    ref = json.load(open(ref_path))
+    z = np.load(Path(track_dir) / "poses.npz")
+    sw = ref["run"]
+    if f"{sw}_rows" not in z:
+        return False
+    pose = {int(r): (T, k) for r, T, k in zip(z[f"{sw}_rows"], z[f"{sw}_T"], z[f"{sw}_inl"])}
+    T_cam_us = np.asarray(ref["T_cam_us"])
+    frames = [dict(f) for f in ref["frames"]]
+    for seg in sorted({f["segment"] for f in frames}):
+        idx = [n for n, f in enumerate(frames) if f["segment"] == seg]
+        rows = np.array([frames[n]["row"] for n in idx])
+        T = np.array([pose[r][0] if r in pose else np.full((4, 4), np.nan) for r in rows])
+        w = np.array([pose[r][1] if r in pose else 0 for r in rows], float)
+        Ts = smooth_poses(np.array([frames[n]["t"] for n in idx]), T, w, window)
+        for n, Tn in zip(idx, Ts):
+            frames[n]["T_world_cam_pred"] = Tn.tolist()
+            frames[n]["T_world_us_pred"] = (Tn @ T_cam_us).tolist()
+    doc = dict(ref, source=TRACK, chaining=f"SCR alone on every frame, smoothed {window:g} s (scr_anchor.py track)",
+               frames=frames)
+    json.dump(doc, open(out_path, "w"))
+    return True
+
+
+def page_errors(page):
+    """{label: mean pixel error} from a volume_3d.py page."""
+    s = open(page).read()
+    i = s.index("const META = ") + len("const META = ")
+    meta = json.loads(s[i:s.index(";\n", i)])
+    return {src["label"]: src["pixel_error_mm"] for src in meta["sources"] if src["key"] != "gt"}
+
+
+def write_index(root):
+    """<root>/index.html: per split folder, the mean pixel error of each source per sweep, with links."""
+    root = Path(root)
+    parts = ["<!doctype html><html><head><meta charset='utf-8'><title>3D pages</title><style>"
+             "body{font-family:sans-serif;margin:24px;color:#222}table{border-collapse:collapse;margin-bottom:24px}"
+             "td,th{border:1px solid #ccc;padding:4px 10px;text-align:right}th{background:#f2f2f2}"
+             "td:first-child,th:first-child{text-align:left}tr.mean td{font-weight:bold;background:#fafafa}</style></head><body>",
+             "<h1>3D pages: mean pixel error over the compounded US images (mm)</h1>"]
+    for split in sorted(d for d in root.iterdir() if d.is_dir() and list(d.glob("run-*.html"))):
+        pages = sorted(split.glob("run-*.html"))
+        errs = {p.stem: page_errors(p) for p in pages}
+        labels = list(dict.fromkeys(l for e in errs.values() for l in e))
+        parts.append(f"<h2>{html.escape(split.name)}</h2><table><tr><th>sweep</th>"
+                     + "".join(f"<th>{html.escape(l)}</th>" for l in labels) + "</tr>")
+        for p in pages:
+            parts.append(f"<tr><td><a href='{split.name}/{p.name}'>{p.stem}</a></td>"
+                         + "".join(f"<td>{errs[p.stem].get(l, float('nan')):.1f}</td>" for l in labels) + "</tr>")
+        parts.append("<tr class='mean'><td>mean</td>" + "".join(
+            f"<td>{np.nanmean([e.get(l, np.nan) for e in errs.values()]):.1f}</td>" for l in labels) + "</tr></table>")
+    (root / "index.html").write_text("\n".join(parts) + "</body></html>\n")
+    print(f"index -> {root / 'index.html'}")
 
 
 def anchoring_source(path, mode):
@@ -66,6 +135,9 @@ def main():
     ap.add_argument("--mode", default="pgo", choices=["pgo", "offline", "causal"],
                     help="which anchored trajectory: pose graph, offline or causal")
     ap.add_argument("--extra", nargs="+", default=[], help="plain poses.py sources, e.g. classical-vo-train_3XX, zero")
+    ap.add_argument("--track", default=None, help="scr_anchor.py track folder: the single-network system, first on the page")
+    ap.add_argument("--track-window", type=float, default=2.0, help="smoothing window of --track (s)")
+    ap.add_argument("--track-label", default="one SCR network (ours)")
     ap.add_argument("--labels", nargs="+", default=None, help="one per --anchoring, then one per --extra")
     ap.add_argument("--odometry", default=None, help="odometry arm (default: from the anchoring files)")
     ap.add_argument("--out", required=True, help="folder for <run>.html (and the exported JSON in poses/)")
@@ -100,6 +172,13 @@ def main():
         return f[0] if f else None
 
     sweeps = args.runs or sorted({Path(p).name.split("_")[1] for p in glob.glob(str(out / "poses" / "fold*_*.json"))})
+    if args.track and not args.dry_run:                 # the single-network system, on the rows of the first source
+        for sweep in sweeps:
+            ref = exported(sources[0][0], sweep)
+            if ref and not track_export(args.track, ref, args.track_window, out / "poses" / f"fold0_{sweep}_{TRACK}.json"):
+                print(f"{sweep}: not in {args.track}/poses.npz")
+    if args.track:
+        sources = [(TRACK, args.track_label)] + sources
     failed = []
     for sweep in sweeps:                                # 2. one page per sweep
         js = [exported(s, sweep) for s, _ in sources]
@@ -111,6 +190,8 @@ def main():
                     "--voxel", args.voxel, "--stride", args.stride], args.dry_run, check=False):
             failed.append(sweep)
     print(f"pages -> {out}/<run>.html" + (f"; FAILED: {failed} (error above each)" if failed else ""))
+    if not args.dry_run:
+        write_index(out.parent)
 
 
 if __name__ == "__main__":

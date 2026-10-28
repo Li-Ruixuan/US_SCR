@@ -9,8 +9,8 @@ Analyses of the US images and of the reconstruction's shape (no learning), one c
            and the relative error between nearby frames
 
   python tools/us_analysis.py inplane --root $DATA/train_3XX --out runs/us-3XX
-  python tools/us_analysis.py speckle --root $DATA/train_2XX --system "runs/volume3d-final/2XX/poses/*anchored-pgo-scr-*.json" --out runs/us-speckle-2XX
-  python tools/us_analysis.py shape --json runs/volume3d-final/*/poses/*.json --out runs/shape-final.md
+  python tools/us_analysis.py speckle --root $DATA/train_2XX --system "runs/volume3d/2XX/poses/*_scr-track.json" --out runs/us-speckle-2XX
+  python tools/us_analysis.py shape --json runs/volume3d/*/poses/*.json --out runs/shape-final.md
 
 Each command's details: python tools/us_analysis.py <command> -h, and the docstring of main_<command>.
 Formerly tools/us_inplane.py, tools/us_speckle.py and tools/shape_error.py (runs before 28 Oct 2026).
@@ -347,9 +347,9 @@ def main_speckle():
     Errors: out-of-plane error at the 5 US-image points of anchoring.py (mm, mean over the points), per
     pair; median / mean / p90 / p99 over pairs, per k.
 
-      python tools/us_analysis.py speckle --root $DATA/train_2XX --system "runs/volume3d-final/2XX/poses/*anchored-pgo-scr-*.json" --out runs/us-speckle-2XX
+      python tools/us_analysis.py speckle --root $DATA/train_2XX --system "runs/volume3d/2XX/poses/*_scr-track.json" --out runs/us-speckle-2XX
       python tools/us_analysis.py speckle --root $DATA/train_3XX --curve runs/us-speckle-2XX/curve.json \\
-          --system "runs/volume3d-final/3XX/poses/*anchored-pgo-scr-*.json" --out runs/us-speckle-3XX
+          --system "runs/volume3d/3XX/poses/*_scr-track.json" --out runs/us-speckle-3XX
     """
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", required=True, help="collection folder with the sweeps, e.g. $DATA/train_2XX")
@@ -554,7 +554,7 @@ def main_shape():
     Numbers are means over sweeps of the per-sweep medians. Rows are grouped by split (the folder that
     holds poses/) and source.
 
-      python tools/us_analysis.py shape --json runs/volume3d-final/*/poses/*.json --out runs/shape-final.md
+      python tools/us_analysis.py shape --json runs/volume3d/*/poses/*.json --out runs/shape-final.md
     """
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", nargs="+", required=True, help="poses.py exports")

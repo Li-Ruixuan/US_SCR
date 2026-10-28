@@ -12,7 +12,7 @@ tracker" (IEEE TBME 2024), the US-only baseline:
   python tools/li_baseline.py transfer finetune --init runs/li-repro-M2/saved_model/best_validation_dist_model \\
       --root $DATA/train_2XX --val-runs run-205 run-211 --out runs/li-transfer/ft-2XX
   python tools/li_baseline.py transfer eval --weights runs/li-transfer/ft-2XX/saved_model/best_model \\
-      --root $DATA/train_3XX --system "runs/volume3d-final/3XX/poses/*anchored-pgo-scr-*.json" --out runs/li-transfer/ft-3XX
+      --root $DATA/train_3XX --system "runs/volume3d/3XX/poses/*_scr-track.json" --out runs/li-transfer/ft-3XX
 
 Details: the docstrings of main_repro and main_transfer. Formerly tools/li_repro.py and
 tools/li_transfer.py (runs before 28 Oct 2026).
@@ -520,7 +520,7 @@ def main_transfer():
                 out-of-plane error of the US network, the system and zero motion (as tools/shape_error.py).
 
       python tools/li_baseline.py transfer eval --weights runs/li-repro-M2/saved_model/best_validation_dist_model \\
-          --root $DATA/train_3XX --system "runs/volume3d-final/3XX/poses/*anchored-pgo-scr-*.json" --out runs/li-transfer/zeroshot-3XX
+          --root $DATA/train_3XX --system "runs/volume3d/3XX/poses/*_scr-track.json" --out runs/li-transfer/zeroshot-3XX
       python tools/li_baseline.py transfer finetune --init runs/li-repro-M2/saved_model/best_validation_dist_model \\
           --root $DATA/train_2XX --val-runs run-205 run-211 --out runs/li-transfer/ft-2XX
     """

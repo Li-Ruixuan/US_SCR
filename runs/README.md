@@ -10,7 +10,7 @@ Every folder backs a number in `../summary.md` (section in the last column). Che
 | `<model>/eval_<test>[_<sweeps>][_kabsch]/scr_eval.md`, `.json` | anchor accuracy per sweep (`scr_anchor.py eval`; `_kabsch` = Kabsch solve, else PnP) |
 | `track-*/scr_track.md`, `.json`, `poses.npz` | single-network system (`scr_anchor.py track`): raw and smoothed, per sweep; the raw poses per row |
 | `sys-*/anchor_eval_*.md`, `.json` | hybrid system (`anchoring.py` via `tools/anchoring_kabsch.py`): per sweep anchors, then the US-image error for no anchors, causal, offline, **offline pose graph** (the reported column) |
-| `volume3d-final/<split>/<run>.html` | interactive 3D compounding (open in a browser), mean pixel error per pose source |
+| `volume3d/index.html`, `volume3d/<split>/<run>.html` | 3D pages (open in a browser): true poses vs the single network, the classical system and odometry only; the index lists every sweep with its mean pixel error |
 | `us-*`, `us-speckle-*`, `shape-final.*` | `tools/us_analysis.py inplane / speckle / shape` |
 | `li-repro-M2`, `li-transfer/*` | `tools/li_baseline.py repro / transfer` |
 
@@ -22,7 +22,12 @@ Every folder backs a number in `../summary.md` (section in the last column). Che
 | `track-3XX` | `v2-3XX` | **1.85 (0.93)** [2.03] |
 | `track-4XXA` | `v2-4XXA` | 5.14 (0.99) [5.21] |
 | `track-4XXD` | `v2-4XXC` | 9.63 (1.34) [9.57] |
-| `track-4XXB`, `-4XXC`, `-4XXE`, `track-3XX-room301`, `track-3XX-seed1/2` | | pending |
+| `track-4XXB`, `track-4XXC` | `v2-4XXB`, `v2-4XXC` | 5.77 (0.92), 5.63 (0.82) |
+| `track-4XXE` | `v2-4XXC` | 6.25 (1.68) [raw 6.12] |
+| `track-3XX-seed1`, `-seed2` | `v2-3XX-seed1`, `-seed2` | 1.95 (0.92), 2.12 (0.93) |
+| `track-3XX-room301` | `v2-3XX-room301` (map room-301 only), run-315…317: strict protocol | 2.98 (1.18) [3.12]; classical system 3.0 |
+
+3D pages of these runs: `volume3d/` (index: `volume3d/index.html`).
 
 ## 2. Final models (v2: big head + clean labels, 120 epochs, room scans only; summary 4.2)
 
@@ -30,6 +35,7 @@ Every folder backs a number in `../summary.md` (section in the last column). Che
 |---|---|---|
 | `bigclean-2XX`, `bigclean-seed1-2XX` | 2XX → run-205, 211 (validation; seeds 0, 1) | 3.4 / 7.3, 0.27°; 3.7 / 6.9, 0.28° |
 | `v2-3XX` | 3XX → 3XX | 1.8 / 3.4, 0.19° |
+| `v2-3XX-seed1`, `-seed2`; `v2-3XX-room301` | 3XX, seeds 1, 2; map room-301 only | (tracked only, section 1) |
 | `v2-4XXA`, `v2-4XXB` | A → A, B → B | 5.4 / 8.9, 0.45°; 5.6 / 8.0, 0.35° |
 | `v2-4XXC` | C → C, D, E | 4.8 / 9.9; 8.6 / 14.5; 5.7 / 9.7 |
 
@@ -41,7 +47,6 @@ Every folder backs a number in `../summary.md` (section in the last column). Che
 | `sys-v2r-2XX` | same on 2XX; also `--scr-frames 3, 5` (multi-frame anchors, negative) | 4.2; 4.4, 4.5 |
 | `sys-classical-r-3XX`, `-4XXA` … `-4XXE` | classical anchors, same settings | 3XX 3.1, A 4.2, B 3.4, C 4.9, D 6.3, E 5.0 |
 | `sys-classical-final-2XX` | classical anchors on 2XX | 4.2 |
-| `volume3d-final/<split>/` | 3D pages of both systems + odometry only, every sweep incl. 2XX | mean pixel error 3XX 2.7 vs 3.2, 4XX 5.3–10.5 vs 3.7–7.2 |
 | `shape-final.md`, `.json` | shape after a rigid fit of each sweep | 4XX SCR 3.5 vs classical 3.3 |
 
 ## 4. Studies
@@ -68,4 +73,4 @@ Every folder backs a number in `../summary.md` (section in the last column). Che
 | `li-repro-M2` | Li et al. reproduced on their data | 21.4 ± 11.2 vs 22.8 ± 17.5 mm published |
 | `li-transfer/zeroshot-*`, `ft-*`, `scratch-*` | Li et al. on our sweeps (zero-shot; axis mapping as-is chosen on 2XX) | zero-shot 129, fine-tuned 75–125, scratch 49–56 = zero motion |
 
-Removed runs (superseded or intermediate) are in git: commits 1648fcf (v1 true-start systems, old 3D pages), 52d7892 (intermediate training runs, v1 / no-recovery systems, augmentation), 870a144 (v1 SCR-only runs `sys-scronly-*`); their numbers are in the earlier summary (commit 870a144).
+Removed runs (superseded or intermediate) are in git: commits 1648fcf (v1 true-start systems, old 3D pages), 52d7892 (intermediate training runs, v1 / no-recovery systems, augmentation), 870a144 (v1 SCR-only runs `sys-scronly-*`), 50ef6f5 (hybrid-system 3D pages `volume3d-final`); their numbers are in the earlier summary (commit 870a144).

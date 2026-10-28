@@ -79,6 +79,33 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
+Stage 1: three variants on 4XX A (about 1.5–2.5 h)
 
+git pull
+export DATA=/data2/u0137815/rgbd-us/data
+V2="--head big --label-max-depth 2000 --drop-depth-edges"
 
+# frozen encoder
+python scr_anchor.py train --root $DATA/test_4XXA --scan-runs room-401 room-402 $V2 --freeze-encoder --out runs/v2fz-4XXA
+python scr_anchor.py track --ckpt runs/v2fz-4XXA/best.pt --test-root $DATA/test_4XXA --every 2 --out runs/track-v2fz-4XXA
 
+# rendered views
+python scr_anchor.py train --root $DATA/test_4XXA --scan-runs room-401 room-402 $V2 --render-views 0.5 --out runs/v2rv-4XXA
+python scr_anchor.py track --ckpt runs/v2rv-4XXA/best.pt --test-root $DATA/test_4XXA --every 2 --out runs/track-v2rv-4XXA
+
+# both
+python scr_anchor.py train --root $DATA/test_4XXA --scan-runs room-401 room-402 $V2 --freeze-encoder --render-views 0.5 --out runs/v2fzrv-4XXA
+python scr_anchor.py track --ckpt runs/v2fzrv-4XXA/best.pt --test-root $DATA/test_4XXA --every 2 --out runs/track-v2fzrv-4XXA
+ 
+
+Stage 2: only for a variant that passes (use its flags in place of <FLAGS>)
+
+python scr_anchor.py train --root $DATA/test_4XXB --scan-runs room-403 room-404 $V2 <FLAGS> --out runs/v2x-4XXB
+python scr_anchor.py train --root $DATA/test_4XXC --scan-runs room-405 room-406 $V2 <FLAGS> --out runs/v2x-4XXC
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 $V2 <FLAGS> --out runs/v2x-3XX
+python scr_anchor.py track --ckpt runs/v2x-4XXB/best.pt --test-root $DATA/test_4XXB --every 2 --out runs/track-v2x-4XXB
+python scr_anchor.py track --ckpt runs/v2x-4XXC/best.pt --test-root $DATA/test_4XXC --every 2 --out runs/track-v2x-4XXC
+python scr_anchor.py track --ckpt runs/v2x-4XXC/best.pt --test-root $DATA/test_4XXD --every 2 --out runs/track-v2x-4XXD
+python scr_anchor.py track --ckpt runs/v2x-4XXC/best.pt --test-root $DATA/test_4XXE --every 2 --out runs/track-v2x-4XXE
+python scr_anchor.py track --ckpt runs/v2x-3XX/best.pt  --test-root $DATA/train_3XX  --every 2 --out runs/track-v2x-3XX
+The 3XX run is the no-harm check: the variant shouldn't get worse where coverage is already good.

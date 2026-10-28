@@ -77,7 +77,7 @@ python scr_anchor.py track --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3X
 
 Outputs: `runs/v2-3XX/` `config.json` (all settings), `history.json` (loss and fit check per epoch), `best.pt`, and per evaluation `eval_<test>[_kabsch]/scr_eval.md` / `.json`; `runs/track-3XX/scr_track.md` (error at the US image, raw and smoothed with 0.25–2 s windows; the final system uses 2 s), `scr_track.json`, `poses.npz` (raw poses, reused when re-smoothing with other `--windows`).
 
-Other options of `train`: `--aug-scale 0.67 1.5 --aug-rot 15` (viewpoint augmentation), map extension (add sweeps to `--scan-runs`, labelled with Polaris, or with the system's own estimate via `--label-poses <poses.py JSON>`). `python scr_anchor.py train -h` lists everything.
+Other options of `train`: `--freeze-encoder` (train the head only on frozen ImageNet features, ACE-style), `--render-views 0.5` (add 0.5 rendered views per training frame: new viewpoints splatted from a point cloud of the room scan, exact labels; `--render-shift`, `--render-rot`, `--render-voxel`; writes `render_preview.jpg`), `--aug-scale 0.67 1.5 --aug-rot 15` (viewpoint augmentation), map extension (add sweeps to `--scan-runs`, labelled with Polaris, or with the system's own estimate via `--label-poses <poses.py JSON>`). `python scr_anchor.py train -h` lists everything.
 
 Coverage analysis of an evaluation:
 
@@ -95,9 +95,10 @@ python tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt runs/v2-3XX
   --root $DATA/train_3XX --scan-runs room-301 room-302 --test-root $DATA/train_3XX \
   --odometry-source classical-vo-train_3XX --odometry $ODO/rpr-rgb-gap8-12XX-gru8 --pairs $ODO/anchor-pairs/pairs_3XX.json \
   --pgo --start anchor --out runs/sys-v2r-3XX
-python tools/volume_pages.py --test-root $DATA/train_3XX \
-  --anchoring runs/sys-v2r-3XX/anchor_eval_scr-v2-3XX-odometry-odo-classical-vo-train_3XX-recover3-startanchor-train_3XX.json \
-  --extra classical-vo-train_3XX --out runs/volume3d-final/3XX
+# 3D pages: the single network (track) vs the classical system vs odometry only; also writes runs/volume3d/index.html
+python tools/volume_pages.py --test-root $DATA/train_3XX --track runs/track-3XX \
+  --anchoring runs/sys-classical-r-3XX/anchor_eval_classical-odometry-odo-classical-vo-train_3XX-recover3-startanchor-train_3XX.json \
+  --extra classical-vo-train_3XX --labels "classical anchors + classical odometry" "classical odometry only" --out runs/volume3d/3XX
 ```
 
 Classical anchors for comparison: `python anchoring.py evaluate --anchor classical` with the same data options. Options: `--start anchor` (no ground-truth pose at the start of a segment), `--gate-recover 3` (accept anchors again after a wrong one was accepted), `--scr-frames M` (one SCR anchor from M chain frames).

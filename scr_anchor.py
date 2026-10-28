@@ -51,11 +51,11 @@ import numpy as np                                                      # noqa: 
 import torch                                                            # noqa: E402
 import torch.nn as nn                                                   # noqa: E402
 import torch.nn.functional as F                                         # noqa: E402
-from torch.utils.data import DataLoader, Dataset                        # noqa: E402
+from torch.utils.data import ConcatDataset, DataLoader, Dataset          # noqa: E402
 from scipy.spatial.transform import Rotation                            # noqa: E402
 from tqdm import tqdm                                                   # noqa: E402
 
-from dataloader import RPRConfig, RPRDataset, load_hand_eye, test_sweeps   # noqa: E402
+from dataloader import IMAGENET_MEAN, IMAGENET_STD, RPRConfig, RPRDataset, load_hand_eye, test_sweeps   # noqa: E402
 from scr import STRIDE, SCRNet, coord_targets, grid_pixels, load_depth_mm, localize   # noqa: E402
 
 
@@ -169,6 +169,153 @@ class Frames(Dataset):
         tgt = ((xyz[o::STRIDE, o::STRIDE] - self.centre) / 1000.0).transpose(2, 0, 1)
         return (torch.from_numpy(rgb.transpose(2, 0, 1).copy()).float(), torch.from_numpy(tgt.copy()).float(),
                 torch.from_numpy(ok[o::STRIDE, o::STRIDE] > 0))
+
+
+# ---------------------------------------------------------------- rendered views (--render-views)
+
+def room_cloud(ds, root, items, every, stride, max_depth, voxel):
+    """Coloured point cloud of the room (mm, world frame) from every `every`-th training frame: depth
+    back-projected on a `stride`-pixel grid with the frame's pose, depth edges dropped, merged on a
+    `voxel`-mm grid (mean position and colour per voxel)."""
+    keys, pts, cols = [], [], []
+
+    def merge():
+        k = np.concatenate(keys)
+        u, inv = np.unique(k, return_inverse=True)
+        n = np.bincount(inv).astype(np.float64)[:, None]
+        p = np.zeros((len(u), 3))
+        c = np.zeros((len(u), 3))
+        np.add.at(p, inv, np.concatenate(pts))
+        np.add.at(c, inv, np.concatenate(cols))
+        keys[:], pts[:], cols[:] = [u], [p / n], [c / n]
+
+    for n_item, (name, row) in enumerate(bar(items[::every], desc="room cloud")):
+        r = ds.runs[name]
+        rgb = cv2.cvtColor(cv2.imread(str(Path(root) / name / r["df"]["rgb"].iloc[row])), cv2.COLOR_BGR2RGB)
+        d = load_depth_mm(ds, root, name, row).astype(np.float32)
+        k3 = np.ones((3, 3), np.uint8)
+        edge = ((cv2.dilate(d, k3) - cv2.erode(np.where(d > 0, d, np.float32(1e9)), k3)) > 0.03 * d) | \
+               (cv2.erode((d > 0).astype(np.uint8), k3) == 0)
+        v, u = np.mgrid[0:d.shape[0]:stride, 0:d.shape[1]:stride]
+        z = d[v, u].astype(np.float64)
+        ok = (z > 100) & (z < max_depth) & ~edge[v, u]
+        K, T = np.asarray(r["K"], float), r["T_world_cam"][row]
+        X = np.stack([(u[ok] - K[0, 2]) / K[0, 0] * z[ok], (v[ok] - K[1, 2]) / K[1, 1] * z[ok], z[ok]], 1)
+        P = X @ T[:3, :3].T + T[:3, 3]
+        q = np.floor(P / voxel).astype(np.int64) + (1 << 20)
+        keys.append((q[:, 0] << 42) | (q[:, 1] << 21) | q[:, 2])
+        pts.append(P)
+        cols.append(rgb[v[ok], u[ok]].astype(np.float64))
+        if len(keys) > 50:
+            merge()
+    merge()
+    return pts[0].astype(np.float32), np.clip(cols[0], 0, 255).astype(np.uint8)
+
+
+def render_view(P, C, T_wc, K, hw, voxel, device):
+    """Splat the coloured cloud into a camera at T_wc (render resolution hw, intrinsics K):
+    -> rgb (H, W, 3) uint8, room coordinate (H, W, 3) mm, depth (H, W) mm (0 = nothing)."""
+    H, W = hw
+    R, t = torch.tensor(T_wc[:3, :3], device=device, dtype=torch.float32), torch.tensor(T_wc[:3, 3], device=device, dtype=torch.float32)
+    Xc = (P - t) @ R                                                      # world -> camera
+    z = Xc[:, 2]
+    m = z > 100
+    idx = torch.nonzero(m)[:, 0]
+    z = z[m]
+    u = Xc[m, 0] / z * K[0, 0] + K[0, 2]
+    v = Xc[m, 1] / z * K[1, 1] + K[1, 2]
+    rad = torch.clamp((voxel * K[0, 0] / z * 0.75).round().long(), 0, 2)    # splat half-size: covers the voxel footprint
+    key = (z * 10).long() * (len(P) + 1) + idx                          # nearest wins; ties by index
+    best = torch.full((H * W,), torch.iinfo(torch.long).max, device=device, dtype=torch.long)
+    ui, vi = u.round().long(), v.round().long()
+    for dy in range(-2, 3):
+        for dx in range(-2, 3):
+            s = (rad >= max(abs(dx), abs(dy)))
+            uu, vv = ui[s] + dx, vi[s] + dy
+            ok = (uu >= 0) & (uu < W) & (vv >= 0) & (vv < H)
+            best.scatter_reduce_(0, (vv[ok] * W + uu[ok]), key[s][ok], reduce="amin")
+    hit = best < torch.iinfo(torch.long).max
+    src = torch.where(hit, best % (len(P) + 1), torch.zeros_like(best))
+    rgb = torch.where(hit[:, None], C[src], torch.zeros_like(C[src])).reshape(H, W, 3)
+    xyz = P[src].reshape(H, W, 3)
+    dep = torch.where(hit, (best // (len(P) + 1)).float() / 10, torch.zeros_like(best, dtype=torch.float32)).reshape(H, W)
+    return rgb.cpu().numpy(), xyz.cpu().numpy(), dep.cpu().numpy()
+
+
+def perturb(T, shift, rot, rng):
+    """The camera pose T moved by up to `shift` mm and turned by up to `rot` deg about its centre (random directions)."""
+    a = rng.normal(size=3)
+    R = Rotation.from_rotvec(a / np.linalg.norm(a) * np.radians(rng.uniform(0, rot))).as_matrix()
+    d = rng.normal(size=3)
+    out = T.copy()
+    out[:3, :3] = T[:3, :3] @ R
+    out[:3, 3] = T[:3, 3] + T[:3, :3] @ (d / np.linalg.norm(d) * rng.uniform(0, shift))
+    return out
+
+
+class RenderedViews(Dataset):
+    """New viewpoints rendered from the room cloud with exact room-coordinate labels (rendered once,
+    at the start of training): a training pose turned by up to --render-rot and moved by up to
+    --render-shift; kept if at least --render-min-valid of its cells have a label. Holes are filled
+    from neighbouring pixels in the image only; a cell is labelled only where the rendered surface
+    is not seen through a hole (depth within 5 % of its 5 x 5 minimum) and closer than the label
+    depth limit. Photometric augmentation as the real frames."""
+
+    def __init__(self, ds, root, items, centre, args, device):
+        self.centre, self.seed = np.asarray(centre), args.seed
+        P, C = room_cloud(ds, root, items, args.render_every, 4, args.label_max_depth, args.render_voxel)
+        print(f"room cloud: {len(P) / 1e6:.2f} M points ({args.render_voxel:g} mm voxels)", flush=True)
+        Pt, Ct = torch.from_numpy(P).to(device), torch.from_numpy(C).to(device)
+        H, W = ds.cfg.image_size
+        rng = np.random.default_rng(args.seed + 7)
+        n_want = int(round(args.render_views * len(items)))
+        self.rgb, self.tgt, self.ok, self.poses = [], [], [], []
+        tries = 0
+        bar_ = tqdm(total=n_want, desc="rendering views", leave=False)
+        while len(self.rgb) < n_want and tries < 20 * n_want:
+            tries += 1
+            name, row = items[rng.integers(len(items))]
+            r = ds.runs[name]
+            K = np.asarray(r["K"], float) * np.array([[W / r["hw"][1]], [H / r["hw"][0]], [1]])
+            T = perturb(r["T_world_cam"][row], args.render_shift, args.render_rot, rng)
+            rgb, xyz, dep = render_view(Pt, Ct, T, K, (H, W), args.render_voxel, device)
+            dmin = cv2.erode(np.where(dep > 0, dep, np.float32(1e9)), np.ones((5, 5), np.uint8))
+            ok = (dep > 100) & (dep < args.label_max_depth) & (dep <= 1.05 * dmin)
+            o = STRIDE // 2
+            okc = ok[o::STRIDE, o::STRIDE]
+            if okc.mean() < args.render_min_valid:
+                continue
+            hole = (dep == 0).astype(np.uint8)
+            if hole.any():                                                       # fill holes in the image only
+                rgb = cv2.inpaint(rgb, hole, 3, cv2.INPAINT_TELEA)
+            self.rgb.append(rgb)
+            self.tgt.append(((xyz[o::STRIDE, o::STRIDE] - self.centre) / 1000.0).transpose(2, 0, 1).astype(np.float32))
+            self.ok.append(okc)
+            self.poses.append(T)
+            bar_.update(1)
+        bar_.close()
+        print(f"{len(self.rgb)} rendered views ({tries} tried; shift <= {args.render_shift:g} mm, rotation <= "
+              f"{args.render_rot:g} deg)", flush=True)
+
+    def __len__(self):
+        return len(self.rgb)
+
+    def __getitem__(self, i):
+        rng = np.random.default_rng([self.seed, torch.initial_seed() % 2 ** 32, i, 1])
+        b, c, g = rng.uniform(-0.2, 0.2), rng.uniform(0.8, 1.2), rng.uniform(0.9, 1.1, 3)
+        rgb = np.clip((self.rgb[i].astype(np.float32) / 255 * g - 0.5) * c + 0.5 + b, 0, 1)
+        rgb = ((rgb - IMAGENET_MEAN) / IMAGENET_STD).transpose(2, 0, 1)
+        return torch.from_numpy(np.ascontiguousarray(rgb)).float(), torch.from_numpy(self.tgt[i]), torch.from_numpy(self.ok[i])
+
+
+def render_preview(frames, rendered, path, n=4):
+    """A real training frame next to rendered views, for a visual check of the renders."""
+    tiles = []
+    for k in range(min(n, len(rendered))):
+        real = frames.ds.load_frame(*frames.items[(k * 997) % len(frames.items)])[0].transpose(1, 2, 0)
+        real = np.clip(real * IMAGENET_STD + IMAGENET_MEAN, 0, 1)
+        tiles.append(np.concatenate([(real * 255).astype(np.uint8), rendered.rgb[k * max(1, len(rendered) // n)]], 1))
+    cv2.imwrite(str(path), cv2.cvtColor(np.concatenate(tiles, 0), cv2.COLOR_RGB2BGR))
 
 
 def label_with_estimates(ds, paths):
@@ -350,32 +497,45 @@ def train(args):
 
     frames = Frames(ds, args.root, items, centre, args.aug_scale, args.aug_rot, args.label_max_depth,
                     args.drop_depth_edges, args.seed)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    data, n_rendered = frames, 0
+    if args.render_views > 0:                 # extra viewpoints rendered from the room cloud, exact labels
+        rendered = RenderedViews(ds, args.root, items, centre, args, device)
+        render_preview(frames, rendered, out / "render_preview.jpg")
+        data, n_rendered = ConcatDataset([frames, rendered]), len(rendered)
     # decoding two 1280 x 720 PNGs per sample, not the network, limits the speed
-    dl = DataLoader(frames, args.batch_size, shuffle=True, num_workers=args.workers, drop_last=True,
+    dl = DataLoader(data, args.batch_size, shuffle=True, num_workers=args.workers, drop_last=True,
                     pin_memory=device.type == "cuda", persistent_workers=args.workers > 0,
                     prefetch_factor=4 if args.workers > 0 else None)
     net = build_net(args.head).to(device)
-    opt = torch.optim.AdamW([{"params": list(net.low.parameters()) + list(net.high.parameters()), "lr": args.lr_encoder},
+    encoder = list(net.low.parameters()) + list(net.high.parameters())
+    if args.freeze_encoder:                   # ACE-style: ImageNet features as they are, only the head learns
+        for q in encoder:
+            q.requires_grad_(False)
+    opt = torch.optim.AdamW([{"params": encoder, "lr": 0.0 if args.freeze_encoder else args.lr_encoder},
                              {"params": net.head.parameters(), "lr": args.lr}], weight_decay=1e-4)
     total = args.epochs * len(dl)
     sched = torch.optim.lr_scheduler.LambdaLR(opt, flatcos(total, max(1, total // 100), args.flat))
     amp = device.type == "cuda"
     scaler = torch.amp.GradScaler(enabled=amp)
 
-    out = Path(args.out)
-    out.mkdir(parents=True, exist_ok=True)
     meta = {"args": vars(args), "centre": centre.tolist(), "image_size": list(args.image_size), "head": args.head}
-    json.dump(meta | {"n_frames": len(items), "steps": total, "estimated_labels": label_err, "git": git_rev(REPO)},
+    json.dump(meta | {"n_frames": len(items), "n_rendered": n_rendered, "steps": total, "estimated_labels": label_err, "git": git_rev(REPO)},
               open(out / "config.json", "w"), indent=2)
     print(f"{len(dl)} steps per epoch, {total} in all; head {args.head} "
           f"({sum(p.numel() for p in net.head.parameters()) / 1e6:.2f} M); labels < {args.label_max_depth:g} mm"
           f"{', no depth edges' if args.drop_depth_edges else ''}; viewpoint augmentation "
-          f"{f'zoom {args.aug_scale}, rotation +-{args.aug_rot} deg' if args.aug_rot or args.aug_scale != [1.0, 1.0] else 'off'}",
+          f"{f'zoom {args.aug_scale}, rotation +-{args.aug_rot} deg' if args.aug_rot or args.aug_scale != [1.0, 1.0] else 'off'}"
+          f"{f'; + {n_rendered} rendered views' if n_rendered else ''}{'; encoder frozen' if args.freeze_encoder else ''}",
           flush=True)
 
     history = []
     for ep in range(args.epochs):
         net.train()
+        if args.freeze_encoder:               # keep the ImageNet batch-norm statistics too
+            net.low.eval()
+            net.high.eval()
         t0, losses, meds = time.time(), [], []
         pbar = bar(dl, desc=f"epoch {ep + 1}/{args.epochs}")
         for rgb, tgt, ok in pbar:
@@ -649,6 +809,14 @@ def main():
     t.add_argument("--head", choices=["small", "big"], default="small", help="small: scr.py's 0.17 M head; big: ~2.2 M")
     t.add_argument("--label-max-depth", type=float, default=3000.0, help="no training label beyond this depth (mm)")
     t.add_argument("--drop-depth-edges", action="store_true", help="no training label on depth edges")
+    t.add_argument("--freeze-encoder", action="store_true", help="train the head only on frozen ImageNet features (ACE-style)")
+    t.add_argument("--render-views", type=float, default=0.0,
+                   help="add this many rendered views per training frame (e.g. 0.5), new viewpoints from the room cloud")
+    t.add_argument("--render-shift", type=float, default=150.0, help="rendered views: camera moved by up to this (mm)")
+    t.add_argument("--render-rot", type=float, default=20.0, help="rendered views: camera turned by up to this (deg)")
+    t.add_argument("--render-voxel", type=float, default=5.0, help="room cloud voxel size (mm)")
+    t.add_argument("--render-every", type=int, default=4, help="room cloud from every n-th training frame")
+    t.add_argument("--render-min-valid", type=float, default=0.5, help="keep a rendered view if this share of cells has a label")
     t.add_argument("--aug-scale", type=float, nargs=2, default=[1.0, 1.0],
                    help="viewpoint augmentation: zoom range, log-uniform (ACE: 0.67 1.5); 1 1 = off")
     t.add_argument("--aug-rot", type=float, default=0.0, help="viewpoint augmentation: in-plane rotation +- deg (ACE: 15)")
