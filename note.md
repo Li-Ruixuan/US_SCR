@@ -83,7 +83,7 @@ On 3XX SCR is the best system in the headline metric (2.8 vs 3.3 mm). On 4XX cla
 7. **A Kabsch inlier gate is the obvious reject rule:** ≥ 400 inliers keeps 94–100 % of the frames on every unchanged-room split (100 % on 2XX validation, where the threshold must be set) and cuts A → C from 13.4 / 113.0 to 8.2 / 16.6 mm at 49 % kept. Not applied yet.
 8. **The residual error is scatter, not per-frame misalignment** (removing the best rigid fit barely changes it): RANSAC averages it, which is why ~12 mm coordinates give 2–5 mm poses.
 9. **The low-coverage validation split (2XX mapped on room-202 only) is a weak proxy:** errors are much larger than on 4XX (16 vs 6 mm with Kabsch) and do not grow with pose distance, i.e. room-202 alone sees a different part of the room. Distance to the nearest room-scan pose is a rough coverage measure; view overlap would be better.
-10. **US measures the out-of-plane motion, not the in-plane one** (`tools/us_inplane.py`, `runs/us-*`, 2XX, 3XX, 4XX A, 4XX D). U1: a rigid in-plane registration of US frames k = 1, 3, 10 apart is *worse* than assuming no in-plane motion (e.g. 2XX k = 10: 1.91 vs 1.55 mm); the sweeps move mostly out of plane and the cross-section changes rather than shifts — dropped. U2: the correlation after in-plane alignment falls with the out-of-plane distance along the same curve in every collection and both subjects (ncc 0.995 below 0.5 mm, 0.967 at 2–4 mm, 0.91–0.92 beyond 8 mm; Spearman −0.83 to −0.85). A curve built on 2XX predicts the out-of-plane distance on 3XX / 4XX A / 4XX D with 0.43 / 0.28 / 0.27 mm median error (p90 1.8–2.6), about half the error of predicting the median distance; at k = 10 (3–4.5 mm true) 0.9–1.3 mm. US gives the magnitude only; the sign comes from the camera.
+10. **US measures the out-of-plane motion, not the in-plane one** (`tools/us_analysis.py inplane`, `runs/us-*`, 2XX, 3XX, 4XX A, 4XX D). U1: a rigid in-plane registration of US frames k = 1, 3, 10 apart is *worse* than assuming no in-plane motion (e.g. 2XX k = 10: 1.91 vs 1.55 mm); the sweeps move mostly out of plane and the cross-section changes rather than shifts — dropped. U2: the correlation after in-plane alignment falls with the out-of-plane distance along the same curve in every collection and both subjects (ncc 0.995 below 0.5 mm, 0.967 at 2–4 mm, 0.91–0.92 beyond 8 mm; Spearman −0.83 to −0.85). A curve built on 2XX predicts the out-of-plane distance on 3XX / 4XX A / 4XX D with 0.43 / 0.28 / 0.27 mm median error (p90 1.8–2.6), about half the error of predicting the median distance; at k = 10 (3–4.5 mm true) 0.9–1.3 mm. US gives the magnitude only; the sign comes from the camera.
 
 ## 4. Model, training, evaluation
 
@@ -208,5 +208,14 @@ Our results line up with this: Kabsch with depth at test time (Shotton, DSAC* RG
 
 
 
+Commands for step 2 (same as before, new name)
 
+git pull
+export DATA=/data2/u0137815/rgbd-us/data
+python scr_anchor.py track --ckpt runs/bigclean-2XX/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --every 2 --out runs/track-2XX
+python scr_anchor.py track --ckpt runs/v2-3XX/best.pt  --test-root $DATA/train_3XX  --every 2 --out runs/track-3XX
+python scr_anchor.py track --ckpt runs/v2-4XXA/best.pt --test-root $DATA/test_4XXA --every 2 --out runs/track-4XXA
+python scr_anchor.py track --ckpt runs/v2-4XXC/best.pt --test-root $DATA/test_4XXD --every 2 --out runs/track-4XXD
+git add -A && git commit -m "Clean-up: merge tools; single-model tracking" && git push
+Commit the clean-up first if you prefer (git add -A && git commit -m "Clean-up" && git push), then pull on the training PC and run these.
 

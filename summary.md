@@ -188,7 +188,7 @@ SCR is better on all five 3XX sweeps and on 3 of the 26 4XX sweeps (406, 408, 41
 
 For reference (rgbd-us, same metric): classical odometry + first SCR 6.5 mm on 3XX, 12.0–21.4 mm on 4XX (run-426: 11.6 mm); classical odometry + adapted anchor network 5.7 mm on 3XX, 26.4–54.4 mm on 4XX.
 
-### 3.9 US images (`tools/us_inplane.py`, `runs/us-*`)
+### 3.9 US images (`tools/us_analysis.py inplane`, `runs/us-*`)
 
 Pairs of US frames k new frames apart; truth from Polaris through the US calibration.
 
@@ -224,7 +224,7 @@ Out-of-plane distance predicted from a curve built on **2XX only**:
 
 The curve is the same in every collection and for both subjects, and transfers across sessions. It gives the distance only (the sign must come from the camera). Not yet tested inside the pose graph.
 
-**U3: per-patch speckle against the system (27 Oct; `tools/us_speckle.py`, `runs/us-speckle-*`, curve built on 2XX, final SCR system).** The fan is cut into 12 mm patches; each patch's correlation gives a distance, a plane fit gives the elevational shift and two tilts, the sign comes from the system. Out-of-plane error at the 5 US-image points (mm, median / p99 over frame pairs):
+**U3: per-patch speckle against the system (27 Oct; `tools/us_analysis.py speckle`, `runs/us-speckle-*`, curve built on 2XX, final SCR system).** The fan is cut into 12 mm patches; each patch's correlation gives a distance, a plane fit gives the elevational shift and two tilts, the sign comes from the system. Out-of-plane error at the 5 US-image points (mm, median / p99 over frame pairs):
 
 | split | k (rows) | true motion | **system** | US, Polaris sign | US, system sign | fused, tau 3 mm |
 |---|---|---|---|---|---|---|
@@ -418,7 +418,7 @@ Both anchor types with gate recovery (3), every segment started from an anchor (
 
 Gate recovery fixed the v2 failure on run-404 (US image 28.3 → 8.2 mm, anchors accepted 38 → 95 %) and changed nothing for classical anchors (identical results). Against v1 (3.14), v2 lowers the 4XX system error by up to 0.8 mm; the gap to classical is now 1.2–1.7× on 4XX.
 
-### 3.17 Shape of the reconstruction (27 Oct; `tools/shape_error.py`, `runs/shape-final.md`)
+### 3.17 Shape of the reconstruction (27 Oct; `tools/us_analysis.py shape`, `runs/shape-final.md`)
 
 Final systems as in 3.16 (pose exports of the 3D pages). Error at the 5 US-image points (mm), median per sweep, mean over sweeps: **absolute** (as 3.16) and **shape** = after the best rigid fit of the whole sweep to Polaris, i.e. the distortion of the reconstructed volume, without its placement in the room. Relative out-of-plane error between frames 1 s apart in the last columns.
 
@@ -437,7 +437,7 @@ Final systems as in 3.16 (pose exports of the 3D pages). Error at the 5 US-image
 3. **The anchors do not cost smoothness:** the 1 s relative error is the same for both anchor types and for odometry alone; local motion is set by the odometry.
 4. **The remaining distortion (2–5 mm) is long-range** (1 s relative error 0.5–1 mm), on the scale between anchors and along the sweep. This is the only error a US-based method could still reduce (crossing planes); short-range US is ruled out (3.9, U3).
 
-### 3.18 Li et al. reproduced on their own data (27 Oct; `tools/li_repro.py`, `runs/li-repro-M2`)
+### 3.18 Li et al. reproduced on their own data (27 Oct; `tools/li_baseline.py repro`, `runs/li-repro-M2`)
 
 The authors' code (github.com/ucl-candi/freehand) and data (Zenodo 7740734: 19 volunteers, forearms, 228 scans, split 3:1:1 by scan, seed 0), their baseline (M = 2: two adjacent frames, EfficientNet-b1, frames 120 × 160), 20,000 epochs (1.7 h on the A4500), checkpoint with the best validation distance (epoch 11,300). Test fold, 45 scans, mean ± std (mm):
 
@@ -449,7 +449,7 @@ The authors' code (github.com/ucl-candi/freehand) and data (Zenodo 7740734: 19 v
 
 **Reproduced** on the headline metric (criterion fixed in advance: within ±5 mm of 22.75 mm, i.e. two standard errors): 21.4 mm, better than zero motion on all 45 scans. Frame to frame and drift are somewhat worse (0.65 vs 0.53, 40 vs 30 mm), within one standard deviation of the paper but not of its mean; likely causes: one random split and seed, and overfitting (training loss 0.03 at the end, validation distance flat at 0.5–0.6 mm from epoch ~5,000, as the paper's Fig. 7). So the method works as published on its own data; the 60 mm on our 3XX (rgbd-us, trained on our 2XX) is a transfer / data-size problem, not a broken implementation.
 
-### 3.19 Li et al. on our sweeps: zero-shot, fine-tuned, from scratch (27 Oct; `tools/li_transfer.py`, `runs/li-transfer/`)
+### 3.19 Li et al. on our sweeps: zero-shot, fine-tuned, from scratch (27 Oct; `tools/li_baseline.py transfer`, `runs/li-transfer/`)
 
 The reproduced model (3.18) on our sweeps, new US frames only (~19/s; theirs 20/s), predicted image-plane motion mapped into our calibration (axis mapping chosen on 2XX validation: as-is 199 vs swapped 218 mm). Fine-tuning from it and training from scratch: our 2XX (10 sweeps), validation run-205 / 211, 20,000 steps, best validation checkpoint (fine-tuned 0.57 mm corner distance, scratch 0.54 mm). One setting each, fixed in advance.
 
@@ -477,6 +477,22 @@ Out-of-plane error of the relative motion between frames ~1 s apart (19 new US f
 4. Both rules fixed in advance fail: no US network beats zero motion on 3XX, none beats the camera system anywhere. The same network reaches its published 21.4 mm on its own data (3.18), so this is a transfer limit (one protocol, different images and anatomy, 10 training sweeps), not an implementation error.
 
 **US line closed:** in-plane registration (U1), speckle decorrelation (U2, U3) and the learned sensorless network (Li et al., reproduced, zero-shot, fine-tuned, scratch) all fail to add to the camera; handcrafted speckle at least measures out-of-plane distance better than zero motion, the learned network does not.
+
+### 3.20 Without SIFT: SCR + RPRNet odometry, and SCR alone (28 Oct; `runs/sys-learned-*`)
+
+Same full system as 3.16 (v2 models, gate recovery, start from anchors) with the SIFT odometry replaced by the learned RPRNet odometry (rgbd-us `rpr-rgb-gap8-*-gru8`, `--odometry-source model`) or by none (`zero`), anchors every 1 s or every 0.25 s (= every odometry step, 0.27 s). Median error at the US image (mm), step-to-step error in brackets; "pose graph" = offline pose graph (the reported column so far), "offline" = anchors replace the pose, odometry in between, no pose graph.
+
+| split | SCR + SIFT, pose graph (3.16) | SCR + SIFT, offline | SCR 1 s + RPRNet, pose graph | SCR 1 s + RPRNet, offline | **SCR 0.25 s + RPRNet, pose graph** | **SCR 0.25 s alone** (offline = raw) | SCR 0.25 s alone, pose graph |
+|---|---|---|---|---|---|---|---|
+| 2XX val | 4.2 (2.22) | 4.0 (2.33) | – | – | – | 3.5 (2.55) | 6.1 (1.83) |
+| 3XX | 2.6 (1.08) | 2.1 (1.14) | 5.0 (1.76) | 2.3 (1.36) | 3.2 (1.51) | **2.0** (1.69) | 4.9 (1.68) |
+| 4XX A | 5.0 (1.10) | 5.2 (1.34) | 6.6 (1.38) | 5.2 (1.32) | 5.4 (1.19) | 5.2 (1.81) | 6.8 (1.42) |
+| 4XX D | 9.6 (1.18) | 9.5 (1.26) | 10.1 (1.34) | 9.5 (1.29) | 9.9 (1.21) | 9.7 (1.88) | 10.5 (1.39) |
+
+1. **The SCR network alone is as accurate as the SIFT system:** anchors at every odometry step with nothing in between give the same median at the US image on every split (3XX 2.0 vs 2.1–2.6, A 5.2 vs 5.0–5.2, D 9.7 vs 9.5–9.6, 2XX 3.5 vs 4.0–4.2), but a 1.5–1.6× larger step-to-step error. The SIFT odometry contributes smoothness, not accuracy.
+2. **RPRNet odometry in place of SIFT** (a system without hand-crafted features): with anchors every 0.25 s and the pose graph it is the smoothest learned option (step 1.19–1.51) at +0.3–0.6 mm median against SCR + SIFT; with anchors every 1 s its drift (23 % vs 7 % for SIFT) costs much more in the pose graph (3XX 5.0 mm).
+3. **A pose graph with zero-motion odometry hurts SCR alone** (3XX 2.0 → 4.9 mm): its random-walk prior does not fit a moving probe. Smoothing a network-only trajectory needs a real smoother: `scr_anchor.py track` (robust local fit over time, every frame), next.
+4. The RPRNet arms did not run on 2XX (no RPRNet prediction cache for 2XX in rgbd-us), so the RPRNet rule could not be decided on validation; on the tests it does not beat SCR alone in median, only in smoothness.
 
 ## 4. Why SCR beats the RPR anchor network
 
@@ -542,7 +558,7 @@ Fairness: both used depth (the anchor network took RGB-D pairs); SCR received mo
 | `tools/anchoring_kabsch.py` | rgbd-us `anchoring.py` (full system) with SCR + Kabsch anchors and the inlier gate |
 | `tools/volume_pages.py` | interactive 3D pages from anchoring results (rgbd-us `poses.py` + `tools/volume_3d.py`) |
 | `tools/coverage_error.py` | anchor error vs distance to the nearest room-scan pose |
-| `tools/us_inplane.py` | US diagnostics U1 (in-plane registration) and U2 (speckle decorrelation) |
+| `tools/us_analysis.py inplane` | US diagnostics U1 (in-plane registration) and U2 (speckle decorrelation) |
 | `tools/draw_scr_figures.py` | figures: `tools/scr_pipeline` (workflow) and `tools/scr_architecture` (network and pose solver) |
 | `note.md` | working notes, data guide, full history |
 

@@ -15,10 +15,10 @@ Given `{I_t_rgb, D_t, I_t_US}`, output `T_t ∈ SE(3)` in a room-fixed frame est
 | | needs |
 |---|---|
 | train an SCR model, evaluate its anchors (`scr_anchor.py`) | this repo + the data |
-| coverage analysis, US diagnostics (`tools/coverage_error.py`, `tools/us_inplane.py`) | this repo + the data |
+| coverage analysis, US diagnostics (`tools/coverage_error.py`, `tools/us_analysis.py inplane`) | this repo + the data |
 | full system: odometry + anchors + pose graph, error at the US image (`tools/anchoring_kabsch.py`); 3D pages (`tools/volume_pages.py`) | this repo + the data + two rgbd-us **result folders** (no rgbd-us code): the odometry run (`runs/rpr-rgb-gap8-*-gru8`, its checkpoint and odometry caches in `preds/`) and the anchor pairs (`runs/anchor-pairs/`) |
 
-All code is in this repo. The modules from rgbd-us (`dataloader.py`, `geometry.py`, `scr.py`, `anchoring.py`, `eval.py`, `poses.py`, `trajectory.py`, `model.py`, `loss.py`, `train.py`, `tools/anchor_classical.py`, `tools/anchor_saliency.py`, `tools/volume_3d.py`) are copies of rgbd-us commit a5bf2ce; only `anchoring.py` was changed here (options `--gate-recover`, `--scr-frames`).
+All code is in this repo. The modules from rgbd-us (`dataloader.py`, `geometry.py`, `scr.py`, `anchoring.py`, `eval.py`, `poses.py`, `trajectory.py`, `model.py`, `loss.py`, `tools/anchor_classical.py`, `tools/anchor_saliency.py`, `tools/volume_3d.py`) are copies of rgbd-us commit a5bf2ce; only `anchoring.py` was changed here (options `--gate-recover`, `--scr-frames`).
 
 ## 1. Setup
 
@@ -103,23 +103,28 @@ Classical anchors for comparison: `python anchoring.py evaluate --anchor classic
 
 ## Files
 
+Our code (3 entry points + 5 tools):
+
+| file | commands | purpose |
+|---|---|---|
+| `scr_anchor.py` | `train`, `eval`, `track` | train an SCR model on a room scan; evaluate its anchors; track with the network alone on every frame + temporal smoothing |
+| `tools/anchoring_kabsch.py` | (wraps `anchoring.py`) | full system: SCR + Kabsch anchors, odometry, pose graph; error at the US image |
+| `tools/volume_pages.py` | | interactive 3D pages of compounded sweeps from anchoring results |
+| `tools/coverage_error.py` | | anchor error vs distance to the nearest room-scan pose |
+| `tools/us_analysis.py` | `inplane`, `speckle`, `shape` | US diagnostics U1–U3 (registration, speckle decorrelation) and the shape metric of a reconstruction |
+| `tools/li_baseline.py` | `repro`, `transfer` | Li et al. (TBME 2024): reproduction on the authors' code and data, and transfer to our sweeps |
+| `tools/draw_scr_figures.py` | | `tools/scr_pipeline.png/.pdf` (workflow) and `tools/scr_architecture.png/.pdf` (SCR anchor) |
+
+Copied from rgbd-us (commit a5bf2ce, unchanged except `anchoring.py`: `--gate-recover`, `--scr-frames`):
+
 | file | purpose |
 |---|---|
-| `scr_anchor.py` | `train` and `eval` |
-| `dataloader.py`, `geometry.py`, `scr.py` | data loading, geometry, SCR network (from rgbd-us) |
-| `anchoring.py`, `eval.py`, `poses.py`, `trajectory.py`, `model.py`, `loss.py`, `train.py` | full system: anchors + odometry + pose graph, pose export, evaluation (from rgbd-us; `anchoring.py` extended here) |
-| `tools/anchoring_kabsch.py` | full system with SCR + Kabsch anchors |
-| `tools/volume_pages.py`, `tools/volume_3d.py` | interactive 3D pages of compounded sweeps |
-| `tools/anchor_classical.py`, `tools/anchor_saliency.py` | classical (SIFT) anchors, used by `anchoring.py` (from rgbd-us) |
-| `tools/coverage_error.py` | anchor error vs distance to the nearest room-scan pose |
-| `tools/us_inplane.py` | US diagnostics: in-plane registration and speckle decorrelation |
-| `tools/us_speckle.py` | US diagnostic U3: per-patch speckle decorrelation (out-of-plane shift + tilts) against Polaris and the pose system |
-| `tools/shape_error.py` | shape of the reconstruction: error after a rigid fit of each sweep, relative error between nearby frames |
-| `tools/li_repro.py` | reproduction of Li et al. (TBME 2024) with the authors' code (github.com/ucl-candi/freehand) and data (Zenodo 7740734): training with a fixed split, and the paper's metrics |
-| `tools/li_transfer.py` | the Li et al. network on our sweeps: zero-shot, fine-tuned on our 2XX, or from scratch; paper metrics and relative motion against the camera system |
-| `tools/draw_scr_figures.py` | two figures: `tools/scr_pipeline.png/.pdf` (workflow) and `tools/scr_architecture.png/.pdf` (network, training, pose solver) |
-| `T_marker_cam.npy`, `calib_matrix.csv` | hand–eye and US calibration |
-| `summary.md`, `note.md` | results; working notes and data guide |
-| `runs/` | results (`*.pt` checkpoints are not in git) |
+| `dataloader.py`, `geometry.py`, `scr.py` | data loading, geometry, SCR network |
+| `anchoring.py`, `eval.py`, `poses.py`, `trajectory.py`, `model.py`, `loss.py` | full system: anchors + odometry + pose graph, pose export, evaluation |
+| `tools/anchor_classical.py`, `tools/anchor_saliency.py`, `tools/volume_3d.py` | classical (SIFT) anchors; 3D page builder |
+
+Data and results: `T_marker_cam.npy`, `calib_matrix.csv` (hand–eye and US calibration); `summary.md` (results), `note.md` (working notes, data guide); `runs/` (results; checkpoints and `saved_model/` weights are not in git).
+
+Renamed on 28 Oct 2026 (older run folders record the old names): `tools/us_inplane.py`, `us_speckle.py`, `shape_error.py` → `tools/us_analysis.py inplane / speckle / shape`; `tools/li_repro.py`, `li_transfer.py` → `tools/li_baseline.py repro / transfer`; `tools/scr_track.py` → `scr_anchor.py track`. `train.py` (rgbd-us RPRNet / anchor-network training, only needed by `anchoring.py train`) was removed: train those in rgbd-us.
 
 Runs made before 23 Oct 2026 used options removed in the clean-up (the first SCR's Huber loss and one-cycle schedule, Kabsch refinement); their `config.json` records the settings and commit `3599239` has the code that produced them.

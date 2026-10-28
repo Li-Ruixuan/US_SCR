@@ -24,6 +24,15 @@ system. Data loading and the network come from dataloader.py, geometry.py and sc
   python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/v1-3XX \\
       --eval-root $DATA/train_3XX
   python scr_anchor.py eval --ckpt runs/v1-3XX/best.pt --test-root $DATA/train_3XX
+  python scr_anchor.py track --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-3XX
+
+Tracking (`track`): the network alone as the tracker, no odometry and no Polaris start pose. SCR +
+Kabsch on every --every usable row, poses with fewer than --gate inliers dropped, cached in
+<out>/poses.npz; then for each --windows W (s) a robust local fit over time per segment (tricube x
+inliers weights, quadratic inside the window's poses, linear with fewer than 5, constant when
+extrapolating; 2 Tukey reweightings; rotation as rotation vectors about the window's mean). Error at
+the US image as anchoring.py (5 points, median per sweep) and the step-to-step error per --every rows
+and per 8 rows (anchoring.py's odometry step).
 """
 
 import argparse
@@ -43,6 +52,7 @@ import torch                                                            # noqa: 
 import torch.nn as nn                                                   # noqa: E402
 import torch.nn.functional as F                                         # noqa: E402
 from torch.utils.data import DataLoader, Dataset                        # noqa: E402
+from scipy.spatial.transform import Rotation                            # noqa: E402
 from tqdm import tqdm                                                   # noqa: E402
 
 from dataloader import RPRConfig, RPRDataset, load_hand_eye, test_sweeps   # noqa: E402
@@ -482,6 +492,150 @@ def summary(rows):
             "ms_median": float(np.median([x["ms"] for x in rows])) if rows else 0.0}
 
 
+# ---------------------------------------------------------------- track: the network alone on every frame
+
+US_PX = np.array([[320, 240], [160, 120], [480, 120], [160, 400], [480, 400]], float)   # anchoring.py us_points
+
+
+def read_us_calib(path):
+    """calib_matrix.csv (TUS-REC format) -> (scaling, rigid): pixels -> US mm -> marker mm."""
+    rows = [l.strip().split(",") for l in open(path)]
+    return np.array(rows[1:5], float), np.array(rows[6:10], float)
+
+
+def track_poses(args, ds, sweeps, net, ck, device):
+    """{sweep: (rows, T (n, 4, 4) or NaN, inliers)} for every --every usable row."""
+    out = {}
+    for sw in sweeps:
+        r = ds.runs[sw]
+        K = np.asarray(r["K"], float)
+        rows = np.concatenate(r["segments"])[:: args.every]
+        T = np.full((len(rows), 4, 4), np.nan)
+        inl = np.zeros(len(rows), int)
+        for n, row in enumerate(bar(rows, desc=f"track {sw}")):
+            rgb = ds.load_frame(sw, int(row))[0]
+            depth = load_depth_mm(ds, args.test_root, sw, int(row))
+            Tn, k = localize_kabsch(net, ck, rgb, depth, K, r["hw"][1], device, rng=np.random.default_rng(int(row)))
+            inl[n] = k
+            if Tn is not None and k >= args.gate:
+                T[n] = Tn
+        out[sw] = (rows, T, inl)
+        print(f"  {sw}: {len(rows)} frames, {np.isfinite(T[:, 0, 0]).mean() * 100:.0f} % passed the gate", flush=True)
+    return out
+
+
+def smooth_poses(t, T, w, W):
+    """Robust local fit of the poses T (n, 4, 4; NaN = none) at times t, weights w, window W (s): quadratic in
+    time inside the poses of the window, linear with fewer than 5, constant when extrapolating (gaps, ends)."""
+    ok = np.isfinite(T[:, 0, 0])
+    if ok.sum() < 3:
+        return np.full_like(T, np.nan)
+    tt, TT, ww = t[ok], T[ok], w[ok].astype(float)
+    out = np.full_like(T, np.nan)
+    for i in range(len(t)):
+        m = np.abs(tt - t[i]) <= W / 2
+        if m.sum() < 3:                                          # gap: widen to the 3 nearest poses
+            m = np.zeros(len(tt), bool)
+            m[np.argsort(np.abs(tt - t[i]))[:3]] = True
+        dt = tt[m] - t[i]
+        k = (1 - np.clip(np.abs(dt) / max(W / 2, np.abs(dt).max() + 1e-6), 0, 1) ** 3) ** 3 * ww[m]
+        inside = dt.min() < 0 < dt.max()                          # interpolating, not extrapolating
+        order = 2 if (m.sum() >= 5 and inside) else 1 if (m.sum() >= 3 and inside) else 0
+        A = np.vander(dt, order + 1, increasing=True)
+        Rm = Rotation.from_matrix(TT[m, :3, :3])
+        rob = np.ones(m.sum())
+        for _ in range(3):                                       # fit, then 2 Tukey reweightings
+            kw = k * rob + 1e-12
+            Rref = Rm.mean(weights=kw)
+            Y = np.column_stack([TT[m, :3, 3], (Rref.inv() * Rm).as_rotvec() * 1000.0])   # mm, mrad
+            sw = np.sqrt(kw)[:, None]
+            coef = np.linalg.lstsq(A * sw, Y * sw, rcond=None)[0]
+            res = np.linalg.norm((A @ coef - Y)[:, :3], axis=1) + np.linalg.norm((A @ coef - Y)[:, 3:], axis=1) * 0.16
+            s = 6 * np.median(res) + 1e-6
+            rob = np.clip(1 - (res / s) ** 2, 0, 1) ** 2
+        out[i] = np.eye(4)
+        out[i, :3, 3] = coef[0, :3]
+        out[i, :3, :3] = (Rref * Rotation.from_rotvec(coef[0, 3:] / 1000.0)).as_matrix()
+    return out
+
+
+def us_errors(T, T_gt, P, segs, steps=(1, 8)):
+    """US-image error per frame (mean over the 5 points) and mean step-to-step error for each step size."""
+    D = (T @ P - T_gt @ P)[:, :3]                                # (n, 3, 5)
+    err = np.linalg.norm(D, axis=1).mean(1)
+    st = {}
+    for k in steps:
+        d = [np.linalg.norm(D[a + k] - D[a], axis=0).mean() for s in segs for a in s[:-k]
+             if np.isfinite(D[a]).all() and np.isfinite(D[a + k]).all()]
+        st[k] = float(np.mean(d)) if d else float("nan")
+    return err, st
+
+
+def track(args):
+    """Single-model tracking: SCR + Kabsch on every --every usable row (no odometry, no Polaris start pose),
+    gate, cache the poses; smooth them for each --windows W; error at the US image (as anchoring.py)."""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    net, ck = load_model(args.ckpt, device)
+    T_mc = load_hand_eye(resolve_hand_eye(ck["args"]["hand_eye"]), "mm")
+    ds = RPRDataset(args.test_root, test_sweeps(args.test_root, args.test_runs), [],
+                    RPRConfig(T_marker_cam=T_mc, image_size=tuple(ck["image_size"])))
+    sweeps = list(ds.runs)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    cache = out / "poses.npz"
+    if cache.exists() and json.load(open(out / "poses.json"))["every"] == args.every:
+        z = np.load(cache)
+        raw = {sw: (z[f"{sw}_rows"], z[f"{sw}_T"], z[f"{sw}_inl"]) for sw in sweeps}
+        print(f"poses from {cache}")
+    else:
+        raw = track_poses(args, ds, sweeps, net, ck, device)
+        np.savez_compressed(cache, **{f"{sw}_{k}": v for sw, (r, T, i) in raw.items() for k, v in (("rows", r), ("T", T), ("inl", i))})
+        json.dump({"ckpt": args.ckpt, "every": args.every, "gate": args.gate}, open(out / "poses.json", "w"))
+
+    scaling, rigid = read_us_calib(args.calib)
+    P = np.linalg.inv(T_mc) @ rigid @ scaling @ np.stack([US_PX[:, 0], US_PX[:, 1], np.zeros(5), np.ones(5)])
+    methods = ["raw"] + [f"smoothed {W:g} s" for W in args.windows]
+    res = {m: {} for m in methods}
+    for sw in sweeps:
+        rows, T, inl = raw[sw]
+        r = ds.runs[sw]
+        seg_of = {int(x): k for k, s in enumerate(r["segments"]) for x in s}
+        segs = [np.flatnonzero(np.array([seg_of[int(x)] for x in rows]) == k) for k in range(len(r["segments"]))]
+        segs = [s for s in segs if len(s) > 1]
+        T_gt = r["T_world_cam"][rows]
+        t = r["stamps"][rows]
+        ests = {"raw": T}
+        for W in args.windows:
+            Ts = np.full_like(T, np.nan)
+            for s in segs:
+                Ts[s] = smooth_poses(t[s], T[s], inl[s], W)
+            ests[f"smoothed {W:g} s"] = Ts
+        step8 = max(1, round(8 / args.every))
+        for m, Te in ests.items():
+            err, st = us_errors(Te, T_gt, P, segs, steps=(1, step8))
+            res[m][sw] = {"us_median": float(np.nanmedian(err)), "us_p90": float(np.nanpercentile(err, 90)),
+                          "coverage_pct": float(100 * np.isfinite(err).mean()), "step_row": st[1], "step_8rows": st[step8]}
+
+    mean = lambda m, k: float(np.nanmean([v[k] for v in res[m].values()]))
+    md = [f"# Single-model tracking: SCR alone on every {'' if args.every == 1 else f'{args.every}th '}row "
+          f"({Path(args.test_root).name}, `{args.ckpt}`)", "",
+          f"No odometry, no Polaris start pose; Kabsch RANSAC, gate >= {args.gate} inliers. Error at the US image (5 points, "
+          "mm): median per sweep, mean over sweeps; step-to-step error = mean change of the error vector between rows "
+          f"({args.every} row(s), {args.every * 33} ms) and 8 rows (anchoring.py's odometry step).", "",
+          f"| method | US image median | p90 | frames with a pose | step, {args.every} row(s) | step, 8 rows |", "|---|---|---|---|---|---|"]
+    for m in methods:
+        md.append(f"| {m} | **{mean(m, 'us_median'):.2f}** | {mean(m, 'us_p90'):.2f} | {mean(m, 'coverage_pct'):.0f} % | "
+                  f"{mean(m, 'step_row'):.3f} | {mean(m, 'step_8rows'):.2f} |")
+    md += ["", "Per sweep (US image median, step 8 rows):", "", "| sweep | " + " | ".join(methods) + " |",
+           "|---|" + "---|" * len(methods)]
+    for sw in sweeps:
+        md.append(f"| {sw} | " + " | ".join(f"{res[m][sw]['us_median']:.1f} ({res[m][sw]['step_8rows']:.2f})" for m in methods) + " |")
+    (out / "scr_track.md").write_text("\n".join(md) + "\n")
+    json.dump({"args": vars(args), "per_sweep": res}, open(out / "scr_track.json", "w"), indent=1)
+    print("\n" + "\n".join(md[4:]) + f"\n-> {out / 'scr_track.md'}")
+
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -527,8 +681,17 @@ def main():
     e.add_argument("--every", type=int, default=30, help="usable rows between evaluated frames (30 = 1 s)")
     e.add_argument("--seed", type=int, default=0)
     e.add_argument("--out", default=None)
+    k = sub.add_parser("track", help="the network alone on every frame + temporal smoothing")
+    k.add_argument("--ckpt", required=True)
+    k.add_argument("--test-root", required=True)
+    k.add_argument("--test-runs", nargs="+", default=None)
+    k.add_argument("--every", type=int, default=1, help="SCR on every n-th usable row")
+    k.add_argument("--gate", type=int, default=400, help="minimum Kabsch inliers (as the full system)")
+    k.add_argument("--windows", type=float, nargs="+", default=[0.25, 0.5, 1.0, 2.0], help="smoothing windows (s)")
+    k.add_argument("--calib", default=str(REPO / "calib_matrix.csv"), help="US calibration (TUS-REC format)")
+    k.add_argument("--out", required=True)
     args = ap.parse_args()
-    {"train": train, "eval": evaluate}[args.cmd](args)
+    {"train": train, "eval": evaluate, "track": track}[args.cmd](args)
 
 
 if __name__ == "__main__":

@@ -128,3 +128,12 @@ Removed to keep this folder to what the paper and summary need; the files are in
 | `li-transfer/scratch-3XX`, `-4XXA`, `-4XXD` | from scratch, tested | 56.0, 49.1, 52.4 mm: = zero motion | negative |
 
 The smoke test (`li-repro-smoke`, 20 epochs) was removed.
+
+## 9. Without SIFT odometry (28 Oct; summary 3.20)
+
+| run | content | key result (US image median, pose graph unless noted) | status |
+|---|---|---|---|
+| `sys-learned-2XX` | SCR every 0.25 s, no odometry (the RPRNet arms did not run: no 2XX cache) | raw 3.5 (2.55); pose graph 6.1 | study |
+| `sys-learned-3XX`, `-4XXA`, `-4XXD` | SCR + RPRNet odometry (1 s, 0.25 s) and SCR every 0.25 s alone | 0.25 s + RPRNet 3.2 / 5.4 / 9.9; SCR alone raw 2.0 / 5.2 / 9.7 (step 1.69 / 1.81 / 1.88) | study |
+
+File names: `odometry-recover3` = RPRNet, 1 s; `odometry-every0.25s` = RPRNet, 0.25 s; `odometry-odo-zero-every0.25s` = no odometry.
