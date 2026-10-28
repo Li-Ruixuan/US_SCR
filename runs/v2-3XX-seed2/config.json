@@ -1,0 +1,53 @@
+{
+  "args": {
+    "cmd": "train",
+    "root": "/data2/u0137815/rgbd-us/data/train_3XX",
+    "scan_runs": [
+      "room-301",
+      "room-302"
+    ],
+    "out": "runs/v2-3XX-seed2",
+    "label_poses": [],
+    "head": "big",
+    "label_max_depth": 2000.0,
+    "drop_depth_edges": true,
+    "aug_scale": [
+      1.0,
+      1.0
+    ],
+    "aug_rot": 0.0,
+    "epochs": 120,
+    "flat": 0.6,
+    "batch_size": 8,
+    "lr": 0.001,
+    "lr_encoder": 0.0001,
+    "image_size": [
+      360,
+      640
+    ],
+    "hand_eye": "/data2/u0137815/US_SCR/T_marker_cam.npy",
+    "workers": 12,
+    "seed": 2,
+    "check_every": 6,
+    "check_frames": 120,
+    "max_frames": 0,
+    "px": 10.0,
+    "min_inliers": 30,
+    "eval_root": null,
+    "eval_runs": null
+  },
+  "centre": [
+    -18.10894876647514,
+    -94.50710009554875,
+    -964.3127446835284
+  ],
+  "image_size": [
+    360,
+    640
+  ],
+  "head": "big",
+  "n_frames": 3356,
+  "steps": 50280,
+  "estimated_labels": {},
+  "git": "948da33"
+}

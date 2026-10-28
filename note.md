@@ -80,21 +80,5 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
-On the training PC (after git pull):
 
 
-export DATA=/data2/u0137815/rgbd-us/data
-# 1. finish the table
-python scr_anchor.py track --ckpt runs/v2-4XXB/best.pt --test-root $DATA/test_4XXB --every 2 --out runs/track-4XXB
-python scr_anchor.py track --ckpt runs/v2-4XXC/best.pt --test-root $DATA/test_4XXC --every 2 --out runs/track-4XXC
-python scr_anchor.py track --ckpt runs/v2-4XXC/best.pt --test-root $DATA/test_4XXE --every 2 --out runs/track-4XXE
-# 2. strict protocol
-python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 --head big --label-max-depth 2000 --drop-depth-edges --out runs/v2-3XX-room301
-python scr_anchor.py track --ckpt runs/v2-3XX-room301/best.pt --test-root $DATA/train_3XX --test-runs run-315 run-316 run-317 --every 2 --out runs/track-3XX-room301
-# 3. seed spread
-python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --head big --label-max-depth 2000 --drop-depth-edges --seed 1 --out runs/v2-3XX-seed1
-python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --head big --label-max-depth 2000 --drop-depth-edges --seed 2 --out runs/v2-3XX-seed2
-python scr_anchor.py track --ckpt runs/v2-3XX-seed1/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-3XX-seed1
-python scr_anchor.py track --ckpt runs/v2-3XX-seed2/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-3XX-seed2
-git add -A && git commit -m "Single network: 4XX B/C/E, strict protocol, seeds" && git push
-Run time: about 3–4 h in all. Task 1 needs no training (~10–20 min per block); tasks 2 and 3 train three models at 25–50 min each.
