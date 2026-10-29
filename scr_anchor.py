@@ -32,7 +32,17 @@ Kabsch on every --every usable row, poses with fewer than --gate inliers dropped
 inliers weights, quadratic inside the window's poses, linear with fewer than 5, constant when
 extrapolating; 2 Tukey reweightings; rotation as rotation vectors about the window's mean). Error at
 the US image as anchoring.py (5 points, median per sweep) and the step-to-step error per --every rows
-and per 8 rows (anchoring.py's odometry step).
+and per 8 rows (anchoring.py's odometry step). --lags L: also in real time, with a delay of L s (0 =
+causal): the window is the last W s up to t + L, extrapolated linearly to t. With cached poses the
+smoothing reruns on the CPU without the checkpoint.
+
+Options for the open questions (summary.md 8):
+  --confidence (train): a second head on detached features learns the expected error of each cell
+      (Laplace-type likelihood); track --weighted samples RANSAC cells ~ 1 / sigma and refits with
+      weights 1 / sigma^2. The coordinates train exactly as without it.
+  --render-source frames (train, with --render-views): rendered views from the nearest real frames at
+      full resolution instead of the voxel room cloud.
+  --scan-seconds S (train): only the first S seconds of each room scan (how long must a scan be?).
 """
 
 import argparse
@@ -67,13 +77,37 @@ def bar(it, **kw):
 # ---------------------------------------------------------------- network
 
 class SCRNetFP32Head(SCRNet):
-    """scr.SCRNet with the head outside autocast. Same parameters, so scr.load_scr loads it."""
+    """scr.SCRNet with the head outside autocast. Same parameters, so scr.load_scr loads it.
+    Optional confidence head (`conf`, --confidence): forward_conf also returns the log of the expected
+    coordinate error of each cell (metres); forward returns the coordinates only, as scr.SCRNet."""
+
+    def __init__(self, pretrained=True):
+        super().__init__(pretrained=pretrained)
+        self.conf = None
 
     def forward(self, rgb):
+        return self.forward_conf(rgb)[0]
+
+    def forward_conf(self, rgb):
         f8 = self.low(rgb)
         f16 = F.interpolate(self.high(f8), size=f8.shape[-2:], mode="bilinear", align_corners=False)
         with torch.autocast(rgb.device.type, enabled=False):
-            return self.head(torch.cat([f8, f16], 1).float())
+            f = torch.cat([f8, f16], 1).float()
+            # on detached features: the confidence learns from the coordinate error without changing the coordinates
+            return self.head(f), (self.conf(f.detach()) if self.conf is not None else None)
+
+
+class ConfHead(nn.Module):
+    """Confidence head (--confidence): 1x1 convs 152 -> 128 -> 128 -> 1, the log expected coordinate error
+    of each cell (m), clamped to 1 mm ... 1 m."""
+
+    def __init__(self, cin=152, width=128):
+        super().__init__()
+        self.net = nn.Sequential(nn.Conv2d(cin, width, 1), nn.ReLU(inplace=True), nn.Conv2d(width, width, 1),
+                                 nn.ReLU(inplace=True), nn.Conv2d(width, 1, 1))
+
+    def forward(self, x):
+        return self.net(x).clamp(math.log(1e-3), 0.0)
 
 
 class BigHead(nn.Module):
@@ -94,17 +128,19 @@ class BigHead(nn.Module):
         return self.out(x)
 
 
-def build_net(head="small", pretrained=True):
+def build_net(head="small", pretrained=True, confidence=False):
     net = SCRNetFP32Head(pretrained=pretrained)
     if head == "big":
         net.head = BigHead()
+    if confidence:
+        net.conf = ConfHead()
     return net
 
 
 def load_model(path, device):
     """scr.load_scr for either head: the checkpoint's "head" entry (absent = scr.py's small head)."""
     ck = torch.load(path, map_location=device, weights_only=False)
-    net = build_net(ck.get("head", "small"), pretrained=False).to(device)
+    net = build_net(ck.get("head", "small"), pretrained=False, confidence=ck.get("confidence", False)).to(device)
     net.load_state_dict(ck["model"])
     net.eval()
     return net, ck
@@ -173,6 +209,23 @@ class Frames(Dataset):
 
 # ---------------------------------------------------------------- rendered views (--render-views)
 
+def frame_points(ds, root, name, row, stride, max_depth):
+    """One frame as coloured room points: depth back-projected on a `stride`-pixel grid with the frame's pose,
+    depth edges dropped -> P (N, 3) mm world, colour (N, 3) uint8, size (N,) mm (the pixel footprint)."""
+    r = ds.runs[name]
+    rgb = cv2.cvtColor(cv2.imread(str(Path(root) / name / r["df"]["rgb"].iloc[row])), cv2.COLOR_BGR2RGB)
+    d = load_depth_mm(ds, root, name, row).astype(np.float32)
+    k3 = np.ones((3, 3), np.uint8)
+    edge = ((cv2.dilate(d, k3) - cv2.erode(np.where(d > 0, d, np.float32(1e9)), k3)) > 0.03 * d) | \
+           (cv2.erode((d > 0).astype(np.uint8), k3) == 0)
+    v, u = np.mgrid[0:d.shape[0]:stride, 0:d.shape[1]:stride]
+    z = d[v, u].astype(np.float64)
+    ok = (z > 100) & (z < max_depth) & ~edge[v, u]
+    K, T = np.asarray(r["K"], float), r["T_world_cam"][row]
+    X = np.stack([(u[ok] - K[0, 2]) / K[0, 0] * z[ok], (v[ok] - K[1, 2]) / K[1, 1] * z[ok], z[ok]], 1)
+    return X @ T[:3, :3].T + T[:3, 3], rgb[v[ok], u[ok]], z[ok] / K[0, 0] * stride
+
+
 def room_cloud(ds, root, items, every, stride, max_depth, voxel):
     """Coloured point cloud of the room (mm, world frame) from every `every`-th training frame: depth
     back-projected on a `stride`-pixel grid with the frame's pose, depth edges dropped, merged on a
@@ -189,31 +242,21 @@ def room_cloud(ds, root, items, every, stride, max_depth, voxel):
         np.add.at(c, inv, np.concatenate(cols))
         keys[:], pts[:], cols[:] = [u], [p / n], [c / n]
 
-    for n_item, (name, row) in enumerate(bar(items[::every], desc="room cloud")):
-        r = ds.runs[name]
-        rgb = cv2.cvtColor(cv2.imread(str(Path(root) / name / r["df"]["rgb"].iloc[row])), cv2.COLOR_BGR2RGB)
-        d = load_depth_mm(ds, root, name, row).astype(np.float32)
-        k3 = np.ones((3, 3), np.uint8)
-        edge = ((cv2.dilate(d, k3) - cv2.erode(np.where(d > 0, d, np.float32(1e9)), k3)) > 0.03 * d) | \
-               (cv2.erode((d > 0).astype(np.uint8), k3) == 0)
-        v, u = np.mgrid[0:d.shape[0]:stride, 0:d.shape[1]:stride]
-        z = d[v, u].astype(np.float64)
-        ok = (z > 100) & (z < max_depth) & ~edge[v, u]
-        K, T = np.asarray(r["K"], float), r["T_world_cam"][row]
-        X = np.stack([(u[ok] - K[0, 2]) / K[0, 0] * z[ok], (v[ok] - K[1, 2]) / K[1, 1] * z[ok], z[ok]], 1)
-        P = X @ T[:3, :3].T + T[:3, 3]
+    for name, row in bar(items[::every], desc="room cloud"):
+        P, col, _ = frame_points(ds, root, name, row, stride, max_depth)
         q = np.floor(P / voxel).astype(np.int64) + (1 << 20)
         keys.append((q[:, 0] << 42) | (q[:, 1] << 21) | q[:, 2])
         pts.append(P)
-        cols.append(rgb[v[ok], u[ok]].astype(np.float64))
+        cols.append(col.astype(np.float64))
         if len(keys) > 50:
             merge()
     merge()
     return pts[0].astype(np.float32), np.clip(cols[0], 0, 255).astype(np.uint8)
 
 
-def render_view(P, C, T_wc, K, hw, voxel, device):
-    """Splat the coloured cloud into a camera at T_wc (render resolution hw, intrinsics K):
+def render_view(P, C, T_wc, K, hw, size, device):
+    """Splat the coloured cloud into a camera at T_wc (render resolution hw, intrinsics K); size: the point
+    footprint in mm (a voxel size, or a tensor with one per point)
     -> rgb (H, W, 3) uint8, room coordinate (H, W, 3) mm, depth (H, W) mm (0 = nothing)."""
     H, W = hw
     R, t = torch.tensor(T_wc[:3, :3], device=device, dtype=torch.float32), torch.tensor(T_wc[:3, 3], device=device, dtype=torch.float32)
@@ -224,7 +267,8 @@ def render_view(P, C, T_wc, K, hw, voxel, device):
     z = z[m]
     u = Xc[m, 0] / z * K[0, 0] + K[0, 2]
     v = Xc[m, 1] / z * K[1, 1] + K[1, 2]
-    rad = torch.clamp((voxel * K[0, 0] / z * 0.75).round().long(), 0, 2)    # splat half-size: covers the voxel footprint
+    sz = size[m] if torch.is_tensor(size) else size
+    rad = torch.clamp((sz * K[0, 0] / z * 0.75).round().long(), 0, 2)       # splat half-size: covers the point footprint
     key = (z * 10).long() * (len(P) + 1) + idx                          # nearest wins; ties by index
     best = torch.full((H * W,), torch.iinfo(torch.long).max, device=device, dtype=torch.long)
     ui, vi = u.round().long(), v.round().long()
@@ -254,18 +298,29 @@ def perturb(T, shift, rot, rng):
 
 
 class RenderedViews(Dataset):
-    """New viewpoints rendered from the room cloud with exact room-coordinate labels (rendered once,
-    at the start of training): a training pose turned by up to --render-rot and moved by up to
-    --render-shift; kept if at least --render-min-valid of its cells have a label. Holes are filled
-    from neighbouring pixels in the image only; a cell is labelled only where the rendered surface
-    is not seen through a hole (depth within 5 % of its 5 x 5 minimum) and closer than the label
-    depth limit. Photometric augmentation as the real frames."""
+    """New viewpoints rendered with exact room-coordinate labels (rendered once, at the start of
+    training): a training pose turned by up to --render-rot and moved by up to --render-shift; kept if
+    at least --render-min-valid of its cells have a label. Two sources (--render-source):
+      cloud:  the room cloud of every --render-every-th training frame on --render-voxel mm voxels
+              (blocky: one colour per voxel);
+      frames: the --render-frames training frames nearest to the new pose (camera distance + 28 mm
+              per degree of viewing direction), each back-projected at full resolution, so the image
+              keeps the real texture.
+    Holes are filled from neighbouring pixels in the image only; a cell is labelled only where the
+    rendered surface is not seen through a hole (depth within 5 % of its 5 x 5 minimum) and closer
+    than the label depth limit. Photometric augmentation as the real frames."""
 
     def __init__(self, ds, root, items, centre, args, device):
         self.centre, self.seed = np.asarray(centre), args.seed
-        P, C = room_cloud(ds, root, items, args.render_every, 4, args.label_max_depth, args.render_voxel)
-        print(f"room cloud: {len(P) / 1e6:.2f} M points ({args.render_voxel:g} mm voxels)", flush=True)
-        Pt, Ct = torch.from_numpy(P).to(device), torch.from_numpy(C).to(device)
+        frames_mode = args.render_source == "frames"
+        if frames_mode:
+            Tc = np.stack([ds.runs[n]["T_world_cam"][r] for n, r in items])
+            pos, look = Tc[:, :3, 3], Tc[:, :3, 2]
+        else:
+            P, C = room_cloud(ds, root, items, args.render_every, 4, args.label_max_depth, args.render_voxel)
+            print(f"room cloud: {len(P) / 1e6:.2f} M points ({args.render_voxel:g} mm voxels)", flush=True)
+            Pt, Ct = torch.from_numpy(P).to(device), torch.from_numpy(C).to(device)
+            size = args.render_voxel
         H, W = ds.cfg.image_size
         rng = np.random.default_rng(args.seed + 7)
         n_want = int(round(args.render_views * len(items)))
@@ -278,7 +333,14 @@ class RenderedViews(Dataset):
             r = ds.runs[name]
             K = np.asarray(r["K"], float) * np.array([[W / r["hw"][1]], [H / r["hw"][0]], [1]])
             T = perturb(r["T_world_cam"][row], args.render_shift, args.render_rot, rng)
-            rgb, xyz, dep = render_view(Pt, Ct, T, K, (H, W), args.render_voxel, device)
+            if frames_mode:                   # the nearest real frames, full resolution
+                ang = np.degrees(np.arccos(np.clip(look @ T[:3, 2], -1, 1)))
+                near = np.argsort(np.linalg.norm(pos - T[:3, 3], axis=1) + 28.0 * ang)[: args.render_frames]
+                parts = [frame_points(ds, root, *items[j], 1, args.label_max_depth) for j in near]
+                Pt = torch.from_numpy(np.concatenate([q[0] for q in parts]).astype(np.float32)).to(device)
+                Ct = torch.from_numpy(np.concatenate([q[1] for q in parts])).to(device)
+                size = torch.from_numpy(np.concatenate([q[2] for q in parts]).astype(np.float32)).to(device)
+            rgb, xyz, dep = render_view(Pt, Ct, T, K, (H, W), size, device)
             dmin = cv2.erode(np.where(dep > 0, dep, np.float32(1e9)), np.ones((5, 5), np.uint8))
             ok = (dep > 100) & (dep < args.label_max_depth) & (dep <= 1.05 * dmin)
             o = STRIDE // 2
@@ -294,8 +356,8 @@ class RenderedViews(Dataset):
             self.poses.append(T)
             bar_.update(1)
         bar_.close()
-        print(f"{len(self.rgb)} rendered views ({tries} tried; shift <= {args.render_shift:g} mm, rotation <= "
-              f"{args.render_rot:g} deg)", flush=True)
+        print(f"{len(self.rgb)} rendered views from {args.render_source} ({tries} tried; shift <= {args.render_shift:g} mm, "
+              f"rotation <= {args.render_rot:g} deg)", flush=True)
 
     def __len__(self):
         return len(self.rgb)
@@ -347,21 +409,29 @@ def label_with_estimates(ds, paths):
 
 # ---------------------------------------------------------------- pose
 
-def kabsch(P, Q):
-    """R, t minimising |R P + t - Q|, P and Q (N, 3)."""
-    cp, cq = P.mean(0), Q.mean(0)
-    U, _, Vt = np.linalg.svd((P - cp).T @ (Q - cq))
+def kabsch(P, Q, w=None):
+    """R, t minimising |R P + t - Q| (weighted by w if given), P and Q (N, 3)."""
+    if w is None:
+        cp, cq = P.mean(0), Q.mean(0)
+        U, _, Vt = np.linalg.svd((P - cp).T @ (Q - cq))
+    else:
+        w = w / w.sum()
+        cp, cq = w @ P, w @ Q
+        U, _, Vt = np.linalg.svd((P - cp).T @ ((Q - cq) * w[:, None]))
     D = np.diag([1, 1, np.sign(np.linalg.det(Vt.T @ U.T))])
     R = Vt.T @ D @ U.T
     return R, cq - R @ cp
 
 
 @torch.no_grad()
-def cell_correspondences(net, ck, rgb, depth_mm, K, full_w, device, max_depth=2000.0):
+def cell_correspondences(net, ck, rgb, depth_mm, K, full_w, device, max_depth=2000.0, with_sigma=False):
     """(C, P), each (N, 3) mm: for every cell with measured depth below `max_depth`, its depth
     point in the camera frame (C) and its predicted room coordinate (P). Cells beyond max_depth are
-    left out: depth noise grows with distance squared."""
-    pred = net(torch.from_numpy(rgb).float()[None].to(device))[0].double().cpu().numpy()
+    left out: depth noise grows with distance squared. with_sigma: also S (N,), the confidence head's
+    expected error of each cell (mm), or None for a network without one."""
+    x = torch.from_numpy(rgb).float()[None].to(device)
+    pred, log_sigma = net.forward_conf(x) if hasattr(net, "forward_conf") else (net(x), None)
+    pred = pred[0].double().cpu().numpy()
     h, w = pred.shape[1:]
     P = pred.reshape(3, -1).T * 1000.0 + np.asarray(ck["centre"])
     uv = grid_pixels(h, w, full_w / (w * STRIDE))
@@ -370,24 +440,37 @@ def cell_correspondences(net, ck, rgb, depth_mm, K, full_w, device, max_depth=20
     z = depth_mm[vi, ui].astype(np.float64)
     m = (z > 100) & (z < max_depth)
     C = np.stack([(uv[:, 0] - K[0, 2]) / K[0, 0] * z, (uv[:, 1] - K[1, 2]) / K[1, 1] * z, z], 1)[m]
-    return C, P[m]
+    if not with_sigma:
+        return C, P[m]
+    S = None if log_sigma is None else log_sigma[0, 0].exp().double().cpu().numpy().ravel()[m] * 1000.0
+    return C, P[m], S
 
 
 def localize_kabsch(net, ck, rgb, depth_mm, K, full_w, device, thr=20.0, max_depth=2000.0, min_inliers=30,
-                    iters=256, rng=None):
-    """Camera pose T_world_cam of one frame: Kabsch RANSAC (kabsch_ransac) on its cell correspondences."""
-    C, P = cell_correspondences(net, ck, rgb, depth_mm, K, full_w, device, max_depth)
-    return kabsch_ransac(C, P, thr, min_inliers, iters, rng)
+                    iters=256, rng=None, weighted=False):
+    """Camera pose T_world_cam of one frame: Kabsch RANSAC (kabsch_ransac) on its cell correspondences;
+    weighted (a checkpoint with a confidence head): cells weighted by their predicted error."""
+    C, P, S = cell_correspondences(net, ck, rgb, depth_mm, K, full_w, device, max_depth, with_sigma=True)
+    if weighted and S is None:
+        raise SystemExit("--weighted needs a checkpoint trained with --confidence")
+    return kabsch_ransac(C, P, thr, min_inliers, iters, rng, sigma=S if weighted else None)
 
 
-def kabsch_ransac(C, P, thr=20.0, min_inliers=30, iters=256, rng=None):
+def kabsch_ransac(C, P, thr=20.0, min_inliers=30, iters=256, rng=None, sigma=None):
     """T (4x4) mapping camera points C onto room points P, by RANSAC: hypotheses from 3 random
     correspondences (Kabsch), inliers within `thr` mm, refit three times on the inliers.
-    Returns (T or None, number of inliers)."""
+    sigma (N,), the expected error of each correspondence (mm): hypotheses sample cells with probability
+    ~ 1 / sigma and the refits weight the inliers by 1 / sigma^2; inliers are still counted, so the gate
+    keeps its meaning. Returns (T or None, number of inliers)."""
     if len(P) < max(min_inliers, 3):
         return None, 0
     rng = rng or np.random.default_rng(0)
-    idx = rng.integers(0, len(P), (iters, 3))
+    if sigma is None:
+        idx = rng.integers(0, len(P), (iters, 3))
+        w = None
+    else:
+        idx = rng.choice(len(P), (iters, 3), p=(1 / sigma) / (1 / sigma).sum())
+        w = 1 / sigma ** 2
     Cs, Ps = C[idx], P[idx]                                                # (iters, 3, 3)
     cc, cp = Cs.mean(1, keepdims=True), Ps.mean(1, keepdims=True)
     U, _, Vt = np.linalg.svd(np.swapaxes(Cs - cc, 1, 2) @ (Ps - cp))
@@ -401,7 +484,7 @@ def kabsch_ransac(C, P, thr=20.0, min_inliers=30, iters=256, rng=None):
         inl = np.linalg.norm(C @ R.T + t - P, axis=1) < thr
         if inl.sum() < max(min_inliers, 3):
             return None, int(inl.sum())
-        R, t = kabsch(C[inl], P[inl])
+        R, t = kabsch(C[inl], P[inl], None if w is None else w[inl])
     T = np.eye(4)
     T[:3, :3], T[:3, 3] = R, t
     return T, int((np.linalg.norm(C @ R.T + t - P, axis=1) < thr).sum())
@@ -488,6 +571,9 @@ def train(args):
     label_err = label_with_estimates(ds, args.label_poses)
     items = [(n, int(r)) for n in args.scan_runs for r in np.concatenate(ds.runs[n]["segments"])
              if np.isfinite(ds.runs[n]["T_world_cam"][r]).all()]
+    if args.scan_seconds:                     # shorter room scans: the first S seconds of each run
+        t0 = {n: min(ds.runs[n]["stamps"][r] for m, r in items if m == n) for n in args.scan_runs}
+        items = [(n, r) for n, r in items if ds.runs[n]["stamps"][r] - t0[n] <= args.scan_seconds]
     if args.max_frames:                     # smoke tests only
         items = items[:: max(1, len(items) // args.max_frames)][: args.max_frames]
     centre = np.mean([ds.runs[n]["T_world_cam"][r][:3, 3] for n, r in items], 0)
@@ -508,26 +594,31 @@ def train(args):
     dl = DataLoader(data, args.batch_size, shuffle=True, num_workers=args.workers, drop_last=True,
                     pin_memory=device.type == "cuda", persistent_workers=args.workers > 0,
                     prefetch_factor=4 if args.workers > 0 else None)
-    net = build_net(args.head).to(device)
+    net = build_net(args.head, confidence=args.confidence).to(device)
     encoder = list(net.low.parameters()) + list(net.high.parameters())
     if args.freeze_encoder:                   # ACE-style: ImageNet features as they are, only the head learns
         for q in encoder:
             q.requires_grad_(False)
-    opt = torch.optim.AdamW([{"params": encoder, "lr": 0.0 if args.freeze_encoder else args.lr_encoder},
-                             {"params": net.head.parameters(), "lr": args.lr}], weight_decay=1e-4)
+    groups = [{"params": encoder, "lr": 0.0 if args.freeze_encoder else args.lr_encoder},
+              {"params": net.head.parameters(), "lr": args.lr}]
+    if args.confidence:
+        groups.append({"params": net.conf.parameters(), "lr": args.lr})
+    opt = torch.optim.AdamW(groups, weight_decay=1e-4)
     total = args.epochs * len(dl)
     sched = torch.optim.lr_scheduler.LambdaLR(opt, flatcos(total, max(1, total // 100), args.flat))
     amp = device.type == "cuda"
     scaler = torch.amp.GradScaler(enabled=amp)
 
-    meta = {"args": vars(args), "centre": centre.tolist(), "image_size": list(args.image_size), "head": args.head}
+    meta = {"args": vars(args), "centre": centre.tolist(), "image_size": list(args.image_size), "head": args.head,
+            "confidence": args.confidence}
     json.dump(meta | {"n_frames": len(items), "n_rendered": n_rendered, "steps": total, "estimated_labels": label_err, "git": git_rev(REPO)},
               open(out / "config.json", "w"), indent=2)
     print(f"{len(dl)} steps per epoch, {total} in all; head {args.head} "
           f"({sum(p.numel() for p in net.head.parameters()) / 1e6:.2f} M); labels < {args.label_max_depth:g} mm"
           f"{', no depth edges' if args.drop_depth_edges else ''}; viewpoint augmentation "
           f"{f'zoom {args.aug_scale}, rotation +-{args.aug_rot} deg' if args.aug_rot or args.aug_scale != [1.0, 1.0] else 'off'}"
-          f"{f'; + {n_rendered} rendered views' if n_rendered else ''}{'; encoder frozen' if args.freeze_encoder else ''}",
+          f"{f'; + {n_rendered} rendered views' if n_rendered else ''}{'; encoder frozen' if args.freeze_encoder else ''}"
+          f"{'; confidence head' if args.confidence else ''}",
           flush=True)
 
     history = []
@@ -541,17 +632,20 @@ def train(args):
         for rgb, tgt, ok in pbar:
             rgb, tgt, ok = (x.to(device, non_blocking=True) for x in (rgb, tgt, ok))
             with torch.autocast(device.type, enabled=amp):
-                pred = net(rgb)
+                pred, log_sigma = net.forward_conf(rgb)
             err = torch.linalg.norm(pred.float() - tgt, dim=1)[ok]               # 3D distance, metres
             if err.numel() == 0:
                 continue
-            loss = err.mean()
+            loss = coord_loss = err.mean()
+            if log_sigma is not None:         # Laplace-type likelihood of the (detached) error: sigma learns the expected error
+                s = log_sigma[:, 0][ok]
+                loss = loss + (err.detach() / s.exp() + s).mean()
             opt.zero_grad(set_to_none=True)
             scaler.scale(loss).backward()
             scaler.step(opt)
             scaler.update()
             sched.step()
-            losses.append(loss.item())
+            losses.append(coord_loss.item())            # the coordinate loss, comparable with models without confidence
             meds.append(float(err.detach().median()) * 1000)
             pbar.set_postfix(loss=f"{losses[-1]:.4f}", err=f"{meds[-1]:.0f} mm", refresh=False)
         h = {"epoch": ep + 1, "loss": float(np.mean(losses)), "coord_err_mm_median": float(np.median(meds)),
@@ -675,7 +769,8 @@ def track_poses(args, ds, sweeps, net, ck, device):
         for n, row in enumerate(bar(rows, desc=f"track {sw}")):
             rgb = ds.load_frame(sw, int(row))[0]
             depth = load_depth_mm(ds, args.test_root, sw, int(row))
-            Tn, k = localize_kabsch(net, ck, rgb, depth, K, r["hw"][1], device, rng=np.random.default_rng(int(row)))
+            Tn, k = localize_kabsch(net, ck, rgb, depth, K, r["hw"][1], device, rng=np.random.default_rng(int(row)),
+                                    weighted=args.weighted)
             inl[n] = k
             if Tn is not None and k >= args.gate:
                 T[n] = Tn
@@ -684,23 +779,39 @@ def track_poses(args, ds, sweeps, net, ck, device):
     return out
 
 
-def smooth_poses(t, T, w, W):
+def smooth_poses(t, T, w, W, lag=None):
     """Robust local fit of the poses T (n, 4, 4; NaN = none) at times t, weights w, window W (s): quadratic in
-    time inside the poses of the window, linear with fewer than 5, constant when extrapolating (gaps, ends)."""
+    time inside the poses of the window, linear with fewer than 5, constant when extrapolating (gaps, ends).
+
+    lag=None: the window is centred on each time (offline). lag=L (s): real time with a delay of L, the window
+    is the last W s up to t + L, so only poses known by then are used; L = 0 is causal. The fit is then
+    extrapolated to t (linear with at least 5 poses, else constant); no pose yet = NaN."""
     ok = np.isfinite(T[:, 0, 0])
     if ok.sum() < 3:
         return np.full_like(T, np.nan)
     tt, TT, ww = t[ok], T[ok], w[ok].astype(float)
     out = np.full_like(T, np.nan)
     for i in range(len(t)):
-        m = np.abs(tt - t[i]) <= W / 2
-        if m.sum() < 3:                                          # gap: widen to the 3 nearest poses
-            m = np.zeros(len(tt), bool)
-            m[np.argsort(np.abs(tt - t[i]))[:3]] = True
+        if lag is None:
+            m = np.abs(tt - t[i]) <= W / 2
+            if m.sum() < 3:                                      # gap: widen to the 3 nearest poses
+                m = np.zeros(len(tt), bool)
+                m[np.argsort(np.abs(tt - t[i]))[:3]] = True
+        else:
+            known = tt <= t[i] + lag + 1e-9
+            if not known.any():
+                continue
+            m = known & (tt >= t[i] + lag - W)
+            if m.sum() < 3:                                      # gap: the 3 latest known poses
+                m = np.zeros(len(tt), bool)
+                m[np.flatnonzero(known)[-3:]] = True
         dt = tt[m] - t[i]
-        k = (1 - np.clip(np.abs(dt) / max(W / 2, np.abs(dt).max() + 1e-6), 0, 1) ** 3) ** 3 * ww[m]
+        k = (1 - np.clip(np.abs(dt) / max(W / 2 if lag is None else W, np.abs(dt).max() + 1e-6), 0, 1) ** 3) ** 3 * ww[m]
         inside = dt.min() < 0 < dt.max()                          # interpolating, not extrapolating
-        order = 2 if (m.sum() >= 5 and inside) else 1 if (m.sum() >= 3 and inside) else 0
+        if lag is None:
+            order = 2 if (m.sum() >= 5 and inside) else 1 if (m.sum() >= 3 and inside) else 0
+        else:
+            order = 1 if m.sum() >= 5 else 0
         A = np.vander(dt, order + 1, increasing=True)
         Rm = Rotation.from_matrix(TT[m, :3, :3])
         rob = np.ones(m.sum())
@@ -735,26 +846,34 @@ def track(args):
     """Single-model tracking: SCR + Kabsch on every --every usable row (no odometry, no Polaris start pose),
     gate, cache the poses; smooth them for each --windows W; error at the US image (as anchoring.py)."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    net, ck = load_model(args.ckpt, device)
-    T_mc = load_hand_eye(resolve_hand_eye(ck["args"]["hand_eye"]), "mm")
-    ds = RPRDataset(args.test_root, test_sweeps(args.test_root, args.test_runs), [],
-                    RPRConfig(T_marker_cam=T_mc, image_size=tuple(ck["image_size"])))
-    sweeps = list(ds.runs)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     cache = out / "poses.npz"
-    if cache.exists() and json.load(open(out / "poses.json"))["every"] == args.every:
+    meta = json.load(open(out / "poses.json")) if cache.exists() else {}
+    cached = meta.get("every") == args.every and meta.get("weighted", False) == args.weighted
+    if cached:                                # smoothing only: no network needed (checkpoint may live elsewhere)
+        hand_eye, image_size = REPO / "T_marker_cam.npy", (360, 640)
+    else:
+        net, ck = load_model(args.ckpt, device)
+        hand_eye, image_size = resolve_hand_eye(ck["args"]["hand_eye"]), tuple(ck["image_size"])
+    T_mc = load_hand_eye(hand_eye, "mm")
+    ds = RPRDataset(args.test_root, test_sweeps(args.test_root, args.test_runs), [],
+                    RPRConfig(T_marker_cam=T_mc, image_size=image_size))
+    sweeps = list(ds.runs)
+    if cached:
         z = np.load(cache)
         raw = {sw: (z[f"{sw}_rows"], z[f"{sw}_T"], z[f"{sw}_inl"]) for sw in sweeps}
         print(f"poses from {cache}")
     else:
         raw = track_poses(args, ds, sweeps, net, ck, device)
         np.savez_compressed(cache, **{f"{sw}_{k}": v for sw, (r, T, i) in raw.items() for k, v in (("rows", r), ("T", T), ("inl", i))})
-        json.dump({"ckpt": args.ckpt, "every": args.every, "gate": args.gate}, open(out / "poses.json", "w"))
+        json.dump({"ckpt": args.ckpt, "every": args.every, "gate": args.gate, "weighted": args.weighted},
+                  open(out / "poses.json", "w"))
 
     scaling, rigid = read_us_calib(args.calib)
     P = np.linalg.inv(T_mc) @ rigid @ scaling @ np.stack([US_PX[:, 0], US_PX[:, 1], np.zeros(5), np.ones(5)])
-    methods = ["raw"] + [f"smoothed {W:g} s" for W in args.windows]
+    lags = [(f"real time {W:g} s, delay {L:g} s", W, L) for L in args.lags for W in args.windows]
+    methods = ["raw"] + [f"smoothed {W:g} s" for W in args.windows] + [m for m, _, _ in lags]
     res = {m: {} for m in methods}
     for sw in sweeps:
         rows, T, inl = raw[sw]
@@ -770,6 +889,11 @@ def track(args):
             for s in segs:
                 Ts[s] = smooth_poses(t[s], T[s], inl[s], W)
             ests[f"smoothed {W:g} s"] = Ts
+        for m, W, L in lags:
+            Ts = np.full_like(T, np.nan)
+            for s in segs:
+                Ts[s] = smooth_poses(t[s], T[s], inl[s], W, lag=L)
+            ests[m] = Ts
         step8 = max(1, round(8 / args.every))
         for m, Te in ests.items():
             err, st = us_errors(Te, T_gt, P, segs, steps=(1, step8))
@@ -817,6 +941,13 @@ def main():
     t.add_argument("--render-voxel", type=float, default=5.0, help="room cloud voxel size (mm)")
     t.add_argument("--render-every", type=int, default=4, help="room cloud from every n-th training frame")
     t.add_argument("--render-min-valid", type=float, default=0.5, help="keep a rendered view if this share of cells has a label")
+    t.add_argument("--render-source", choices=["cloud", "frames"], default="cloud",
+                   help="rendered views from the voxel room cloud, or from the nearest real frames at full resolution")
+    t.add_argument("--render-frames", type=int, default=3, help="--render-source frames: real frames per rendered view")
+    t.add_argument("--confidence", action="store_true",
+                   help="also learn the expected error of each cell (for track --weighted)")
+    t.add_argument("--scan-seconds", type=float, default=0.0,
+                   help="room-scan length study: train on the first S seconds of each --scan-runs run only")
     t.add_argument("--aug-scale", type=float, nargs=2, default=[1.0, 1.0],
                    help="viewpoint augmentation: zoom range, log-uniform (ACE: 0.67 1.5); 1 1 = off")
     t.add_argument("--aug-rot", type=float, default=0.0, help="viewpoint augmentation: in-plane rotation +- deg (ACE: 15)")
@@ -856,6 +987,10 @@ def main():
     k.add_argument("--every", type=int, default=1, help="SCR on every n-th usable row")
     k.add_argument("--gate", type=int, default=400, help="minimum Kabsch inliers (as the full system)")
     k.add_argument("--windows", type=float, nargs="+", default=[0.25, 0.5, 1.0, 2.0], help="smoothing windows (s)")
+    k.add_argument("--lags", type=float, nargs="+", default=[],
+                   help="also real-time smoothing with these delays (s; 0 = causal), for every window")
+    k.add_argument("--weighted", action="store_true",
+                   help="confidence checkpoints: sample and fit the Kabsch RANSAC with the predicted confidence")
     k.add_argument("--calib", default=str(REPO / "calib_matrix.csv"), help="US calibration (TUS-REC format)")
     k.add_argument("--out", required=True)
     args = ap.parse_args()

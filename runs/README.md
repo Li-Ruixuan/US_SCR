@@ -26,9 +26,10 @@ Every folder backs a number in `../summary.md` (section in the last column). Che
 | `track-4XXE` | `v2-4XXC` | 6.25 (1.68) [raw 6.12] |
 | `track-3XX-seed1`, `-seed2` | `v2-3XX-seed1`, `-seed2` | 1.95 (0.92), 2.12 (0.93) |
 | `track-3XX-room301` | `v2-3XX-room301` (map room-301 only), run-315…317: strict protocol | 2.98 (1.18) [3.12]; classical system 3.0 |
-| `track-v2pool-4XXC`, `-4XXD`, `-4XXE` | `v2pool-4XXC` (all same-day room scans, room-401…406): adopted for C, D, E | 3.98 (0.79), 8.46 (1.17), 5.92 (1.56) |
+| `track-v2pool-4XXB` | `v2pool-4XXB` (room-401…404): final for B | 3.76 (0.83) |
+| `track-v2pool-4XXC`, `-4XXD`, `-4XXE` | `v2pool-4XXC` (all same-day room scans, room-401…406): final for C, D, E | 3.98 (0.79), 8.46 (1.17), 5.92 (1.56) |
 
-3D pages of these runs: `volume3d/` (index: `volume3d/index.html`).
+3D pages of these runs: `volume3d/` (index: `volume3d/index.html`; `*-pool` = pooled same-day scans, both systems).
 
 ## 2. Final models (v2: big head + clean labels, 120 epochs, room scans only; summary 4.2)
 
@@ -39,6 +40,7 @@ Every folder backs a number in `../summary.md` (section in the last column). Che
 | `v2-3XX-seed1`, `-seed2`; `v2-3XX-room301` | 3XX, seeds 1, 2; map room-301 only | (tracked only, section 1) |
 | `v2-4XXA`, `v2-4XXB` | A → A, B → B | 5.4 / 8.9, 0.45°; 5.6 / 8.0, 0.35° |
 | `v2-4XXC` | C → C, D, E | 4.8 / 9.9; 8.6 / 14.5; 5.7 / 9.7 |
+| `v2pool-4XXB` | room-401…404 (A + B scans, 6,274 frames) → B | (tracked only, section 1) |
 | `v2pool-4XXC` | room-401…406 (A + B + C scans, 8,671 frames) → C, D, E | (tracked only, section 1) |
 
 ## 3. Hybrid system: anchors + SIFT odometry + pose graph (summary 3.1, 3.2, 4.8)
@@ -49,7 +51,8 @@ Every folder backs a number in `../summary.md` (section in the last column). Che
 | `sys-v2r-2XX` | same on 2XX; also `--scr-frames 3, 5` (multi-frame anchors, negative) | 4.2; 4.4, 4.5 |
 | `sys-classical-r-3XX`, `-4XXA` … `-4XXE` | classical anchors, same settings | 3XX 3.1, A 4.2, B 3.4, C 4.9, D 6.3, E 5.0 |
 | `sys-classical-final-2XX` | classical anchors on 2XX | 4.2 |
-| `shape-final.md`, `.json` | shape after a rigid fit of each sweep: single network (`scr-track`), classical system, odometry only | 3XX 1.57 vs 2.47; 4XX 3.17 vs 3.34 |
+| `sys-classical-pool-4XXB` … `-4XXE` | classical anchors with the pooled same-day map (as `v2pool-*`) | B 5.5, C 21.1, D 18.9, E 10.2 (worse) |
+| `shape-final.md`, `.json` | shape after a rigid fit of each sweep: single network (`scr-track`), classical system, odometry only | 2XX 3.04 vs 3.98; 3XX 1.57 vs 2.47; 4XX 3.17 vs 3.34 (pooled scans: 2.95) |
 
 ## 4. Studies
 
