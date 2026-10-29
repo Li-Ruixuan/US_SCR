@@ -1,6 +1,12 @@
 {
  "args": {
   "json": [
+   "runs/volume3d/2XX/poses/fold0_run-205_anchored-pgo-classical-odometry-odo-classical-vo-train_2XX-startanchor-train_2XX.json",
+   "runs/volume3d/2XX/poses/fold0_run-205_classical-vo-train_2XX.json",
+   "runs/volume3d/2XX/poses/fold0_run-205_scr-track.json",
+   "runs/volume3d/2XX/poses/fold0_run-211_anchored-pgo-classical-odometry-odo-classical-vo-train_2XX-startanchor-train_2XX.json",
+   "runs/volume3d/2XX/poses/fold0_run-211_classical-vo-train_2XX.json",
+   "runs/volume3d/2XX/poses/fold0_run-211_scr-track.json",
    "runs/volume3d/3XX/poses/fold0_run-313_anchored-pgo-classical-odometry-odo-classical-vo-train_3XX-recover3-startanchor-train_3XX.json",
    "runs/volume3d/3XX/poses/fold0_run-313_classical-vo-train_3XX.json",
    "runs/volume3d/3XX/poses/fold0_run-313_scr-track.json",
@@ -16,6 +22,15 @@
    "runs/volume3d/3XX/poses/fold0_run-317_anchored-pgo-classical-odometry-odo-classical-vo-train_3XX-recover3-startanchor-train_3XX.json",
    "runs/volume3d/3XX/poses/fold0_run-317_classical-vo-train_3XX.json",
    "runs/volume3d/3XX/poses/fold0_run-317_scr-track.json",
+   "runs/volume3d/3XX-strict/poses/fold0_run-315_anchored-pgo-classical-odometry-odo-classical-vo-train_3XX-startanchor-train_3XX-map-room-301.json",
+   "runs/volume3d/3XX-strict/poses/fold0_run-315_classical-vo-train_3XX.json",
+   "runs/volume3d/3XX-strict/poses/fold0_run-315_scr-track.json",
+   "runs/volume3d/3XX-strict/poses/fold0_run-316_anchored-pgo-classical-odometry-odo-classical-vo-train_3XX-startanchor-train_3XX-map-room-301.json",
+   "runs/volume3d/3XX-strict/poses/fold0_run-316_classical-vo-train_3XX.json",
+   "runs/volume3d/3XX-strict/poses/fold0_run-316_scr-track.json",
+   "runs/volume3d/3XX-strict/poses/fold0_run-317_anchored-pgo-classical-odometry-odo-classical-vo-train_3XX-startanchor-train_3XX-map-room-301.json",
+   "runs/volume3d/3XX-strict/poses/fold0_run-317_classical-vo-train_3XX.json",
+   "runs/volume3d/3XX-strict/poses/fold0_run-317_scr-track.json",
    "runs/volume3d/4XXA/poses/fold0_run-401_anchored-pgo-classical-odometry-odo-classical-vo-test_4XXA-recover3-startanchor-test_4XXA.json",
    "runs/volume3d/4XXA/poses/fold0_run-401_classical-vo-test_4XXA.json",
    "runs/volume3d/4XXA/poses/fold0_run-401_scr-track.json",
@@ -103,6 +118,213 @@
   "out": "runs/shape-final.md"
  },
  "sweeps": {
+  "2XX|anchored-pgo-classical-odometry-odo-classical-vo-train_2XX-startanchor-train_2XX": {
+   "run-205": {
+    "absolute": 5.748504513943748,
+    "shape": 5.968519517429231,
+    "in_1": 0.19143408903922277,
+    "out_1": 0.15370186874388614,
+    "true_out_1": 0.4393153808268079,
+    "in_8": 1.1781878106268837,
+    "out_8": 0.9321258306175263,
+    "true_out_8": 3.6371593584091224,
+    "in_30": 2.8975714206208902,
+    "out_30": 1.8934473896929673,
+    "true_out_30": 13.455841243461663
+   },
+   "run-211": {
+    "absolute": 2.6937237022975102,
+    "shape": 1.9818501330548581,
+    "in_1": 0.11039145552487345,
+    "out_1": 0.10589300060300649,
+    "true_out_1": 0.18639235616851202,
+    "in_8": 0.5918870184193727,
+    "out_8": 0.5678951444913394,
+    "true_out_8": 1.4853094160254205,
+    "in_30": 1.0834660282080957,
+    "out_30": 0.9443558248605146,
+    "true_out_30": 5.4453445715889615
+   }
+  },
+  "2XX|classical-vo-train_2XX": {
+   "run-205": {
+    "absolute": 64.24687990539448,
+    "shape": 23.932788620660137,
+    "in_1": 0.17958529324895997,
+    "out_1": 0.1433961931314992,
+    "true_out_1": 0.4393153808268079,
+    "in_8": 1.1089163462124838,
+    "out_8": 0.8182192845357334,
+    "true_out_8": 3.6371593584091224,
+    "in_30": 2.72717303576468,
+    "out_30": 1.889718579825045,
+    "true_out_30": 13.455841243461663
+   },
+   "run-211": {
+    "absolute": 9.713468834388065,
+    "shape": 4.5793939573391915,
+    "in_1": 0.11040285559263635,
+    "out_1": 0.10279999574602884,
+    "true_out_1": 0.18639235616851202,
+    "in_8": 0.5985656347372482,
+    "out_8": 0.5565625722782374,
+    "true_out_8": 1.4853094160254205,
+    "in_30": 1.1611101818604417,
+    "out_30": 0.9982014376728514,
+    "true_out_30": 5.4453445715889615
+   }
+  },
+  "2XX|scr-track": {
+   "run-205": {
+    "absolute": 3.8292114840988516,
+    "shape": 2.8794301970235376,
+    "in_1": 0.130991818192497,
+    "out_1": 0.11136007689946287,
+    "true_out_1": 0.4393153808268079,
+    "in_8": 0.8454822383461369,
+    "out_8": 0.595208295992419,
+    "true_out_8": 3.6371593584091224,
+    "in_30": 1.9788934981313084,
+    "out_30": 1.3851495477366957,
+    "true_out_30": 13.455841243461663
+   },
+   "run-211": {
+    "absolute": 2.8933399505851543,
+    "shape": 3.2062121650896365,
+    "in_1": 0.07911861196772918,
+    "out_1": 0.07395312144476412,
+    "true_out_1": 0.18639235616851202,
+    "in_8": 0.49542515355944905,
+    "out_8": 0.34603349192331034,
+    "true_out_8": 1.4853094160254205,
+    "in_30": 1.217234014457587,
+    "out_30": 0.7916259724601129,
+    "true_out_30": 5.4453445715889615
+   }
+  },
+  "3XX-strict|anchored-pgo-classical-odometry-odo-classical-vo-train_3XX-startanchor-train_3XX-map-room-301": {
+   "run-315": {
+    "absolute": 2.875104740891593,
+    "shape": 2.5185014395762333,
+    "in_1": 0.10831273809142386,
+    "out_1": 0.08512292637272773,
+    "true_out_1": 0.29819349055043853,
+    "in_8": 0.5849744250830378,
+    "out_8": 0.30233930524305236,
+    "true_out_8": 2.4111228190752327,
+    "in_30": 1.4243992380259338,
+    "out_30": 0.6587636294438622,
+    "true_out_30": 8.757618821870157
+   },
+   "run-316": {
+    "absolute": 2.2462212009761258,
+    "shape": 2.0061586025860807,
+    "in_1": 0.0829867188944513,
+    "out_1": 0.06884162472134968,
+    "true_out_1": 0.49650747721682054,
+    "in_8": 0.41655217130624456,
+    "out_8": 0.2752226921225761,
+    "true_out_8": 4.058451129449765,
+    "in_30": 1.0036229809944845,
+    "out_30": 0.5390351552928927,
+    "true_out_30": 15.016695334845735
+   },
+   "run-317": {
+    "absolute": 3.613031875567102,
+    "shape": 3.234041571018623,
+    "in_1": 0.13902469668732081,
+    "out_1": 0.09837163329316125,
+    "true_out_1": 0.4324369860407858,
+    "in_8": 0.7654826031602648,
+    "out_8": 0.45714235874763676,
+    "true_out_8": 3.286000525007111,
+    "in_30": 2.2708683944258667,
+    "out_30": 0.9540318630774147,
+    "true_out_30": 12.010742410626737
+   }
+  },
+  "3XX-strict|classical-vo-train_3XX": {
+   "run-315": {
+    "absolute": 8.903475842435338,
+    "shape": 5.462042495614125,
+    "in_1": 0.11439006015622155,
+    "out_1": 0.0803549336480906,
+    "true_out_1": 0.29819349055043853,
+    "in_8": 0.629650245496321,
+    "out_8": 0.2573429291688482,
+    "true_out_8": 2.4111228190752327,
+    "in_30": 1.6828001092777165,
+    "out_30": 0.4773829034901599,
+    "true_out_30": 8.757618821870157
+   },
+   "run-316": {
+    "absolute": 11.998114322535486,
+    "shape": 6.1057830654022585,
+    "in_1": 0.09316782515351812,
+    "out_1": 0.06950791540816356,
+    "true_out_1": 0.49650747721682054,
+    "in_8": 0.5162768333992575,
+    "out_8": 0.25178911117946035,
+    "true_out_8": 4.058451129449765,
+    "in_30": 1.6455672328688444,
+    "out_30": 0.4906415611775145,
+    "true_out_30": 15.016695334845735
+   },
+   "run-317": {
+    "absolute": 8.398183457979496,
+    "shape": 6.847822411501163,
+    "in_1": 0.16070367343425668,
+    "out_1": 0.09725136322067576,
+    "true_out_1": 0.4324369860407858,
+    "in_8": 0.896214236098908,
+    "out_8": 0.47295806253904016,
+    "true_out_8": 3.286000525007111,
+    "in_30": 2.2633483861205317,
+    "out_30": 0.8790119248292013,
+    "true_out_30": 12.010742410626737
+   }
+  },
+  "3XX-strict|scr-track": {
+   "run-315": {
+    "absolute": 3.621855109679062,
+    "shape": 2.6573254358848444,
+    "in_1": 0.11084149763860437,
+    "out_1": 0.08389814906063539,
+    "true_out_1": 0.29819349055043853,
+    "in_8": 0.7028577597076804,
+    "out_8": 0.41420716075145175,
+    "true_out_8": 2.4111228190752327,
+    "in_30": 1.6408667987476817,
+    "out_30": 0.8357553011545653,
+    "true_out_30": 8.757618821870157
+   },
+   "run-316": {
+    "absolute": 2.2557987020235144,
+    "shape": 1.6175023101716537,
+    "in_1": 0.08393012022651936,
+    "out_1": 0.07384685682152928,
+    "true_out_1": 0.49650747721682054,
+    "in_8": 0.48481615805975303,
+    "out_8": 0.2935154926667254,
+    "true_out_8": 4.058451129449765,
+    "in_30": 1.130279476964767,
+    "out_30": 0.534789156399917,
+    "true_out_30": 15.016695334845735
+   },
+   "run-317": {
+    "absolute": 2.984498783301663,
+    "shape": 2.4914890303398307,
+    "in_1": 0.1235416536904264,
+    "out_1": 0.10071196274233656,
+    "true_out_1": 0.4324369860407858,
+    "in_8": 0.7517830881100831,
+    "out_8": 0.5568525405551223,
+    "true_out_8": 3.286000525007111,
+    "in_30": 1.7725627448781223,
+    "out_30": 0.6894634333445384,
+    "true_out_30": 12.010742410626737
+   }
+  },
   "3XX|anchored-pgo-classical-odometry-odo-classical-vo-train_3XX-recover3-startanchor-train_3XX": {
    "run-313": {
     "absolute": 3.7509002562376814,
