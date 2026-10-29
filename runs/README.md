@@ -26,6 +26,7 @@ Every folder backs a number in `../summary.md` (section in the last column). Che
 | `track-4XXE` | `v2-4XXC` | 6.25 (1.68) [raw 6.12] |
 | `track-3XX-seed1`, `-seed2` | `v2-3XX-seed1`, `-seed2` | 1.95 (0.92), 2.12 (0.93) |
 | `track-3XX-room301` | `v2-3XX-room301` (map room-301 only), run-315…317: strict protocol | 2.98 (1.18) [3.12]; classical system 3.0 |
+| `track-v2pool-4XXC`, `-4XXD`, `-4XXE` | `v2pool-4XXC` (all same-day room scans, room-401…406): adopted for C, D, E | 3.98 (0.79), 8.46 (1.17), 5.92 (1.56) |
 
 3D pages of these runs: `volume3d/` (index: `volume3d/index.html`).
 
@@ -38,6 +39,7 @@ Every folder backs a number in `../summary.md` (section in the last column). Che
 | `v2-3XX-seed1`, `-seed2`; `v2-3XX-room301` | 3XX, seeds 1, 2; map room-301 only | (tracked only, section 1) |
 | `v2-4XXA`, `v2-4XXB` | A → A, B → B | 5.4 / 8.9, 0.45°; 5.6 / 8.0, 0.35° |
 | `v2-4XXC` | C → C, D, E | 4.8 / 9.9; 8.6 / 14.5; 5.7 / 9.7 |
+| `v2pool-4XXC` | room-401…406 (A + B + C scans, 8,671 frames) → C, D, E | (tracked only, section 1) |
 
 ## 3. Hybrid system: anchors + SIFT odometry + pose graph (summary 3.1, 3.2, 4.8)
 
@@ -64,6 +66,7 @@ Every folder backs a number in `../summary.md` (section in the last column). Che
 | `v1-3XX-room301`, `sys-classical-3XX-room301` | strict protocol: map room-301 only, test run-315…317 | SCR 3.1 / 6.1, 0.26°; classical 2.7 / 6.1, system 3.0 | 4.7 |
 | `sys-learned-2XX`, `-3XX`, `-4XXA`, `-4XXD` | without SIFT: RPRNet odometry (`odometry-recover3` = 1 s, `odometry-every0.25s`), or none (`odometry-odo-zero-every0.25s`) | 0.25 s + RPRNet 3.2 / 5.4 / 9.9; SCR alone raw 2.0 / 5.2 / 9.7 | 4.6 |
 | `v2fz-4XXA`, `v2rv-4XXA`, `v2fzrv-4XXA` → `track-v2fz-4XXA`, `track-v2rv-4XXA`, `track-v2fzrv-4XXA` | training strategies on 4XX A: frozen encoder, rendered views (`render_preview.jpg`), both | 5.24, 4.98, 5.51 vs 5.14 (none adopted) | 4.5 |
+| `v2e240-4XXA` → `track-v2e240-4XXA` | 240 instead of 120 epochs on 4XX A | 5.28 vs 5.14 (not adopted) | 4.5 |
 
 ## 5. US images (all negative; summary 6)
 

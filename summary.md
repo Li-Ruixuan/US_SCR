@@ -8,12 +8,12 @@ Status 29 Oct 2026. Overview tables of all tests: 1.1. Builds on `rgbd-us` (`not
 |---|---|---|
 | **Final system** | **One SCR network on every frame + Kabsch RANSAC on the measured depth + temporal smoothing.** No odometry, no hand-crafted features, no tracker at test time. Error at the US image: 2XX val 3.35, **3XX 1.85 (three seeds 1.85–2.12)**, 4XX A 5.14, B 5.77, C 5.63, D 9.63, E 6.25 mm | 3.1 |
 | vs the classical system (SIFT anchors + SIFT odometry) | **Better where the room is well mapped** (3XX 1.85–2.12 vs 3.1 mm, every seed); **on par under the strict protocol** (map recorded before the sweeps: 2.98 vs 3.0 mm, smoother); **worse on new sessions with short room scans** (4XX 5.6–9.6 vs 3.4–6.3 mm, 1.4× on average) | 3.1, 4.3, 4.7 |
-| Why worse on 4XX? | **Room-scan coverage:** the 4XX scans see 0–14 % of the sweep viewpoints (3XX 93–96 %). With 1–2 earlier sweeps added to the map (Polaris-labelled), SCR beats classical on 4XX too (A 2.3 vs 3.2, D 4.5 vs 5.8 mm). Labelling those sweeps with the system's own poses does not work (A 5.3 → 5.0 mm) | 4.3 |
+| Why worse on 4XX? | **Room-scan coverage:** the 4XX scans see 0–14 % of the sweep viewpoints (3XX 93–96 %). With 1–2 earlier sweeps added to the map (Polaris-labelled), SCR beats classical on 4XX too (A 2.3 vs 3.2, D 4.5 vs 5.8 mm). Labelling those sweeps with the system's own poses does not work (A 5.3 → 5.0 mm). **Pooling the room scans of the same day** (C's model also trained on A's and B's scans) helps without any labelling: C 5.63 → 3.98, D 9.63 → 8.46, E 6.25 → 5.92 mm (classical with the same pooled map: not run yet) | 4.3 |
 | Is odometry needed? | **No.** On all 7 splits SCR alone, smoothed over 2 s, matches SCR + SIFT odometry in median (4XX mean 6.48 vs 6.54 mm) and is as smooth or smoother (step 0.82–1.68 vs 1.08–2.22 mm). Learned RPRNet odometry instead of SIFT is worse (+0.3–0.6 mm) | 3.1, 4.6 |
 | Why did the first SCR fail (24–28 mm)? | **Undertrained,** not unable: same network and data, 2XX val 15.8 → 5.1 mm by the training fix alone; depth at test time (Kabsch) → 3.4 mm | 4.1 |
 | SCR vs pose regression (RPR anchor network) | **SCR 3–6× more accurate on every split**, always solves (RPR: 37–93 % accepted) | 4.2, 5 |
 | Strict protocol (map recorded before the sweeps) | **On par with classical:** single network 2.98 (1.18) vs classical system 3.0 (1.34) mm on run-315…317 with the map on room-301 only; with both room scans 1.83 vs 2.9. Part of the 3XX advantage comes from room-302, recorded after the sweeps | 4.7 |
-| Is the 4XX gap distortion or offset? | **A rigid offset of each sweep:** after a rigid fit, the single network gives a volume shape as good as classical's or better (4XX 3.17 vs 3.34, 3XX 1.57 vs 2.47 mm) | 4.8 |
+| Is the 4XX gap distortion or offset? | **A rigid offset of each sweep:** after a rigid fit, the single network's volume shape is better than classical's on every split mean (2XX 3.04 vs 3.98, 3XX 1.57 vs 2.47, 3XX strict 2.26 vs 2.59, 4XX 3.17 vs 3.34 mm) | 4.8 |
 | Can the US images help? | **No.** In-plane registration is worse than assuming no motion; speckle measures out-of-plane distance (0.3–0.4 mm) but the camera is 2–5× better between nearby frames; Li et al. (reproduced on its own data: 21.4 vs 22.8 mm published) is no better than zero motion on ours, fine-tuned worse | 6 |
 | Model variants | Big head + clean labels adopted (lower p90 and rotation); viewpoint augmentation, full resolution, refined pose fit, multi-frame anchors: neutral or worse | 4.5 |
 
@@ -25,16 +25,17 @@ Five tables cover every test: A every system at the US image, B single-image pos
 
 | system | 2XX val | 3XX | 3XX strict | 4XX A | B | C | D | E | **4XX mean** | step 3XX / 4XX |
 |---|---|---|---|---|---|---|---|---|---|---|
-| classical odometry only (SIFT VO, each segment starts at the true pose) | | 9.4 | | 15.1 | 11.3 | 8.9 | 12.7 | 12.9 | 12.2 | |
+| classical odometry only (SIFT VO, each segment starts at the true pose) | 37.0 | 9.4 | 9.8 | 15.1 | 11.3 | 8.9 | 12.7 | 12.9 | 12.2 | |
 | SCR every 0.25 s + RPRNet odometry, pose graph | | 3.2 | | 5.4 | | | 9.9 | | | 1.51 / |
 | SCR anchors + SIFT odometry, pose graph (hybrid) | 4.2 | 2.6 | | 5.0 | 5.7 | 5.9 | 9.6 | 6.5 | 6.54 | 1.08 / 1.29 |
 | **classical anchors + SIFT odometry** (classical system) | 4.2 | 3.1 | 3.0 | **4.2** | **3.4** | **4.9** | **6.3** | **5.0** | **4.76** | 1.09 / 1.28 |
 | one SCR network, raw | 3.59 | 2.03 | 3.12 | 5.21 | 5.82 | 5.76 | 9.57 | 6.12 | 6.50 | 1.67 / 1.82 |
 | **one SCR network, 2 s smoothing (ours)** | **3.35** | **1.85** | **2.98** | 5.14 | 5.77 | 5.63 | 9.63 | 6.25 | 6.48 | **0.93 / 1.15** |
+| same, C / D / E model trained on all same-day room scans (A + B + C; A, B unchanged) | | | | 5.14 | 5.77 | **3.98** | 8.46 | 5.92 | 5.85 | / 1.09 |
 
 - Odometry alone drifts (9–15 mm); every working system needs an absolute pose per frame or per second.
 - The single network equals the hybrid on every split: SIFT odometry adds nothing once SCR runs on every frame; learned odometry is worse.
-- Against classical: better on 3XX and 2XX, equal under the strict protocol, 1.4× worse on 4XX; always the smoothest.
+- Against classical: better on 3XX and 2XX, equal under the strict protocol, 1.4× worse on 4XX (1.2× with the pooled room scans, C now better than classical); always the smoothest.
 
 **Table B. Pose from one image** (anchors: camera position median mm, rotation median, one frame per second; 4.1, 4.2)
 
@@ -61,6 +62,7 @@ Five tables cover every test: A every system at the US image, B single-image pos
 | 4XX, own room scans (40–90 s) | 0–14 % | 6.0 | **5.3** | 1.13 | 6.48 | **4.76** |
 | A run-405…408, + run-401…404 (Polaris labels) | added views | **2.0** (from 5.6) | 3.7 (from 5.9) | 0.54 | **2.3** (hybrid) | 3.2 |
 | D run-421, 423, 424, + run-418…420 (Polaris labels) | added views | **3.3** (from 8.6) | 4.7 (from 7.4) | 0.70 | **4.5** (hybrid) | 5.8 |
+| C, D, E: C's room scans + A's and B's (same day, recorded earlier) | more room-scan views (4.8 min vs 1.3) | | | | C **3.98**, D 8.46, E 5.92 (from 5.63, 9.63, 6.25) | 4.9, 6.3, 5.0 with C's scans only; pooled map not run |
 | same, labelled with the system's own poses | added views, wrong labels | A 5.0 (from 5.3), D 7.9 (from 9.0) | | | | |
 | 2XX map → 3XX (a few objects moved) | outdated | **6.5** | 10.4 | 0.63 | | |
 | A map → B (small rearrangement) | outdated | 14.0 | **7.9** | 1.8 | | |
@@ -68,21 +70,28 @@ Five tables cover every test: A every system at the US image, B single-image pos
 
 - The SCR / classical ratio follows coverage: below 1 when the map covers the sweeps, about 1.1 when it does not.
 - Adding real, correctly labelled views fixes it and SCR gains more from them than classical (A 5.6 → 2.0 vs 5.9 → 3.7).
+- Room scans of the same day help too, although objects moved between A, B and C: C, D, E mean 7.17 → 6.12 mm, with no Polaris labels on sweeps.
 - Views that are added but labelled wrongly (self-labels), or synthesised badly (point-splat renders, Table E), do not help: the training views must be correct.
 
 **Table D. Where the error sits** (`runs/shape-final.md`, 3D pages; mm at the US image; 3.2, 4.8)
 
 | split | system | absolute | shape (after a rigid fit of each sweep) | absolute − shape (placement) | out-of-plane error over 8 / 30 rows | 3D-page pixel error |
 |---|---|---|---|---|---|---|
+| 2XX val | **one SCR network** | **3.36** | **3.04** | 0.32 | 0.47 / 1.09 | **3.8** |
+| 2XX val | classical system | 4.22 | 3.98 | 0.24 | 0.75 / 1.42 | 5.1 |
+| 2XX val | classical odometry only | 36.98 | 14.26 | 22.72 | 0.69 / 1.44 | 29.4 |
 | 3XX | **one SCR network** | **1.85** | **1.57** | 0.28 | 0.37 / 0.62 | **2.0** |
 | 3XX | classical system | 3.11 | 2.47 | 0.64 | 0.29 / 0.62 | 3.2 |
 | 3XX | classical odometry only | 9.43 | 6.23 | 3.20 | 0.28 / 0.54 | 10.1 |
+| 3XX strict | **one SCR network** | 2.95 | **2.26** | 0.69 | 0.42 / 0.69 | 3.2 |
+| 3XX strict | classical system | **2.91** | 2.59 | 0.32 | 0.34 / 0.72 | 3.2 |
+| 3XX strict | classical odometry only | 9.77 | 6.14 | 3.63 | 0.33 / 0.62 | 10.4 |
 | 4XX mean | **one SCR network** | 6.49 | **3.17** | 3.32 | 0.39 / 0.74 | 7.1 |
 | 4XX mean | classical system | **4.75** | 3.34 | 1.41 | 0.39 / 0.76 | **5.2** |
 | 4XX mean | classical odometry only | 12.19 | 6.66 | 5.53 | 0.41 / 0.86 | 12.5 |
 
 - Between nearby frames all three are the same (0.3–0.4 mm over 8 rows): local motion is solved by any of them.
-- The volume shape of the single network is as good as classical or better: 3XX 1.57 vs 2.47; 4XX 3.17 vs 3.34 (A 2.92 vs 3.10, B 2.66 vs 2.47, C 2.96 vs 3.36, D 3.16 vs 3.61, E 4.16 vs 4.15).
+- The volume shape of the single network is better than classical's on every split mean: 2XX 3.04 vs 3.98, 3XX 1.57 vs 2.47, 3XX strict 2.26 vs 2.59, 4XX 3.17 vs 3.34 (A 2.92 vs 3.10, B 2.66 vs 2.47, C 2.96 vs 3.36, D 3.16 vs 3.61, E 4.16 vs 4.15).
 - The whole 4XX gap is placement: each sweep is shifted rigidly in the room (3.3 mm vs 1.4 for classical). That is an anchoring error, which matches the coverage finding of Table C.
 
 **Table E. Every test and its verdict** ("anchors" = camera position median, "US" = system at the US image, mm; rules fixed before each run on 2XX, or on 4XX A for coverage)
@@ -97,6 +106,7 @@ Five tables cover every test: A every system at the US image, B single-image pos
 | training | + rendered views (point splats) | 4XX A US | 5.14 → 4.98 | no (rule: ≥ 0.5 mm better) |
 | training | frozen encoder + rendered views | 4XX A US | 5.14 → 5.51 | no |
 | training | seeds 0 / 1 / 2 | 3XX US | 1.85 / 1.95 / 2.12 | noise ≈ 0.3 mm |
+| training | 240 instead of 120 epochs | 4XX A US (fit) | 5.14 → 5.28 (fit 1.24 → 1.05 mm) | no |
 | pose | pose regression (RPR) instead of SCR | 3XX / 4XX anchors | 15.3 / 49.0 vs 1.8 / 6.0 | **SCR** |
 | pose | Kabsch on measured depth instead of PnP | 2XX anchors | 5.1 → 3.4 | **adopted** |
 | pose | refined pose fit (noise weights; reprojection + depth) | 2XX anchors | 3.4 → 4.7 / 3.6 | no |
@@ -109,6 +119,7 @@ Five tables cover every test: A every system at the US image, B single-image pos
 | time | gate recovery (hybrid only) | run-404 US | 28.3 → 8.2 | kept for the hybrid |
 | time | pose-graph anchor σ 11 / 5 / 3 mm | 2XX US | 4.4 / 4.4 / 4.5 | default kept |
 | map | + earlier sweeps, Polaris labels | 4XX A / D anchors | 5.6 → 2.0 / 8.6 → 3.3 | works, needs Polaris |
+| map | + same-day room scans (A, B scans for C, D, E) | 4XX C / D / E US | 5.63 / 9.63 / 6.25 → 3.98 / 8.46 / 5.92 | **adopted** (rule: mean ≥ 0.5 better; 7.17 → 6.12) |
 | map | + earlier sweeps, labelled with own poses | 4XX A / D anchors | 5.3 → 5.0 / 9.0 → 7.9 | no |
 | map | strict protocol (room-301 only) | 3XX run-315…317 US | 1.85 → 2.98 (classical 3.0) | report both |
 | map | outdated map (previous session) | anchors | 2XX → 3XX 6.5; A → B 14.0; A → C 13.4 | re-scan per session |
@@ -123,7 +134,7 @@ Five tables cover every test: A every system at the US image, B single-image pos
 1. **Geometry beats regression.** Predicting room coordinates and solving the pose on the measured depth is what works (Table B); every learned shortcut (pose regression, learned odometry, US-only networks) is worse or no better than zero motion (Tables A, E).
 2. **One network is enough.** With SCR on every frame and smoothing, odometry adds nothing (Table A), and the shape and local accuracy are classical-grade or better (Table D).
 3. **Coverage is the limit.** SCR wins where the room scan covers the sweep viewpoints and loses when it does not (Table C). The 4XX loss is a rigid placement offset, not a worse volume (Table D).
-4. **Only correct training views close the gap.** Polaris-labelled sweeps do (A 5.6 → 2.0); self-labels, frozen features and point-splat renders do not (Tables C, E). Next steps: longer room scans, or a realistic renderer.
+4. **Only real, correctly placed training views close the gap.** Polaris-labelled sweeps do (A 5.6 → 2.0), and so do more room scans of the same day (C, D, E 7.17 → 6.12); self-labels, frozen features, more epochs and point-splat renders do not (Tables C, E). Next steps: longer room scans, or a realistic renderer.
 5. **The US images carry no usable pose information** beyond what the camera gives (Table E, US rows).
 
 ## 2. Setup
@@ -187,8 +198,10 @@ One page per sweep (`runs/volume3d/<split>/<run>.html`, open in a browser): the 
 | 4XX C | 6.6 | **5.3** | 9.8 |
 | 4XX D | 10.4 | **7.2** | 13.1 |
 | 4XX E | 7.1 | **5.2** | 13.8 |
+| 2XX val | **3.8** | 5.1 | 29.4 |
+| 3XX strict | 3.2 | 3.2 | 10.4 |
 
-Same ranking as 3.1. Pages for 2XX and 3XX strict are not built yet. Earlier pages of the hybrid system (SCR anchors + SIFT odometry; 3XX 2.7 vs 3.2 mm for classical, 4XX 5.3–10.5 vs 3.7–7.2) are in git commit 50ef6f5 (`runs/volume3d-final`).
+Same ranking as 3.1. Earlier pages of the hybrid system (SCR anchors + SIFT odometry; 3XX 2.7 vs 3.2 mm for classical, 4XX 5.3–10.5 vs 3.7–7.2) are in git commit 50ef6f5 (`runs/volume3d-final`).
 
 ## 4. Studies behind the design
 
@@ -230,6 +243,7 @@ Seeds (v1): 3XX 1.9–2.2 mm over 3 seeds, 4XX A 5.8–5.9 mm. Rotation is SCR's
 | D | + run-418…420 | **3.3 / 7.7, 0.27°** | 4.7 / 14.6, 0.35° | **4.5** | 5.8 |
 
 - **Same, labelled with the system's own poses (no Polaris):** A 5.3 → 5.0, D 9.0 → 7.9 mm (Polaris labels: 1.9, 3.1). The network learns the label errors (5–14 mm); map extension is only as good as the poses of the added views.
+- **Room scans of the same day pooled** (`v2pool-4XXC`: room-401…406, 8,671 frames, all recorded before the C sweeps; US image, 2 s smoothing): C 5.63 → **3.98**, D 9.63 → 8.46, E 6.25 → 5.92 mm (step 0.79 / 1.17 / 1.56). The rule fixed before the run (mean over C, D, E ≥ 0.5 mm better) is met: 7.17 → 6.12. C is now better than the classical system (4.9), D and E still worse (6.3, 5.0). Objects moved between A, B and C, yet the static parts of the room gain views. Not yet run: classical with the same pooled map (fair comparison), and B with A's scans.
 
 ### 4.4 Outdated room scans (map of one session, sweeps of a later one; anchors)
 
@@ -259,6 +273,7 @@ Seeds (v1): 3XX 1.9–2.2 mm over 3 seeds, 4XX A 5.8–5.9 mm. Rotation is SCR's
 | frozen ImageNet encoder, head only (`--freeze-encoder`) | 5.24 (0.97) | 3.7 mm / 0.23° | not adopted |
 | + 0.5 rendered views per frame (`--render-views 0.5`: 1,946 views splatted from a 5 mm point cloud of the room scan, camera moved ≤ 150 mm, turned ≤ 20°) | 4.98 (0.98) | 1.6 mm / 0.13° | not adopted (−0.16 mm, within noise) |
 | both | 5.51 (0.95) | 4.2 mm / 0.27° | not adopted |
+| 240 instead of 120 epochs | 5.28 (0.99) | 1.05 mm / 0.08° | not adopted: fits the scan better, generalises no better |
 
 Frozen features fit the room worse and do not generalise better. Rendered views help slightly, but the point-splat renders are blocky with see-through holes (`runs/v2rv-4XXA/render_preview.jpg`): a large appearance gap to real images. A better renderer (TSDF mesh or Gaussian splats) is the open question; with these renders, coverage is not bought by synthesis.
 
@@ -279,7 +294,7 @@ SCR loses more from the shorter map (coverage again). The single-network system 
 
 ### 4.8 Shape of the reconstruction (`runs/shape-final.md`, single network vs classical)
 
-Error at the US image after the best rigid fit of each whole sweep (the volume's distortion, without its placement in the room), absolute in brackets. Single network: 3XX **1.57** (1.85); 4XX A 2.92, B 2.66, C 2.96, D 3.16, E 4.16, mean **3.17** (6.49). Classical system: 3XX 2.47 (3.11); 4XX 3.10, 2.47, 3.36, 3.61, 4.15, mean 3.34 (4.75). Odometry only: 3XX 6.23, 4XX 6.66. The single network's 4XX error is a rigid offset of each whole sweep; its shape is as good as classical's or better (Table D). The earlier hybrid (SCR anchors + SIFT) gave 3XX 2.1, 4XX 3.5. Caveat: the metric was introduced after the 4XX gap was known, so report it next to the absolute error.
+Error at the US image after the best rigid fit of each whole sweep (the volume's distortion, without its placement in the room), absolute in brackets. Single network: 2XX **3.04** (3.36); 3XX **1.57** (1.85); 3XX strict **2.26** (2.95); 4XX A 2.92, B 2.66, C 2.96, D 3.16, E 4.16, mean **3.17** (6.49). Classical system: 2XX 3.98 (4.22); 3XX 2.47 (3.11); 3XX strict 2.59 (2.91); 4XX 3.10, 2.47, 3.36, 3.61, 4.15, mean 3.34 (4.75). Odometry only: 2XX 14.26, 3XX 6.23, 3XX strict 6.14, 4XX 6.66. The single network's 4XX error is a rigid offset of each whole sweep; its shape is as good as classical's or better (Table D). The earlier hybrid (SCR anchors + SIFT) gave 3XX 2.1, 4XX 3.5. Caveat: the metric was introduced after the 4XX gap was known, so report it next to the absolute error.
 
 ## 5. Why SCR beats pose regression
 
@@ -320,7 +335,7 @@ The remaining error is long-range (sweep-scale), which speckle cannot see; a lea
 | priority | task | needs |
 |---|---|---|
 | 1 | causal smoothing (real time) | code, CPU |
-| 2 | 3D pages of 2XX and 3XX strict (3XX, 4XX done: 3.2) | run |
+| 2 | pooled room scans: classical with the same map (C, D, E), B with A's scans, shape of the pooled models | run |
 | 3 | confidence head + weighted Kabsch, trained end to end | code, training |
 | 4 | rendered views with a realistic renderer (TSDF mesh / Gaussian splats); point-splat renders gave −0.16 mm on 4XX A (4.5) | code, training |
 

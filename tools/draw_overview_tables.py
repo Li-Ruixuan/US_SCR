@@ -33,7 +33,7 @@ TABLES = [
                "4XX mean", "step 3XX / 4XX"],
          widths=[3.4, 0.62, 0.55, 0.72, 0.6, 0.6, 0.6, 0.6, 0.6, 0.75, 1.05],
          rows=[["classical odometry only (SIFT VO, each segment starts at the true pose)",
-                "–", "9.4", "–", "15.1", "11.3", "8.9", "12.7", "12.9", "12.2", "–"],
+                "37.0", "9.4", "9.8", "15.1", "11.3", "8.9", "12.7", "12.9", "12.2", "–"],
                ["SCR every 0.25 s + RPRNet (learned) odometry, pose graph",
                 "–", "3.2", "–", "5.4", "–", "–", "9.9", "–", "–", "1.51 / –"],
                ["SCR anchors (1 s) + SIFT odometry, pose graph (hybrid)",
@@ -43,13 +43,16 @@ TABLES = [
                ["one SCR network, raw", "3.59", "2.03", "3.12", "5.21", "5.82", "5.76", "9.57", "6.12", "6.50",
                 "1.67 / 1.82"],
                ["one SCR network, 2 s smoothing (ours)",
-                "*3.35", "*1.85", "*2.98", "5.14", "5.77", "5.63", "9.63", "6.25", "6.48", "*0.93 / 1.15"]],
-         shade={3: CLASSICAL, 5: OURS},
+                "*3.35", "*1.85", "*2.98", "5.14", "5.77", "5.63", "9.63", "6.25", "6.48", "*0.93 / 1.15"],
+               ["same, C / D / E model trained on all same-day room scans (A + B + C; A, B unchanged)",
+                "–", "–", "–", "5.14", "5.77", "*3.98", "8.46", "5.92", "5.85", "– / *1.09"]],
+         shade={3: CLASSICAL, 5: OURS, 6: OURS},
          notes=["Odometry alone drifts (9–15 mm): every working system needs an absolute pose per frame or per second.",
                 "The single network equals the hybrid on every split: SIFT odometry adds nothing once SCR runs on "
                 "every frame; learned odometry is worse.",
-                "Against classical: better on 2XX and 3XX, equal under the strict protocol, 1.4× worse on 4XX; "
-                "always the smoothest (step = change of the error over 8 rows)."]),
+                "Against classical: better on 2XX and 3XX, equal under the strict protocol, 1.4× worse on 4XX "
+                "(1.2× with the pooled same-day room scans, and C now better than classical); always the smoothest "
+                "(step = change of the error over 8 rows)."]),
     dict(name="table_B", title="B. Pose from one image: camera position error (median mm), one frame per second",
          cols=["method", "2XX val", "3XX", "4XX mean", "rotation 3XX / 4XX", "frames solved"],
          widths=[3.6, 0.75, 0.65, 0.85, 1.4, 1.9],
@@ -77,6 +80,8 @@ TABLES = [
                 "3.7 (from 5.9)", "0.54", "*2.3 (hybrid)", "3.2"],
                ["D run-421, 423, 424, map + run-418…420 (Polaris labels)", "added views", "*3.3 (from 8.6)",
                 "4.7 (from 7.4)", "0.70", "*4.5 (hybrid)", "5.8"],
+               ["C, D, E: C's room scans + A's and B's (same day, recorded earlier)", "more scan views",
+                "–", "–", "–", "C 3.98, D 8.46, E 5.92", "4.9, 6.3, 5.0 *"],
                ["same, labelled with the system's own poses", "added, wrong labels", "A 5.0 (from 5.3), D 7.9 (from 9.0)",
                 "–", "–", "–", "–"],
                ["2XX map → 3XX (a few objects moved)", "outdated", "*6.5", "10.4", "0.63", "–", "–"],
@@ -85,22 +90,32 @@ TABLES = [
          notes=["The SCR / classical ratio follows coverage: about 0.65–0.7 when the room scan covers the sweep "
                 "viewpoints, about 1.1 when it does not.",
                 "Real, correctly labelled views fix it, and SCR gains more from them than classical "
-                "(A 5.6 → 2.0 vs 5.9 → 3.7 mm).",
+                "(A 5.6 → 2.0 vs 5.9 → 3.7 mm). Room scans of the same day help too, although objects moved: "
+                "C, D, E 5.63, 9.63, 6.25 → 3.98, 8.46, 5.92 mm (mean 7.17 → 6.12).",
+                "* Classical with C's scans only; classical with the same pooled map is not run yet.",
                 "Added views with wrong labels (self-labels) or poor synthesis (point-splat renders, Table E) "
                 "do not help: the training views must be correct."]),
     dict(name="table_D", title="D. Where the error sits: error at the US image (mm), single network vs classical",
          cols=["split", "system", "absolute", "shape (after a rigid fit of each sweep)", "absolute − shape (placement)",
                "out-of-plane over 8 / 30 rows", "3D-page pixel error"],
          widths=[0.85, 2.2, 0.85, 1.55, 1.45, 1.4, 1.05],
-         rows=[["3XX", "one SCR network (ours)", "*1.85", "*1.57", "0.28", "0.37 / 0.62", "*2.0"],
+         rows=[["2XX val", "one SCR network (ours)", "*3.36", "*3.04", "0.32", "0.47 / 1.09", "*3.8"],
+               ["2XX val", "classical system", "4.22", "3.98", "0.24", "0.75 / 1.42", "5.1"],
+               ["2XX val", "classical odometry only", "36.98", "14.26", "22.72", "0.69 / 1.44", "29.4"],
+               ["3XX", "one SCR network (ours)", "*1.85", "*1.57", "0.28", "0.37 / 0.62", "*2.0"],
                ["3XX", "classical system", "3.11", "2.47", "0.64", "0.29 / 0.62", "3.2"],
                ["3XX", "classical odometry only", "9.43", "6.23", "3.20", "0.28 / 0.54", "10.1"],
+               ["3XX strict", "one SCR network (ours)", "2.95", "*2.26", "0.69", "0.42 / 0.69", "3.2"],
+               ["3XX strict", "classical system", "*2.91", "2.59", "0.32", "0.34 / 0.72", "3.2"],
+               ["3XX strict", "classical odometry only", "9.77", "6.14", "3.63", "0.33 / 0.62", "10.4"],
                ["4XX mean", "one SCR network (ours)", "6.49", "*3.17", "3.32", "0.39 / 0.74", "7.1"],
                ["4XX mean", "classical system", "*4.75", "3.34", "1.41", "0.39 / 0.76", "*5.2"],
                ["4XX mean", "classical odometry only", "12.19", "6.66", "5.53", "0.41 / 0.86", "12.5"]],
-         shade={0: OURS, 1: CLASSICAL, 3: OURS, 4: CLASSICAL}, group=0, left=2,
+         shade={0: OURS, 1: CLASSICAL, 3: OURS, 4: CLASSICAL, 6: OURS, 7: CLASSICAL, 9: OURS, 10: CLASSICAL},
+         group=0, left=2,
          notes=["Between nearby frames all three are the same (0.3–0.4 mm over 8 rows): local motion is solved by any.",
-                "The single network's volume shape is as good as classical's or better: 3XX 1.57 vs 2.47; 4XX 3.17 vs 3.34 "
+                "The single network's volume shape is better than classical's on every split mean: 2XX 3.04 vs 3.98, "
+                "3XX 1.57 vs 2.47, 3XX strict 2.26 vs 2.59, 4XX 3.17 vs 3.34 "
                 "(A 2.92 vs 3.10, B 2.66 vs 2.47, C 2.96 vs 3.36, D 3.16 vs 3.61, E 4.16 vs 4.15).",
                 "The whole 4XX gap is placement: each sweep is shifted rigidly in the room (3.3 vs 1.4 mm), an anchoring "
                 "error, consistent with the coverage finding of Table C."]),
@@ -115,6 +130,7 @@ TABLES = [
                ["training", "+ rendered views (point splats)", "4XX A US", "5.14 → 4.98", "no (rule: ≥ 0.5 better)"],
                ["training", "frozen encoder + rendered views", "4XX A US", "5.14 → 5.51", "no"],
                ["training", "seeds 0 / 1 / 2", "3XX US", "1.85 / 1.95 / 2.12", "noise ≈ 0.3 mm"],
+               ["training", "240 instead of 120 epochs", "4XX A US (fit)", "5.14 → 5.28 (fit 1.24 → 1.05)", "no"],
                ["pose", "pose regression (RPR) instead of SCR", "3XX / 4XX anchors", "15.3 / 49.0 vs 1.8 / 6.0", "SCR"],
                ["pose", "Kabsch on measured depth instead of PnP", "2XX anchors", "5.1 → 3.4", "adopted"],
                ["pose", "refined pose fit (noise weights; reprojection + depth)", "2XX anchors", "3.4 → 4.7 / 3.6", "no"],
@@ -127,6 +143,8 @@ TABLES = [
                ["time", "gate recovery (hybrid only)", "run-404 US", "28.3 → 8.2", "kept"],
                ["time", "pose-graph anchor σ 11 / 5 / 3 mm", "2XX US", "4.4 / 4.4 / 4.5", "default kept"],
                ["map", "+ earlier sweeps, Polaris labels", "4XX A / D anchors", "5.6 → 2.0 / 8.6 → 3.3", "works, needs Polaris"],
+               ["map", "+ same-day room scans (A, B scans for C, D, E)", "4XX C / D / E US",
+                "5.63 / 9.63 / 6.25 → 3.98 / 8.46 / 5.92", "adopted"],
                ["map", "+ earlier sweeps, labelled with own poses", "4XX A / D anchors", "5.3 → 5.0 / 9.0 → 7.9", "no"],
                ["map", "strict protocol (room-301 only)", "3XX run-315…317 US", "1.85 → 2.98 (classical 3.0)", "report both"],
                ["map", "outdated map (previous session)", "anchors", "2XX → 3XX 6.5; A → B 14.0; A → C 13.4",
@@ -138,7 +156,8 @@ TABLES = [
                ["US", "Li et al. on our sweeps", "3XX / A / D", "zero-shot 129; fine-tuned 75–125; scratch = zero motion",
                 "no"]],
          group=0, verdict=4, left=4,
-         notes=["Adopted: longer training, Kabsch on depth, big head + clean labels, 2 s smoothing. Everything else is "
+         notes=["Adopted: longer training, Kabsch on depth, big head + clean labels, 2 s smoothing, pooled same-day "
+                "room scans. Everything else is "
                 "neutral or worse; odometry and every US-image method were dropped."]),
 ]
 
