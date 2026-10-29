@@ -47,7 +47,7 @@ Every folder backs a number in `../summary.md` (section in the last column). Che
 | `sys-v2r-2XX` | same on 2XX; also `--scr-frames 3, 5` (multi-frame anchors, negative) | 4.2; 4.4, 4.5 |
 | `sys-classical-r-3XX`, `-4XXA` … `-4XXE` | classical anchors, same settings | 3XX 3.1, A 4.2, B 3.4, C 4.9, D 6.3, E 5.0 |
 | `sys-classical-final-2XX` | classical anchors on 2XX | 4.2 |
-| `shape-final.md`, `.json` | shape after a rigid fit of each sweep | 4XX SCR 3.5 vs classical 3.3 |
+| `shape-final.md`, `.json` | shape after a rigid fit of each sweep: single network (`scr-track`), classical system, odometry only | 3XX 1.57 vs 2.47; 4XX 3.17 vs 3.34 |
 
 ## 4. Studies
 

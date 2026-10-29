@@ -83,10 +83,48 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
  
 
 
-
-
  
 
-git add -A && git commit -m "3D pages and shape of the single-network system" && git push 
+3. Tests still missing
+Worth running: 3D pages and shape for 2XX and 3XX strict. These fill the odometry-only cells in Table A and add two rows to Table D.
 
+They failed last time because the two classical result files store the odometry folder as a relative rgbd-us path (runs/rpr-rgb-gap8-12XX-gru8). volume_pages.py stops when it can't find that folder from inside US_SCR. The 3XX and 4XX files store the full path, which is why those worked. The fix is --odometry with the full path:
+
+
+git pull
+export DATA=/data2/u0137815/rgbd-us/data
+
+python tools/volume_pages.py --test-root $DATA/train_2XX --runs run-205 run-211 --track runs/track-2XX --anchoring runs/sys-classical-final-2XX/anchor_eval_classical-odometry-odo-classical-vo-train_2XX-startanchor-train_2XX.json --odometry /data2/u0137815/rgbd-us/runs/rpr-rgb-gap8-12XX-gru8 --extra classical-vo-train_2XX --labels "classical anchors + classical odometry" "classical odometry only" --out runs/volume3d/2XX
+
+python tools/volume_pages.py --test-root $DATA/train_3XX --runs run-315 run-316 run-317 --track runs/track-3XX-room301 --anchoring runs/sys-classical-3XX-room301/anchor_eval_classical-odometry-odo-classical-vo-train_3XX-startanchor-train_3XX-map-room-301.json --odometry /data2/u0137815/rgbd-us/runs/rpr-rgb-gap8-12XX-gru8 --extra classical-vo-train_3XX --labels "classical anchors + classical odometry" "classical odometry only" --out runs/volume3d/3XX-strict
+
+python tools/us_analysis.py shape --json runs/volume3d/*/poses/*.json --out runs/shape-final.md
+
+git add -A && git commit -m "3D pages and shape for 2XX and 3XX strict" && git push
+
+
+
+export DATA=/data2/u0137815/rgbd-us/data
+
+python scr_anchor.py train --root $DATA/test_4XXA --scan-runs room-401 room-402 --head big --label-max-depth 2000 --drop-depth-edges --epochs 240 --out runs/v2e240-4XXA
+
+python scr_anchor.py track --ckpt runs/v2e240-4XXA/best.pt --test-root $DATA/test_4XXA --every 2 --out runs/track-v2e240-4XXA
+
+
+
+2. Pool the room scans of the same day (no code; data you already have).
+
+All 4XX scans are in the same Polaris world. We know because the outdated-map tests (A → B, A → C) gave plausible errors.
+So the C model could also train on the A and B scans. That gives more viewpoints of the parts of the room that didn't change.
+All of them were recorded before the C sweeps, so this stays within the strict protocol.
+Risk: objects that moved get conflicting labels. RANSAC should reject some of these.
+Rule, fixed now: adopt if the mean over C, D and E is at least 0.5 mm better than v2 (C 5.63, D 9.63, E 6.25).
+
+export DATA=/data2/u0137815/rgbd-us/data
+
+python scr_anchor.py train --root $DATA/train_4XX --scan-runs room-401 room-402 room-403 room-404 room-405 room-406 --head big --label-max-depth 2000 --drop-depth-edges --out runs/v2pool-4XXC
+
+python scr_anchor.py track --ckpt runs/v2pool-4XXC/best.pt --test-root $DATA/test_4XXC --every 2 --out runs/track-v2pool-4XXC
+python scr_anchor.py track --ckpt runs/v2pool-4XXC/best.pt --test-root $DATA/test_4XXD --every 2 --out runs/track-v2pool-4XXD
+python scr_anchor.py track --ckpt runs/v2pool-4XXC/best.pt --test-root $DATA/test_4XXE --every 2 --out runs/track-v2pool-4XXE
 
