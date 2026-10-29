@@ -1,0 +1,63 @@
+{
+  "args": {
+    "cmd": "train",
+    "root": "/data2/u0137815/rgbd-us/data/train_4XX",
+    "scan_runs": [
+      "room-401",
+      "room-402",
+      "room-403",
+      "room-404"
+    ],
+    "out": "runs/v2pool-4XXB",
+    "label_poses": [],
+    "head": "big",
+    "label_max_depth": 2000.0,
+    "drop_depth_edges": true,
+    "freeze_encoder": false,
+    "render_views": 0.0,
+    "render_shift": 150.0,
+    "render_rot": 20.0,
+    "render_voxel": 5.0,
+    "render_every": 4,
+    "render_min_valid": 0.5,
+    "aug_scale": [
+      1.0,
+      1.0
+    ],
+    "aug_rot": 0.0,
+    "epochs": 120,
+    "flat": 0.6,
+    "batch_size": 8,
+    "lr": 0.001,
+    "lr_encoder": 0.0001,
+    "image_size": [
+      360,
+      640
+    ],
+    "hand_eye": "/data2/u0137815/US_SCR/T_marker_cam.npy",
+    "workers": 12,
+    "seed": 0,
+    "check_every": 6,
+    "check_frames": 120,
+    "max_frames": 0,
+    "px": 10.0,
+    "min_inliers": 30,
+    "eval_root": null,
+    "eval_runs": null
+  },
+  "centre": [
+    58.620679291056575,
+    -113.70142080588691,
+    -938.319403489894
+  ],
+  "image_size": [
+    360,
+    640
+  ],
+  "head": "big",
+  "n_frames": 6274,
+  "n_rendered": 0,
+  "steps": 94080,
+  "estimated_labels": {},
+  "git": "9aeffa0"
+}
