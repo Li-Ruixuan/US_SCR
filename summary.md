@@ -131,6 +131,17 @@ Seeds (v1): 3XX 1.9–2.2 mm over 3 seeds, 4XX A 5.8–5.9 mm. Rotation is SCR's
 | gate recovery (accept again after 3 agreeing rejected anchors) | fixed run-404 in the hybrid system (28.3 → 8.2 mm) | kept for the hybrid system |
 | pose-graph anchor σ (11 / 5 / 3 mm) | 4.4 / 4.4 / 4.5 mm | default kept |
 
+**Training strategies against the coverage gap** (29 Oct; 4XX A as validation because 2XX is 75 % covered; rule fixed in advance: adopt if the single-network system on 4XX A is ≥ 0.5 mm better than v2, about twice the seed spread). US image, 2 s smoothing (step in brackets); fit = pose of training frames:
+
+| model on 4XX A | US image | fit | decision |
+|---|---|---|---|
+| v2 (reference) | 5.14 (0.99) | 1.2 mm / 0.12° | |
+| frozen ImageNet encoder, head only (`--freeze-encoder`) | 5.24 (0.97) | 3.7 mm / 0.23° | not adopted |
+| + 0.5 rendered views per frame (`--render-views 0.5`: 1,946 views splatted from a 5 mm point cloud of the room scan, camera moved ≤ 150 mm, turned ≤ 20°) | 4.98 (0.98) | 1.6 mm / 0.13° | not adopted (−0.16 mm, within noise) |
+| both | 5.51 (0.95) | 4.2 mm / 0.27° | not adopted |
+
+Frozen features fit the room worse and do not generalise better. Rendered views help slightly, but the point-splat renders are blocky with see-through holes (`runs/v2rv-4XXA/render_preview.jpg`): a large appearance gap to real images. A better renderer (TSDF mesh or Gaussian splats) is the open question; with these renders, coverage is not bought by synthesis.
+
 ### 4.6 Without SIFT odometry (`runs/sys-learned-*`)
 
 Median at the US image (step in brackets). SCR every 0.25 s with RPRNet odometry (learned) and a pose graph: 3XX 3.2 (1.51), A 5.4 (1.19), D 9.9 (1.21), i.e. 0.3–0.6 mm worse than SCR + SIFT; with anchors every 1 s RPRNet drifts too much (3XX 5.0). SCR every 0.25 s alone, raw: 2.0 (1.69), 5.2 (1.81), 9.7 (1.88); a pose graph with zero-motion odometry hurts it (3XX 4.9). Hence the robust smoother of 3.1.
@@ -191,6 +202,6 @@ The remaining error is long-range (sweep-scale), which speckle cannot see; a lea
 | 1 | causal smoothing (real time) | code, CPU |
 | 2 | 3D pages and shape metric of the single-network system | code |
 | 3 | confidence head + weighted Kabsch, trained end to end | code, training |
-| 4 | rendered views from the room reconstruction for training (coverage) | code, training |
+| 4 | rendered views with a realistic renderer (TSDF mesh / Gaussian splats); point-splat renders gave −0.16 mm on 4XX A (4.5) | code, training |
 
 Files and commands: `README.md`.

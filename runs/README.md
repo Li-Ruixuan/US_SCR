@@ -63,6 +63,7 @@ Every folder backs a number in `../summary.md` (section in the last column). Che
 | `selflabel-4XXA`, `-4XXD` → `v1-4XXA-plus2-est`, `v1-4XXD-plus3-est` | extra sweeps labelled with the system's own poses | A 5.0, D 7.9 (negative) | 4.3 |
 | `v1-3XX-room301`, `sys-classical-3XX-room301` | strict protocol: map room-301 only, test run-315…317 | SCR 3.1 / 6.1, 0.26°; classical 2.7 / 6.1, system 3.0 | 4.7 |
 | `sys-learned-2XX`, `-3XX`, `-4XXA`, `-4XXD` | without SIFT: RPRNet odometry (`odometry-recover3` = 1 s, `odometry-every0.25s`), or none (`odometry-odo-zero-every0.25s`) | 0.25 s + RPRNet 3.2 / 5.4 / 9.9; SCR alone raw 2.0 / 5.2 / 9.7 | 4.6 |
+| `v2fz-4XXA`, `v2rv-4XXA`, `v2fzrv-4XXA` → `track-v2fz-4XXA`, `track-v2rv-4XXA`, `track-v2fzrv-4XXA` | training strategies on 4XX A: frozen encoder, rendered views (`render_preview.jpg`), both | 5.24, 4.98, 5.51 vs 5.14 (none adopted) | 4.5 |
 
 ## 5. US images (all negative; summary 6)
 
