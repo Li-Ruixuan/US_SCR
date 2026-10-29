@@ -80,34 +80,13 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
+ 
 
 
-the repo. There are no placeholders this time, so you can copy and paste as is:
 
 
-git pull
-export DATA=/data2/u0137815/rgbd-us/data
+ 
 
-python tools/volume_pages.py --test-root $DATA/train_2XX --runs run-205 run-211 --track runs/track-2XX --anchoring runs/sys-classical-final-2XX/anchor_eval_classical-odometry-odo-classical-vo-train_2XX-startanchor-train_2XX.json --extra classical-vo-train_2XX --labels "classical anchors + classical odometry" "classical odometry only" --out runs/volume3d/2XX
-
-python tools/volume_pages.py --test-root $DATA/train_3XX --track runs/track-3XX --anchoring runs/sys-classical-r-3XX/anchor_eval_classical-odometry-odo-classical-vo-train_3XX-recover3-startanchor-train_3XX.json --extra classical-vo-train_3XX --labels "classical anchors + classical odometry" "classical odometry only" --out runs/volume3d/3XX
-
-python tools/volume_pages.py --test-root $DATA/train_3XX --runs run-315 run-316 run-317 --track runs/track-3XX-room301 --anchoring runs/sys-classical-3XX-room301/anchor_eval_classical-odometry-odo-classical-vo-train_3XX-startanchor-train_3XX-map-room-301.json --extra classical-vo-train_3XX --labels "classical anchors + classical odometry" "classical odometry only" --out runs/volume3d/3XX-strict
-
-python tools/volume_pages.py --test-root $DATA/test_4XXA --track runs/track-4XXA --anchoring runs/sys-classical-r-4XXA/anchor_eval_classical-odometry-odo-classical-vo-test_4XXA-recover3-startanchor-test_4XXA.json --extra classical-vo-test_4XXA --labels "classical anchors + classical odometry" "classical odometry only" --out runs/volume3d/4XXA
-
-python tools/volume_pages.py --test-root $DATA/test_4XXB --track runs/track-4XXB --anchoring runs/sys-classical-r-4XXB/anchor_eval_classical-odometry-odo-classical-vo-test_4XXB-recover3-startanchor-test_4XXB.json --extra classical-vo-test_4XXB --labels "classical anchors + classical odometry" "classical odometry only" --out runs/volume3d/4XXB
-
-python tools/volume_pages.py --test-root $DATA/test_4XXC --track runs/track-4XXC --anchoring runs/sys-classical-r-4XXC/anchor_eval_classical-odometry-odo-classical-vo-test_4XXC-recover3-startanchor-test_4XXC.json --extra classical-vo-test_4XXC --labels "classical anchors + classical odometry" "classical odometry only" --out runs/volume3d/4XXC
-
-python tools/volume_pages.py --test-root $DATA/test_4XXD --track runs/track-4XXD --anchoring runs/sys-classical-r-4XXD/anchor_eval_classical-odometry-odo-classical-vo-test_4XXD-recover3-startanchor-test_4XXD.json --extra classical-vo-test_4XXD --labels "classical anchors + classical odometry" "classical odometry only" --out runs/volume3d/4XXD
-
-python tools/volume_pages.py --test-root $DATA/test_4XXE --track runs/track-4XXE --anchoring runs/sys-classical-r-4XXE/anchor_eval_classical-odometry-odo-classical-vo-test_4XXE-recover3-startanchor-test_4XXE.json --extra classical-vo-test_4XXE --labels "classical anchors + classical odometry" "classical odometry only" --out runs/volume3d/4XXE
-
-python tools/us_analysis.py shape --json runs/volume3d/*/poses/*.json --out runs/shape-final.md
-
-git add -A && git commit -m "3D pages and shape of the single-network system" && git push
-Run time: a few minutes per split on CPU (export, then about 1 min per sweep for its page).
-Output: runs/volume3d/index.html lists every split and sweep, with the mean pixel error of the single network, the classical system and odometry only, and links to each page. Open it in 
+git add -A && git commit -m "3D pages and shape of the single-network system" && git push 
 
 
