@@ -79,34 +79,8 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
-git pull
-export DATA=/data2/u0137815/rgbd-us/data
 
-# Task 1: real-time smoothing (CPU, reuses the cached poses, ~1 min each)
-python scr_anchor.py track --ckpt runs/bigclean-2XX/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --every 2 --lags 0 0.25 0.5 --out runs/track-2XX
-python scr_anchor.py track --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX --every 2 --lags 0 0.25 0.5 --out runs/track-3XX
-python scr_anchor.py track --ckpt runs/v2-3XX-room301/best.pt --test-root $DATA/train_3XX --test-runs run-315 run-316 run-317 --every 2 --lags 0 0.25 0.5 --out runs/track-3XX-room301
-python scr_anchor.py track --ckpt runs/v2-4XXA/best.pt --test-root $DATA/test_4XXA --every 2 --lags 0 0.25 0.5 --out runs/track-4XXA
-python scr_anchor.py track --ckpt runs/v2pool-4XXB/best.pt --test-root $DATA/test_4XXB --every 2 --lags 0 0.25 0.5 --out runs/track-v2pool-4XXB
-python scr_anchor.py track --ckpt runs/v2pool-4XXC/best.pt --test-root $DATA/test_4XXC --every 2 --lags 0 0.25 0.5 --out runs/track-v2pool-4XXC
-python scr_anchor.py track --ckpt runs/v2pool-4XXC/best.pt --test-root $DATA/test_4XXD --every 2 --lags 0 0.25 0.5 --out runs/track-v2pool-4XXD
-python scr_anchor.py track --ckpt runs/v2pool-4XXC/best.pt --test-root $DATA/test_4XXE --every 2 --lags 0 0.25 0.5 --out runs/track-v2pool-4XXE
 
-# Task 2: room-scan length on 3XX (full scans ~60 s each = 1.85 mm)
-python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --head big --label-max-depth 2000 --drop-depth-edges --scan-seconds 20 --out runs/v2-3XX-scan20
-python scr_anchor.py track --ckpt runs/v2-3XX-scan20/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-v2-3XX-scan20
-python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --head big --label-max-depth 2000 --drop-depth-edges --scan-seconds 40 --out runs/v2-3XX-scan40
-python scr_anchor.py track --ckpt runs/v2-3XX-scan40/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-v2-3XX-scan40
 
-# Task 3: confidence head + weighted Kabsch on 4XX A (same checkpoint, unweighted and weighted)
-python scr_anchor.py train --root $DATA/test_4XXA --scan-runs room-401 room-402 --head big --label-max-depth 2000 --drop-depth-edges --confidence --out runs/v2conf-4XXA
-python scr_anchor.py track --ckpt runs/v2conf-4XXA/best.pt --test-root $DATA/test_4XXA --every 2 --out runs/track-v2conf-4XXA
-python scr_anchor.py track --ckpt runs/v2conf-4XXA/best.pt --test-root $DATA/test_4XXA --every 2 --weighted --out runs/track-v2conf-4XXA-w
 
-# Task 4: renders from real frames on 4XX A (compare with v2 5.14 and point-splat renders 4.98)
-python scr_anchor.py train --root $DATA/test_4XXA --scan-runs room-401 room-402 --head big --label-max-depth 2000 --drop-depth-edges --render-views 0.5 --render-source frames --out runs/v2rvf-4XXA
-python scr_anchor.py track --ckpt runs/v2rvf-4XXA/best.pt --test-root $DATA/test_4XXA --every 2 --out runs/track-v2rvf-4XXA
-
-git add -A && git commit -m "Real-time smoothing, scan length, confidence head, frame renders" && git push
-Notes
  
