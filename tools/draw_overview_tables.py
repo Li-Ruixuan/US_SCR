@@ -25,7 +25,7 @@ HEAD = "#f2f1ec"
 OURS = "#ece9fb"                     # the single-network system (purple, as in scr_pipeline)
 CLASSICAL = "#fff4e2"                # the classical system (orange)
 VERDICT = {"adopted": "#178a5e", "kept": "#178a5e", "SCR": "#178a5e", "odometry dropped": "#178a5e",
-           "confirmed": "#178a5e", "no": "#b03a2e"}
+           "confirmed": "#178a5e", "real time works": "#178a5e", "no": "#b03a2e"}
 
 TABLES = [
     dict(name="table_A", title="A. Every system: median error at the US image (mm), mean over sweeps",
@@ -45,10 +45,14 @@ TABLES = [
                ["one SCR network, raw", "3.59", "2.03", "3.12", "5.21", "5.82", "5.76", "9.57", "6.12", "6.50",
                 "1.67 / 1.82"],
                ["one SCR network, 2 s smoothing (ours)",
-                "*3.35", "*1.85", "*2.98", "5.14", "5.77", "5.63", "9.63", "6.25", "6.48", "*0.93 / 1.15"],
+                "3.35", "*1.85", "2.98", "5.14", "5.77", "5.63", "9.63", "6.25", "6.48", "*0.93 / 1.15"],
                ["one SCR network, all same-day room scans up to the block (ours, final; A unchanged)",
-                "–", "–", "–", "5.14", "3.76", "*3.98", "8.46", "5.92", "5.45", "– / 1.07"]],
-         shade={3: CLASSICAL, 4: CLASSICAL, 6: OURS, 7: OURS},
+                "–", "–", "–", "5.14", "3.76", "3.98", "8.46", "5.92", "5.45", "– / 1.07"],
+               ["same, real time with 0.25 s delay (window 1 s)",
+                "3.32", "1.86", "*2.95", "5.14", "3.75", "3.98", "8.40", "5.88", "5.43", "0.93 / 1.06"],
+               ["same, causal: no delay (window 0.25 s)",
+                "*3.26", "1.95", "3.05", "5.22", "3.67", "*3.94", "8.43", "6.08", "5.47", "1.18 / 1.28"]],
+         shade={3: CLASSICAL, 4: CLASSICAL, 6: OURS, 7: OURS, 8: OURS, 9: OURS},
          notes=["Odometry alone drifts (9–15 mm): every working system needs an absolute pose per frame or per second.",
                 "The single network equals the hybrid on every split: SIFT odometry adds nothing once SCR runs on "
                 "every frame; learned odometry is worse.",
@@ -56,7 +60,9 @@ TABLES = [
                 "block's own scans, 1.15× with all scans of the day (C better); always the smoothest "
                 "(step = change of the error over 8 rows).",
                 "The same pooled scans ruin classical (C 4.9 → 21.1 mm): moved objects in earlier scans give confident "
-                "wrong SIFT matches."]),
+                "wrong SIFT matches.",
+                "Real time: a 0.25 s delay gives the offline result; fully causal only raises the steps by ~20 %, to "
+                "classical's level."]),
     dict(name="table_B", title="B. Pose from one image: camera position error (median mm), one frame per second",
          cols=["method", "2XX val", "3XX", "4XX mean", "rotation 3XX / 4XX", "frames solved"],
          widths=[3.6, 0.75, 0.65, 0.85, 1.4, 1.9],
@@ -141,14 +147,20 @@ TABLES = [
                ["training", "frozen encoder + rendered views", "4XX A US", "5.14 → 5.51", "no"],
                ["training", "seeds 0 / 1 / 2", "3XX US", "1.85 / 1.95 / 2.12", "noise ≈ 0.3 mm"],
                ["training", "240 instead of 120 epochs", "4XX A US (fit)", "5.14 → 5.28 (fit 1.24 → 1.05)", "no"],
+               ["training", "rendered views from real frames (full resolution)", "4XX A US", "5.14 → 4.94",
+                "no (rule: ≥ 0.5 better)"],
+               ["training", "confidence head (unweighted solver)", "4XX A US", "5.14 → 5.22", "neutral"],
                ["pose", "pose regression (RPR) instead of SCR", "3XX / 4XX anchors", "15.3 / 49.0 vs 1.8 / 6.0", "SCR"],
                ["pose", "Kabsch on measured depth instead of PnP", "2XX anchors", "5.1 → 3.4", "adopted"],
                ["pose", "refined pose fit (noise weights; reprojection + depth)", "2XX anchors", "3.4 → 4.7 / 3.6", "no"],
                ["pose", "inlier gate ≥ 400", "all splits", "trims tails on D, E, A → C", "kept"],
                ["pose", "multi-frame anchors (3 / 5 frames)", "2XX US (hybrid)", "4.2 → 4.4 / 4.5", "no"],
+               ["pose", "confidence-weighted Kabsch (same checkpoint)", "4XX A US", "5.22 → 5.28", "no"],
                ["time", "SIFT odometry + pose graph vs one network", "4XX mean US", "6.54 vs 6.48", "odometry dropped"],
                ["time", "RPRNet (learned) odometry instead of SIFT", "3XX / A / D US", "0.3–0.6 worse", "no"],
                ["time", "2 s robust smoothing vs raw", "3XX US (step)", "2.03 (1.67) → 1.85 (0.93)", "adopted"],
+               ["time", "real time: 0.25 s delay / causal", "3XX US (step)", "1.85 (0.93) → 1.86 (0.93) / 1.95 (1.18)",
+                "real time works"],
                ["time", "pose graph with zero-motion odometry", "3XX US", "2.0 → 4.9", "no"],
                ["time", "gate recovery (hybrid only)", "run-404 US", "28.3 → 8.2", "kept"],
                ["time", "pose-graph anchor σ 11 / 5 / 3 mm", "2XX US", "4.4 / 4.4 / 4.5", "default kept"],
@@ -162,6 +174,8 @@ TABLES = [
                ["map", "strict protocol (room-301 only)", "3XX run-315…317 US", "1.85 → 2.98 (classical 3.0)", "report both"],
                ["map", "outdated map (previous session)", "anchors", "2XX → 3XX 6.5; A → B 14.0; A → C 13.4",
                 "re-scan per session"],
+               ["map", "shorter room scans: first 20 / 40 s of each", "3XX US", "3.00 / 2.03 vs 1.85 (~60 s)",
+                "content over length"],
                ["US", "U1 in-plane registration (ECC)", "2XX, 10 rows", "1.91 vs 1.55 for zero motion", "no"],
                ["US", "U2 speckle decorrelation → distance", "all", "0.27–0.43, magnitude only", "no"],
                ["US", "U3 per-patch speckle vs camera", "3XX, 4 rows", "0.78 vs camera 0.19", "no"],
@@ -170,7 +184,7 @@ TABLES = [
                 "no"]],
          group=0, verdict=4, left=4,
          notes=["Adopted: longer training, Kabsch on depth, big head + clean labels, 2 s smoothing, pooled same-day "
-                "room scans. Everything else is "
+                "room scans; real time with a 0.25 s delay. Everything else is "
                 "neutral or worse; odometry and every US-image method were dropped."]),
 ]
 

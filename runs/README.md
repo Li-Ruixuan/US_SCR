@@ -8,7 +8,7 @@ Every folder backs a number in `../summary.md` (section in the last column). Che
 |---|---|
 | `<model>/config.json`, `history.json` | training settings and code version; per epoch loss, learning rate, time and the fit check on training frames |
 | `<model>/eval_<test>[_<sweeps>][_kabsch]/scr_eval.md`, `.json` | anchor accuracy per sweep (`scr_anchor.py eval`; `_kabsch` = Kabsch solve, else PnP) |
-| `track-*/scr_track.md`, `.json`, `poses.npz` | single-network system (`scr_anchor.py track`): raw and smoothed, per sweep; the raw poses per row |
+| `track-*/scr_track.md`, `.json`, `poses.npz` | single-network system (`scr_anchor.py track`): raw, smoothed offline and in real time ("real time W s, delay L s"; summary 3.3), per sweep; the raw poses per row |
 | `sys-*/anchor_eval_*.md`, `.json` | hybrid system (`anchoring.py` via `tools/anchoring_kabsch.py`): per sweep anchors, then the US-image error for no anchors, causal, offline, **offline pose graph** (the reported column) |
 | `volume3d/index.html`, `volume3d/<split>/<run>.html` | 3D pages (open in a browser): true poses vs the single network, the classical system and odometry only; the index lists every sweep with its mean pixel error |
 | `us-*`, `us-speckle-*`, `shape-final.*` | `tools/us_analysis.py inplane / speckle / shape` |
@@ -70,6 +70,9 @@ Every folder backs a number in `../summary.md` (section in the last column). Che
 | `sys-learned-2XX`, `-3XX`, `-4XXA`, `-4XXD` | without SIFT: RPRNet odometry (`odometry-recover3` = 1 s, `odometry-every0.25s`), or none (`odometry-odo-zero-every0.25s`) | 0.25 s + RPRNet 3.2 / 5.4 / 9.9; SCR alone raw 2.0 / 5.2 / 9.7 | 4.6 |
 | `v2fz-4XXA`, `v2rv-4XXA`, `v2fzrv-4XXA` → `track-v2fz-4XXA`, `track-v2rv-4XXA`, `track-v2fzrv-4XXA` | training strategies on 4XX A: frozen encoder, rendered views (`render_preview.jpg`), both | 5.24, 4.98, 5.51 vs 5.14 (none adopted) | 4.5 |
 | `v2e240-4XXA` → `track-v2e240-4XXA` | 240 instead of 120 epochs on 4XX A | 5.28 vs 5.14 (not adopted) | 4.5 |
+| `v2rvf-4XXA` → `track-v2rvf-4XXA` | rendered views from the nearest real frames (`render_preview.jpg`) | 4.94 vs 5.14 (not adopted) | 4.5 |
+| `v2conf-4XXA` → `track-v2conf-4XXA`, `-w` | confidence head; unweighted / weighted Kabsch | 5.22 / 5.28 (not adopted) | 4.5 |
+| `v2-3XX-scan20`, `-scan40` → `track-v2-3XX-scan20`, `-scan40` | first 20 / 40 s of each 3XX room scan | 3.00 / 2.03 vs 1.85 | 4.3 |
 
 ## 5. US images (all negative; summary 6)
 

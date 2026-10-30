@@ -10,6 +10,8 @@ Status 29 Oct 2026. Overview tables of all tests: 1.1. Builds on `rgbd-us` (`not
 | vs the classical system (SIFT anchors + SIFT odometry) | **Better where the room is well mapped** (3XX 1.85–2.12 vs 3.1 mm, every seed); **on par under the strict protocol** (map recorded before the sweeps: 2.98 vs 3.0 mm, smoother); **worse on new sessions with short room scans** (4XX mean 5.45 vs 4.76 mm, 1.15×; 1.4× before pooling the scans; C better, D and E worse); **volume shape better on every split** (Table D) | 3.1, 4.3, 4.7 |
 | Why worse on 4XX? | **Room-scan coverage:** the 4XX scans see 0–14 % of the sweep viewpoints (3XX 93–96 %). With 1–2 earlier sweeps added to the map (Polaris-labelled), SCR beats classical on 4XX too (A 2.3 vs 3.2, D 4.5 vs 5.8 mm). Labelling those sweeps with the system's own poses does not work (A 5.3 → 5.0 mm). **Pooling the room scans of the same day** helps SCR without any labelling (B–E mean 6.82 → 5.53 mm) but ruins classical (4.90 → 13.93 mm): objects moved between the blocks, and SIFT matches the moved objects in the old scans confidently, while the network learns the static room | 4.3 |
 | Is odometry needed? | **No.** On all 7 splits SCR alone, smoothed over 2 s, matches SCR + SIFT odometry in median (4XX mean 6.48 vs 6.54 mm) and is as smooth or smoother (step 0.82–1.68 vs 1.08–2.22 mm). Learned RPRNet odometry instead of SIFT is worse (+0.3–0.6 mm) | 3.1, 4.6 |
+| Real time? | **Yes.** With a 0.25 s delay (window of the last 1 s) the results equal the offline 2 s smoothing (3XX 1.86 (0.93), 4XX mean 5.43 (1.06) mm); fully causal (no delay) the median is the same and the steps ~20 % larger (3XX 1.95 (1.18), 4XX 5.47 (1.28)), still as smooth as classical | 3.3 |
+| How long must a room scan be? | **Where it goes matters more than how long.** 3XX with the first 20 / 40 / ~60 s of each scan: 3.00 / 2.03 / 1.85 mm (classical 3.1); 4XX A has 130 s of scans and still 5.14 mm, because they miss the sweep viewpoints | 4.3 |
 | Why did the first SCR fail (24–28 mm)? | **Undertrained,** not unable: same network and data, 2XX val 15.8 → 5.1 mm by the training fix alone; depth at test time (Kabsch) → 3.4 mm | 4.1 |
 | SCR vs pose regression (RPR anchor network) | **SCR 3–6× more accurate on every split**, always solves (RPR: 37–93 % accepted) | 4.2, 5 |
 | Strict protocol (map recorded before the sweeps) | **On par with classical:** single network 2.98 (1.18) vs classical system 3.0 (1.34) mm on run-315…317 with the map on room-301 only; with both room scans 1.83 vs 2.9. Part of the 3XX advantage comes from room-302, recorded after the sweeps | 4.7 |
@@ -33,11 +35,14 @@ Five tables cover every test: A every system at the US image, B single-image pos
 | one SCR network, raw | 3.59 | 2.03 | 3.12 | 5.21 | 5.82 | 5.76 | 9.57 | 6.12 | 6.50 | 1.67 / 1.82 |
 | **one SCR network, 2 s smoothing (ours)** | **3.35** | **1.85** | **2.98** | 5.14 | 5.77 | 5.63 | 9.63 | 6.25 | 6.48 | **0.93 / 1.15** |
 | **one SCR network, all same-day room scans up to the block (ours, final)** (B: A + B scans; C, D, E: A + B + C; A unchanged) | | | | 5.14 | 3.76 | **3.98** | 8.46 | 5.92 | 5.45 | / 1.07 |
+| same, real time with 0.25 s delay (window 1 s) | 3.32 | 1.86 | 2.95 | 5.14 | 3.75 | **3.98** | 8.40 | 5.88 | 5.43 | 0.93 / 1.06 |
+| same, causal: no delay (window 0.25 s) | 3.26 | 1.95 | 3.05 | 5.22 | 3.67 | **3.94** | 8.43 | 6.08 | 5.47 | 1.18 / 1.28 |
 
 - Odometry alone drifts (9–15 mm); every working system needs an absolute pose per frame or per second.
 - The single network equals the hybrid on every split: SIFT odometry adds nothing once SCR runs on every frame; learned odometry is worse.
 - Against classical: better on 3XX and 2XX, equal under the strict protocol, 1.4× worse on 4XX with each block's own scans, 1.15× with all scans of the day (C better than classical); always the smoothest.
 - The same pooled scans ruin classical (C 4.9 → 21.1 mm): the moved objects in the earlier scans give confident wrong SIFT matches.
+- Real time costs nothing with a 0.25 s delay, and only smoothness (steps +20 %, equal to classical's) when fully causal.
 
 **Table B. Pose from one image** (anchors: camera position median mm, rotation median, one frame per second; 4.1, 4.2)
 
@@ -112,14 +117,18 @@ Five tables cover every test: A every system at the US image, B single-image pos
 | training | frozen encoder + rendered views | 4XX A US | 5.14 → 5.51 | no |
 | training | seeds 0 / 1 / 2 | 3XX US | 1.85 / 1.95 / 2.12 | noise ≈ 0.3 mm |
 | training | 240 instead of 120 epochs | 4XX A US (fit) | 5.14 → 5.28 (fit 1.24 → 1.05 mm) | no |
+| training | rendered views from real frames (full resolution) | 4XX A US | 5.14 → 4.94 | no (rule: ≥ 0.5 better) |
+| training | confidence head (unweighted solver) | 4XX A US | 5.14 → 5.22 | neutral |
 | pose | pose regression (RPR) instead of SCR | 3XX / 4XX anchors | 15.3 / 49.0 vs 1.8 / 6.0 | **SCR** |
 | pose | Kabsch on measured depth instead of PnP | 2XX anchors | 5.1 → 3.4 | **adopted** |
 | pose | refined pose fit (noise weights; reprojection + depth) | 2XX anchors | 3.4 → 4.7 / 3.6 | no |
 | pose | inlier gate ≥ 400 | all splits | trims tails on D, E, A → C | kept |
 | pose | multi-frame anchors (3 / 5 frames) | 2XX US (hybrid) | 4.2 → 4.4 / 4.5 | no |
+| pose | confidence-weighted Kabsch (same checkpoint) | 4XX A US | 5.22 → 5.28 | no |
 | time | SIFT odometry + pose graph vs one network | 4XX mean US | 6.54 vs 6.48 | **odometry dropped** |
 | time | RPRNet (learned) odometry instead of SIFT | 3XX / A / D US | 0.3–0.6 mm worse | no |
 | time | 2 s robust smoothing vs raw | 3XX US (step) | 2.03 (1.67) → 1.85 (0.93) | **adopted** |
+| time | real time: 0.25 s delay / causal (window chosen on 2XX) | 3XX US (step) | 1.85 (0.93) → 1.86 (0.93) / 1.95 (1.18) | **real time works** |
 | time | pose graph with zero-motion odometry | 3XX US | 2.0 → 4.9 | no |
 | time | gate recovery (hybrid only) | run-404 US | 28.3 → 8.2 | kept for the hybrid |
 | time | pose-graph anchor σ 11 / 5 / 3 mm | 2XX US | 4.4 / 4.4 / 4.5 | default kept |
@@ -130,6 +139,7 @@ Five tables cover every test: A every system at the US image, B single-image pos
 | map | + earlier sweeps, labelled with own poses | 4XX A / D anchors | 5.3 → 5.0 / 9.0 → 7.9 | no |
 | map | strict protocol (room-301 only) | 3XX run-315…317 US | 1.85 → 2.98 (classical 3.0) | report both |
 | map | outdated map (previous session) | anchors | 2XX → 3XX 6.5; A → B 14.0; A → C 13.4 | re-scan per session |
+| map | shorter room scans: first 20 / 40 s of each | 3XX US | 3.00 / 2.03 vs 1.85 (~60 s) | study: content over length |
 | US | U1 in-plane registration (ECC) | 2XX, 10 rows | 1.91 vs 1.55 for zero motion | no |
 | US | U2 speckle decorrelation → distance | all | 0.27–0.43 mm, magnitude only | no |
 | US | U3 per-patch speckle vs camera | 3XX, 4 rows | 0.78 vs camera 0.19 mm | no |
@@ -143,7 +153,8 @@ Five tables cover every test: A every system at the US image, B single-image pos
 3. **Coverage is the limit.** SCR wins where the room scan covers the sweep viewpoints and loses when it does not (Table C). The 4XX loss is a rigid placement offset, not a worse volume: the shape is better than classical's on every split (Table D).
 4. **Only real, correctly placed training views close the gap.** Polaris-labelled sweeps do (A 5.6 → 2.0), and so do more room scans of the same day (B–E 6.82 → 5.53); self-labels, frozen features, more epochs and point-splat renders do not (Tables C, E). Next steps: longer room scans, or a realistic renderer.
 5. **SCR can use partly outdated data, classical cannot.** Room scans from earlier in the day, with objects moved since, improve SCR and ruin classical (B–E 4.90 → 13.93 mm, Tables A, C). More scanning always helps SCR.
-6. **The US images carry no usable pose information** beyond what the camera gives (Table E, US rows).
+6. **It runs in real time:** a 0.25 s delay gives the offline accuracy; fully causal only adds some jitter (Table A).
+7. **The US images carry no usable pose information** beyond what the camera gives (Table E, US rows).
 
 ## 2. Setup
 
@@ -192,7 +203,7 @@ SCR + Kabsch on every 2nd usable row (15 Hz), no odometry, no Polaris start pose
 - One network is enough: the rule (median equal to SCR + SIFT, step within 20 %) is met on all six test splits; same or better median, as smooth or smoother (2-row step 0.30–0.73 mm). 3XX: every sweep 1.4–2.1 mm; three seeds 1.85, 1.95, 2.12 (spread 0.27 mm), all below classical (3.1).
 - Strict protocol: 2.98 vs 3.0 mm for classical (per sweep 3.7 / 2.4 / 2.9 vs 2.9 / 2.2 / 3.7), smoother (1.18 vs 1.34): on par, as the anchors were (4.7).
 - 4XX: on average 6.48 mm vs 4.76 for classical (1.4×). Smoothing cannot remove a wrong-but-consistent error (D run-420, 421; E, where 6 % of the frames fail the gate, raw 6.12 vs smoothed 6.25): coverage decides 4XX.
-- Caveat: offline smoothing (the 2 s window sees 1 s ahead); a causal version is not tested yet.
+- Offline smoothing (the 2 s window sees 1 s ahead); real-time versions in 3.3.
 
 ### 3.2 3D pages (`runs/volume3d/index.html`)
 
@@ -211,6 +222,20 @@ One page per sweep (`runs/volume3d/<split>/<run>.html`, open in a browser): the 
 | 4XX B / C / D / E, same-day scans pooled (both systems) | 4.0 / 4.7 / 9.2 / 6.5 | 5.8 / 19.9 / 22.0 / 14.2 | 11.1 / 9.8 / 13.1 / 13.8 |
 
 Same ranking as 3.1. Earlier pages of the hybrid system (SCR anchors + SIFT odometry; 3XX 2.7 vs 3.2 mm for classical, 4XX 5.3–10.5 vs 3.7–7.2) are in git commit 50ef6f5 (`runs/volume3d-final`).
+
+### 3.3 Real time (`track --lags`, same cached poses)
+
+The smoother sees only the poses known by t + delay (window of the last W s, extrapolated linearly to t). Rule fixed before the runs: per delay, the window with the lowest 2XX median: no delay 0.25 s, 0.25 s delay 1 s, 0.5 s delay 2 s. US image median (step over 8 rows); B–E with the pooled-scan models:
+
+| split | offline 2 s | 0.25 s delay, window 1 s | causal, window 0.25 s | raw |
+|---|---|---|---|---|
+| 2XX val | 3.35 (1.20) | 3.32 (1.30) | 3.26 (1.82) | 3.59 (2.72) |
+| 3XX | 1.85 (0.93) | 1.86 (0.93) | 1.95 (1.18) | 2.03 (1.67) |
+| 3XX strict | 2.98 (1.18) | 2.95 (1.17) | 3.05 (1.42) | 3.12 (1.94) |
+| 4XX A / B / C / D / E | 5.14 / 3.76 / 3.98 / 8.46 / 5.92 | 5.14 / 3.75 / 3.98 / 8.40 / 5.88 | 5.22 / 3.67 / 3.94 / 8.43 / 6.08 | 5.21 / 3.80 / 4.03 / 8.44 / 5.92 |
+| 4XX mean | 5.45 (1.07) | **5.43 (1.06)** | 5.47 (1.28) | 5.48 (1.77) |
+
+A 0.25 s delay gives the offline result on every split. Without delay the median is unchanged and the steps grow ~20 %, to the level of the classical system (3XX 1.09, 4XX 1.28). A 0.5 s delay (window 2 s) is no better than 0.25 s (4XX 5.42 (1.16)).
 
 ## 4. Studies behind the design
 
@@ -253,6 +278,7 @@ Seeds (v1): 3XX 1.9–2.2 mm over 3 seeds, 4XX A 5.8–5.9 mm. Rotation is SCR's
 
 - **Same, labelled with the system's own poses (no Polaris):** A 5.3 → 5.0, D 9.0 → 7.9 mm (Polaris labels: 1.9, 3.1). The network learns the label errors (5–14 mm); map extension is only as good as the poses of the added views.
 - **Room scans of the same day pooled** (`v2pool-4XXC`: room-401…406, 8,671 frames, all recorded before the C sweeps; US image, 2 s smoothing): C 5.63 → **3.98**, D 9.63 → 8.46, E 6.25 → 5.92 mm (step 0.79 / 1.17 / 1.56). The rule fixed before the run (mean over C, D, E ≥ 0.5 mm better) is met: 7.17 → 6.12. C is now better than the classical system (4.9), D and E still worse (6.3, 5.0). Objects moved between A, B and C, yet the static parts of the room gain views. Confirmed on B (`v2pool-4XXB`: room-401…404, 6,274 frames): 5.77 → **3.76** mm (classical 3.4). **Classical with the same pooled maps** (`sys-classical-pool-4XX*`) gets much worse: B 3.4 → 5.5, C 4.9 → 21.1, D 6.3 → 18.9, E 5.0 → 10.2 mm; its anchors fall to 76–84 % accepted and 17–23 mm median on C–E. SIFT matches the moved objects of the earlier scans with consistent geometry; the network averages them out against the static room, and RANSAC rejects the rest. Shape with pooled scans (single network): A 2.92, B 2.19, C 2.55, D 3.36, E 3.75, mean 2.95 vs 3.34 for classical (own scans).
+- **Room-scan length** (`v2-3XX-scan20`, `-scan40`: only the first 20 / 40 s of room-301 and room-302, 1,198 / 2,289 of 3,356 frames; US image, 2 s): 3.00 (1.03) / 2.03 (0.94) vs 1.85 (0.93) mm with the full ~60 s each. Even 20 s per scan matches classical (3.1); beyond 40 s the gain is small. On 4XX A, 130 s of scans give 5.14 mm: what decides is whether the scans pass the sweep viewpoints, not their length.
 
 ### 4.4 Outdated room scans (map of one session, sweeps of a later one; anchors)
 
@@ -283,8 +309,10 @@ Seeds (v1): 3XX 1.9–2.2 mm over 3 seeds, 4XX A 5.8–5.9 mm. Rotation is SCR's
 | + 0.5 rendered views per frame (`--render-views 0.5`: 1,946 views splatted from a 5 mm point cloud of the room scan, camera moved ≤ 150 mm, turned ≤ 20°) | 4.98 (0.98) | 1.6 mm / 0.13° | not adopted (−0.16 mm, within noise) |
 | both | 5.51 (0.95) | 4.2 mm / 0.27° | not adopted |
 | 240 instead of 120 epochs | 5.28 (0.99) | 1.05 mm / 0.08° | not adopted: fits the scan better, generalises no better |
+| + 0.5 rendered views per frame from the 3 nearest real frames at full resolution (`--render-source frames`, 1,946 views, real texture) | 4.94 (0.97) | 1.6 mm / 0.12° | not adopted (−0.20 mm) |
+| confidence head (`--confidence`), unweighted / confidence-weighted Kabsch (`track --weighted`) | 5.22 (1.00) / 5.28 (1.11) | 1.3 mm / 0.12° | not adopted |
 
-Frozen features fit the room worse and do not generalise better. Rendered views help slightly, but the point-splat renders are blocky with see-through holes (`runs/v2rv-4XXA/render_preview.jpg`): a large appearance gap to real images. A better renderer (TSDF mesh or Gaussian splats) is the open question; with these renders, coverage is not bought by synthesis.
+Frozen features fit the room worse and do not generalise better. Rendered views help slightly, but the point-splat renders are blocky with see-through holes (`runs/v2rv-4XXA/render_preview.jpg`): a large appearance gap to real images. Renders from the nearest real frames keep the real texture (`runs/v2rvf-4XXA/render_preview.jpg`) and give the same small gain (−0.20 mm): the renderer was not the limit. Both kinds of synthesis help a little and consistently, but far less than real views (pooled scans: B–E −1.3 mm); coverage is not bought by synthesis. The confidence head learns the error on the training frames, where it is small and uniform, so it does not flag the cells that fail on new viewpoints; weighting does not help.
 
 ### 4.6 Without SIFT odometry (`runs/sys-learned-*`)
 
@@ -335,19 +363,18 @@ The remaining error is long-range (sweep-scale), which speckle cannot see; a lea
 2. **Polaris-built maps:** the room-scan poses come from Polaris; in deployment they would come from SLAM / ACE0-style reconstruction (untested).
 3. **3XX room scans partly recorded after the sweeps:** with the map recorded before the sweeps SCR is on par with classical, not better (4.7); report both numbers.
 4. **Small test sets, one room, two subjects;** seed spread measured on 3XX only (1.85–2.12 mm).
-5. **Offline smoothing;** causal (real-time) version untested.
+5. **Real time:** tested offline on recorded data (3.3); not yet run live on the hardware.
 6. The inlier gate was chosen after seeing the test splits (no effect on system results).
 7. Hand–eye calibration (3.5 mm board-corner error) enters labels and ground truth.
 
 ## 8. Open tasks
 
-Code ready (30 Oct); rules fixed before the runs.
+The four tasks of 30 Oct are done: real time works (3.3), scan content matters more than length (4.3), the confidence head and frame renders are not adopted (4.5). What remains is data and deployment:
 
-| priority | task | code | rule |
-|---|---|---|---|
-| 1 | real-time smoothing: window of the last W s with a delay L (0 = causal), on the cached poses | `track --lags` | per delay, the window with the lowest 2XX median; reported on the tests |
-| 2 | room-scan length: first 20 / 40 s of each 3XX scan (full ≈ 60 s); new recordings: ~2 min with exam-like motion, all scans of the day in the map | `train --scan-seconds` | study, no decision |
-| 3 | confidence head + weighted Kabsch (cells sampled ~ 1/σ, refit ~ 1/σ²) | `train --confidence`, `track --weighted` | 4XX A: weighted ≥ 0.5 mm better than unweighted on the same checkpoint |
-| 4 | rendered views from the nearest real frames at full resolution (real texture) instead of the voxel cloud | `train --render-source frames` | 4XX A: ≥ 0.5 mm better than v2 (5.14) |
+| priority | task | needs |
+|---|---|---|
+| 1 | record a session with ~1 min room scans that pass the exam viewpoints, all scans of the day in the map | recording |
+| 2 | live run on the hardware (real-time version, 0.25 s delay) | hardware |
+| 3 | maps without Polaris (SLAM / ACE0-style room-scan poses) | code |
 
 Files and commands: `README.md`.
