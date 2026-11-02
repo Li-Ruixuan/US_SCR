@@ -76,14 +76,3 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
-
-
-
-To get the real shape number first (no training, a few minutes), on the training PC:
-
-
-export DATA=/data2/u0137815/rgbd-us/data
-python tools/volume_pages.py --test-root $DATA/train_3XX --track runs/track-v2map-3XX --anchoring runs/sys-classical-r-3XX/anchor_eval_classical-odometry-odo-classical-vo-train_3XX-recover3-startanchor-train_3XX.json --extra classical-vo-train_3XX --labels "classical anchors + classical odometry" "classical odometry only" --out runs/volume3d-map/3XX
-python tools/us_analysis.py shape --json runs/volume3d-map/3XX/poses/*.json --out runs/shape-map-3XX.md
-
-
