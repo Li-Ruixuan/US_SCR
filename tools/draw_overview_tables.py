@@ -1,5 +1,5 @@
 """
-The overview tables of summary.md 1.1 as figures, in tools/tables/: one PNG per table and all of
+The overview tables of summary.md 1.2 as figures, in tools/tables/: one PNG per table and all of
 them in one PDF (one page each), with the conclusions of each table under it.
   A  every system at the US image          B  pose from one image (anchors)
   C  coverage: what decides SCR vs classical  D  where the error sits (absolute, shape, placement)

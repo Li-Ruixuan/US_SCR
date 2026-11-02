@@ -11,19 +11,19 @@ A probe-mounted RGB-D camera (RealSense D435i) looks at the room; the pose of ev
 ## 2. Workflow
 
 - Code is edited on this machine; the user runs everything on the training PC and does all git push / pull. Give plain foreground `python ...` commands.
-- This machine (RTX 3050, 4 GB, `~/anaconda3/envs/gpu/bin/python`): quick tests only, on `~/Desktop/rgbd-us/data/train_3XX/run-316` (the only matched run here).
+- This machine (RTX 3050, 4 GB, `~/anaconda3/envs/gpu/bin/python`): code only, no training or processing runs.
 - Training PC (RTX A4500, 20 GB): data at `/data2/u0137815/rgbd-us/data/train_<NXX>/`; `test_4XXA` … `test_4XXE` are folders of links into `train_4XX`; rgbd-us at `/data2/u0137815/rgbd-us` (its `runs/` holds the odometry runs and anchor pairs the hybrid system needs).
 - Checkpoints (`*.pt`, `saved_model/`) are git-ignored and live on the training PC.
 - Every new setting gets a rule fixed before the run, decided on 2XX validation (run-205, run-211); tests only report.
 
 ```bash
 export DATA=/data2/u0137815/rgbd-us/data
-python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --head big --label-max-depth 2000 --drop-depth-edges --out runs/v2-3XX
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/v2-3XX
 python scr_anchor.py eval  --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX            # anchors, one frame per second
 python scr_anchor.py track --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-3XX
 ```
 
-Note: `train`'s defaults are still the v1 recipe (small head, labels to 3 m); the final model needs the three flags above.
+`train`'s defaults are the final recipe (v2) since 2 Nov 2026; the v1 recipe is `--head small --label-max-depth 3000 --keep-depth-edges`. Maps without Polaris: `scr_map.py` (README 4b).
 
 ## 3. Data
 
@@ -77,10 +77,19 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
-
-
-
-
-
-
  
+
+git add . && git commit -m "Clean-up, train defaults = final recipe, scr_map.py: maps without a tracker" && git push
+On the training PC:
+
+
+git pull
+export DATA=/data2/u0137815/rgbd-us/data
+
+python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/map-3XX
+
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --label-poses runs/map-3XX/poses_room-301.json runs/map-3XX/poses_room-302.json --out runs/v2map-3XX
+
+python scr_anchor.py track --ckpt runs/v2map-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-v2map-3XX
+
+git add -A && git commit -m "Map without a tracker on 3XX" && git push

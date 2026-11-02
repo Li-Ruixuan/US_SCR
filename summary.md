@@ -1,6 +1,6 @@
 # Markerless US probe tracking with one scene coordinate regression (SCR) network: results
 
-Status 29 Oct 2026. Overview tables of all tests: 1.1. Builds on `rgbd-us` (`note_RPR.md` there). Run index: `runs/README.md`. Working notes and data guide: `note.md`. The earlier, chronological version of this summary (sections 3.1–3.20, all intermediate tables) is in git commit 870a144.
+Status 29 Oct 2026. Claims and their evidence: 1.1. Overview tables of all tests: 1.2. Data: 2.1. Builds on `rgbd-us` (`note_RPR.md` there). Run index: `runs/README.md`. Working notes and data guide: `note.md`. The earlier, chronological version of this summary (sections 3.1–3.20, all intermediate tables) is in git commit 870a144.
 
 ## 1. Bottom line
 
@@ -19,7 +19,31 @@ Status 29 Oct 2026. Overview tables of all tests: 1.1. Builds on `rgbd-us` (`not
 | Can the US images help? | **No.** In-plane registration is worse than assuming no motion; speckle measures out-of-plane distance (0.3–0.4 mm) but the camera is 2–5× better between nearby frames; Li et al. (reproduced on its own data: 21.4 vs 22.8 mm published) is no better than zero motion on ours, fine-tuned worse | 6 |
 | Model variants | Big head + clean labels adopted (lower p90 and rotation); viewpoint augmentation, full resolution, refined pose fit, multi-frame anchors: neutral or worse | 4.5 |
 
-## 1.1 Overview tables
+## 1.1 Claims and evidence
+
+What the data support, and how strongly. **Strong:** several splits, large effects, rule fixed before the run. **Moderate:** one main split or a caveat that must be stated with it. **Not claimed:** mixed or missing evidence.
+
+| # | claim | evidence | strength | state with it |
+|---|---|---|---|---|
+| 1 | One SCR network on every frame replaces odometry + anchors | all 7 splits: median equal to SCR + SIFT odometry (4XX 6.48 vs 6.54 mm), as smooth or smoother; rule fixed on 2XX | **strong** | |
+| 2 | Smoother tracking than every alternative | step error 3XX 0.93 vs 1.09 (classical), 4XX 1.07 vs 1.28 mm; every split | **strong** | |
+| 3 | Predicting room coordinates + geometric solver beats pose regression | anchors 3XX 1.8 vs 15.3 mm, 4XX 6.0 vs 49 mm; every split | **strong** | |
+| 4 | Room-scan coverage decides the accuracy | covered frames 4.1 vs uncovered 13.4 mm; earlier sweeps added to the map (Polaris labels) 4XX A 5.6 → 2.0 mm; 20 s scans along the viewpoints match classical, 130 s off them do not | **strong** | |
+| 5 | SCR can use all room scans of the day despite moved objects; feature matching cannot | 4XX B–E: SCR 6.82 → 5.53, classical 4.90 → 13.93 mm with the same pooled scans | **strong** | pooling decided on test blocks; B confirmed it |
+| 6 | The ultrasound images add nothing to the camera pose | 10 tests in two phases; Li et al. reproduced on its own data | **strong** (this setup) | |
+| 7 | More accurate than classical where the scan covers the sweep viewpoints | 3XX 1.85 vs 3.1 mm, three seeds 1.85–2.12; 2XX 3.35 vs 4.2 | moderate | strict protocol (map before the sweeps): on par, 2.98 vs 3.0 |
+| 8 | Better volume shape than classical | after a rigid fit, every split: 2XX 3.04 vs 3.98, 3XX 1.57 vs 2.47, strict 2.26 vs 2.59, 4XX 2.95 vs 3.34 mm | moderate | metric introduced after the 4XX gap was known; report the absolute error too |
+| 9 | Real time | 0.25 s delay gives the offline result on every split; fully causal: same median, steps +20 %; 60–70 ms per frame | moderate | offline replay of recordings, not run live |
+
+**Not claimed** (and why):
+
+- *Robust to the room changing after the scan:* with an outdated map SCR is better in 2 of 3 cases (2XX → 3XX 6.5 vs 10.4 mm, A → C 13.4 vs 80.1) and worse in one (A → B 14.0 vs 7.9); both are 2–7× worse than with a current scan. Rule: rescan after a change, keep the old scans in the map.
+- *Better than classical in new sessions with short room scans:* 4XX 5.45 vs 4.76 mm (1.15×).
+- *Works without a tracker:* the room-scan poses come from Polaris; building them with SLAM is untested (limitation 2).
+- *Generalises to new rooms:* the network is trained per room, by design.
+- *2 mm everywhere:* reached on the well-covered session only.
+
+## 1.2 Overview tables
 
 Five tables cover every test: A every system at the US image, B single-image pose methods, C coverage (what decides SCR vs classical), D where the error sits (local, shape, placement), E one row per test with its verdict. 4XX mean = mean of A–E. Details are in the sections given. As figures: `tools/tables/table_A.png` … `table_E.png` and `tools/tables/overview_tables.pdf` (`python tools/draw_overview_tables.py`; numbers copied from here, edit both together).
 
@@ -158,18 +182,39 @@ Five tables cover every test: A every system at the US image, B single-image pos
 
 ## 2. Setup
 
-**Hardware.** A probe-mounted RealSense D435i (colour 1280 × 720, depth aligned) looks at the room; an NDI Polaris marker on the probe gives ground truth (~0.25 mm). Target: ~2 mm at the US image, ~16 cm from the camera (1° ≈ 1.6 mm at the image bottom).
+**Task.** A probe-mounted RGB-D camera gives the pose of every ultrasound image, with nothing outside the probe during the exam. Target: ~2 mm at the US image (the elevational beam width), ~16 cm from the camera (1° ≈ 1.6 mm at the image bottom).
 
-**Data.**
+### 2.1 Data
 
-| collection | room scans (map) | sweeps (test) | role |
-|---|---|---|---|
-| 2XX (9 Oct) | room-201, 202: 3.0 min, 5,366 frames | run-205, run-211 | **validation: every setting is chosen here** |
-| 3XX (9 Oct) | room-301, 302: 2.0 min, 3,356 frames | run-313…317 | clean test: same room, a few small objects moved |
-| 4XX A (14 Oct) | room-401 (90 s), 402 (40 s) | run-401…408 | new session |
-| 4XX B | room-403, 404 (40 s each) | run-409…412 | small rearrangement |
-| 4XX C | room-405, 406 (40 s each) | run-413…416 | large rearrangement |
-| 4XX D, E | C's scans | run-418…421, 423, 424; run-425…428 | second subject; occlusion |
+**Sensors and ground truth.**
+
+- **Camera:** RealSense D435i on the probe; colour 1280 × 720 at ~30 Hz, depth aligned to colour (uint16 mm, reliable 0.1–3 m, noise growing with distance², missing on dark or shiny surfaces and closer than ~0.2 m).
+- **Ultrasound:** screen grab of the scanner (depth 9 cm, gain 48 %, 19 frames/s), cropped to 640 × 480 at 0.2295 × 0.2213 mm/px; ~25 grabs/s with ~25 % repeated frames (flagged); the fan fades at depth and at the sides.
+- **Ground truth:** NDI Polaris marker on the probe (~0.1–0.25 mm, 20 Hz, interpolated to the camera frames; clock offset measured against the camera gyro and corrected). Camera pose = marker pose × hand-eye (board-corner error 3.5 mm); US image pose = camera pose × hand-eye⁻¹ × US calibration (N-wire phantom).
+- **Two kinds of recording:** *room scans*, the probe camera moved around the room without ultrasound (the only training data of SCR); *sweeps*, ultrasound scans of a subject (only evaluated). One `frames.csv` per recording matches all streams; frames without a marker pose, or with the probe in the air, are skipped.
+
+**Collections** (one per recording day; coverage = share of evaluated sweep frames with a room-scan camera pose within 30 mm and 10°, from `runs/coverage_error.md`):
+
+| collection | date | room scans | sweeps | what it is | coverage | role |
+|---|---|---|---|---|---|---|
+| 1XX | 8 Oct | room-101, 102 | run-101…112 | depth wrong (cable in front of the sensor), marker often lost | – | not used |
+| 2XX | 9 Oct | room-201, 202: 3.0 min, 5,366 frames | run-201…212; evaluated: run-205, run-211 | first clean session, subject 1 | 75 % | **validation**: every setting is chosen here |
+| 3XX | 9 Oct | room-301, 302: 2.0 min, 3,356 frames | run-313…317 (5) | same room later that day, a few small objects moved; room-302 recorded after the sweeps; subject 1 | 96 % | test (strict variant: room-301 only, sweeps run-315…317) |
+| 4XX | 14 Oct | room-401…406 (6 scans) | run-401…428 without 417, 422 (26) | new session in five blocks A–E (below): room changes, a second subject, occlusion | 0–14 % | test (block A also validation for coverage questions) |
+
+**4XX blocks** (recorded in this order on 14 Oct):
+
+| block | room scans | sweeps | subject | condition | coverage | pooled training scans |
+|---|---|---|---|---|---|---|
+| A | room-401 (90 s), 402 (40 s): 3,893 frames | run-401…408 (8) | 1 | new session; scans held low, away from the sweep viewpoints | 5 % | – (first block) |
+| B | room-403, 404 (40 s each): 2,381 frames | run-409…412 (4) | 1 | small rearrangement (box, bottles, a mouse) | 12 % | A + B: 6,274 frames |
+| C | room-405, 406 (40 s each): 2,397 frames | run-413…416 (4) | 1 | large rearrangement (objects removed and added) | 0 % | A + B + C: 8,671 frames |
+| D | C's scans | run-418…421, 423, 424 (6) | **2** | second subject; an arm briefly in view (run-419…421) | 0 % | A + B + C |
+| E | C's scans | run-425…428 (4) | **2** | occlusion: an arm across the view 22–29 % of the time (run-425, 426) | 14 % | A + B + C |
+
+In all: 2 + 5 + 26 = 33 evaluated sweeps; 4XX sweeps are slower than 2XX (6–18 mm/s). Quirks: `record_config.json` in 3XX carries old run names (trust the folder); in 4XX run-427 was run-422 and run-428 was run-417. Details: `note.md` 3.
+
+### 2.2 Protocol and final model
 
 **Protocol.** One model per session, trained on its room scans only (Polaris poses), tested on its sweeps. Anchor accuracy: camera position / rotation error against Polaris, one frame per second, mean of per-sweep medians / p90. System accuracy: **median error at the US image** (5 points via the US calibration) per sweep, mean over sweeps; **step-to-step error** = mean change of the error vector over 8 rows (0.27 s). Rules for adopting a change are fixed before the run and decided on 2XX; tests only report. Run-to-run noise: ~1 mm on 2XX (2 sweeps), ~0.3 mm on 3XX (seeds).
 
@@ -375,6 +420,6 @@ The four tasks of 30 Oct are done: real time works (3.3), scan content matters m
 |---|---|---|
 | 1 | record a session with ~1 min room scans that pass the exam viewpoints, all scans of the day in the map | recording |
 | 2 | live run on the hardware (real-time version, 0.25 s delay) | hardware |
-| 3 | maps without Polaris (SLAM / ACE0-style room-scan poses) | code |
+| 3 | maps without Polaris: the SCR network builds the room-scan poses itself (ACE0-style, `scr_map.py`, code ready 2 Nov); compare the map with Polaris and the tracking with the Polaris-labelled model on 3XX | run |
 
 Files and commands: `README.md`.

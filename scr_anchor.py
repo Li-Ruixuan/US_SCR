@@ -1,48 +1,37 @@
 """
-Scene coordinate regression (SCR) anchors: train a network on a session's room scans, then
-localise the camera of each sweep frame.
+Scene coordinate regression (SCR) for probe tracking: train one network on a room's scans, then give
+the camera pose of every sweep frame. Commands: train, eval, track (and scr_map.py builds the map).
 
-Network: rgbd-us `scr.py` SCRNet (EfficientNet-B0 to stride 16, stride-8 + stride-16 features,
-1x1-conv head) predicting the room coordinate of each cell of a 45 x 80 grid; optionally an
-ACE-sized head (--head big). Targets: the room-scan depth at each cell centre, back-projected with
-the frame's pose (Polaris, or the system's own estimate with --label-poses).
+Final pipeline (summary.md 2.2, 3.1):
+  train  every room-scan frame; label of each of the 45 x 80 cells = its depth point (0.1-2 m, not on a
+         depth edge) placed in the room with the frame's pose (Polaris, or --label-poses: estimated poses
+         in poses.py JSON, e.g. from scr_map.py); network: EfficientNet-B0 stride-8 + stride-16 features
+         -> 1x1 head (big: 4 residual blocks, 512); loss: mean 3D distance; AdamW, 120 epochs, flat lr
+         for 60 % then cosine; photometric augmentation. The defaults are this recipe (v2).
+  track  every --every-th usable row: network -> room coordinates; Kabsch RANSAC with the measured depth
+         (256 hypotheses, 20 mm, 3 refits, >= --gate inliers); robust local fit over time per segment for
+         each --windows W (offline) and, with --lags L, in real time (last W s up to t + L, extrapolated
+         linearly to t; L = 0 causal). Error at the US image (5 points, median per sweep) and step-to-step
+         error per --every rows and per 8 rows. Raw poses cached in <out>/poses.npz; with the cache the
+         smoothing reruns on the CPU without the checkpoint.
+  eval   anchors only: one frame every --every usable rows, camera error against Polaris
+         (--solver kabsch, or pnp without depth as rgbd-us scr.py).
 
-Training (`train`): every room-scan frame, mean 3D distance loss, AdamW, 120 epochs with a flat
-learning rate for 60 % of the steps then a cosine decay to 0, head in fp32 (fp16 would quantise the
-output to 1-2 mm). Every --check-every epochs a fit check runs on 120 fixed training frames in eval
-mode: coordinate error, the same after the best rigid fit, and the PnP pose of those frames.
-
-Pose (`eval`): --solver kabsch (default): 3D-3D RANSAC between the measured depth of each cell and
-its predicted room coordinate; --solver pnp: PnP-RANSAC on the 2D cell centres (rgbd-us scr.py).
-Protocol as rgbd-us `scr.py eval`: one frame every 30 usable rows of the test sweeps, camera
-position / rotation error against Polaris, with a fixed RANSAC seed per frame.
-
-Checkpoints keep scr.py's format (plus "head"), so tools/anchoring_kabsch.py runs them in the full
-system. Data loading and the network come from dataloader.py, geometry.py and scr.py in this repo
-(unchanged copies of rgbd-us modules).
-
-  python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/v1-3XX \\
-      --eval-root $DATA/train_3XX
-  python scr_anchor.py eval --ckpt runs/v1-3XX/best.pt --test-root $DATA/train_3XX
+  python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/v2-3XX
   python scr_anchor.py track --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-3XX
+  python scr_anchor.py eval  --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX
 
-Tracking (`track`): the network alone as the tracker, no odometry and no Polaris start pose. SCR +
-Kabsch on every --every usable row, poses with fewer than --gate inliers dropped, cached in
-<out>/poses.npz; then for each --windows W (s) a robust local fit over time per segment (tricube x
-inliers weights, quadratic inside the window's poses, linear with fewer than 5, constant when
-extrapolating; 2 Tukey reweightings; rotation as rotation vectors about the window's mean). Error at
-the US image as anchoring.py (5 points, median per sweep) and the step-to-step error per --every rows
-and per 8 rows (anchoring.py's odometry step). --lags L: also in real time, with a delay of L s (0 =
-causal): the window is the last W s up to t + L, extrapolated linearly to t. With cached poses the
-smoothing reruns on the CPU without the checkpoint.
+Study options (results in summary.md 4; none adopted unless noted):
+  --head small --label-max-depth 3000 --keep-depth-edges   the v1 recipe
+  --aug-scale / --aug-rot          viewpoint augmentation (worse)
+  --freeze-encoder                 head only on frozen ImageNet features (no gain)
+  --render-views (scr_render.py)   rendered extra views from a voxel cloud or real frames (small gain)
+  --confidence, track --weighted   confidence head + weighted Kabsch (no gain)
+  --scan-seconds S                 only the first S seconds of each room scan (scan-length study)
+  --max-frames                     smoke tests
 
-Options for the open questions (summary.md 8):
-  --confidence (train): a second head on detached features learns the expected error of each cell
-      (Laplace-type likelihood); track --weighted samples RANSAC cells ~ 1 / sigma and refits with
-      weights 1 / sigma^2. The coordinates train exactly as without it.
-  --render-source frames (train, with --render-views): rendered views from the nearest real frames at
-      full resolution instead of the voxel room cloud.
-  --scan-seconds S (train): only the first S seconds of each room scan (how long must a scan be?).
+Checkpoints keep scr.py's format (plus "head", "confidence"), so tools/anchoring_kabsch.py runs them in
+the hybrid system. dataloader.py, geometry.py and scr.py are unchanged copies of rgbd-us modules.
 """
 
 import argparse
@@ -65,7 +54,7 @@ from torch.utils.data import ConcatDataset, DataLoader, Dataset          # noqa:
 from scipy.spatial.transform import Rotation                            # noqa: E402
 from tqdm import tqdm                                                   # noqa: E402
 
-from dataloader import IMAGENET_MEAN, IMAGENET_STD, RPRConfig, RPRDataset, load_hand_eye, test_sweeps   # noqa: E402
+from dataloader import RPRConfig, RPRDataset, load_hand_eye, test_sweeps   # noqa: E402
 from scr import STRIDE, SCRNet, coord_targets, grid_pixels, load_depth_mm, localize   # noqa: E402
 
 
@@ -157,12 +146,16 @@ class Frames(Dataset):
         (+-`rot` deg) of the image and its room-coordinate map alike; zooming out leaves a border
         without labels;
       * label cleaning: no label beyond `max_depth` (depth noise grows with distance squared) and
-        none on depth edges, where a pixel's 3x3 neighbourhood spans more than 3 % of its depth."""
+        none on depth edges, where a pixel's 3x3 neighbourhood spans more than 3 % of its depth;
+      * camera_frame: targets in the camera frame (m, no pose, no centre) plus the item index, for
+        training with learnable pose corrections (scr_map.py)."""
 
-    def __init__(self, ds, root, items, centre, scale=(1.0, 1.0), rot=0.0, max_depth=None, drop_edges=False, seed=0):
+    def __init__(self, ds, root, items, centre, scale=(1.0, 1.0), rot=0.0, max_depth=None, drop_edges=False, seed=0,
+                 camera_frame=False):
         self.ds, self.root, self.items, self.centre = ds, root, items, np.asarray(centre)
         self.log_scale, self.rot = np.log(scale), rot
         self.max_depth, self.drop_edges, self.seed = max_depth, drop_edges, seed
+        self.camera_frame = camera_frame
 
     def __len__(self):
         return len(self.items)
@@ -181,7 +174,7 @@ class Frames(Dataset):
         v, u = np.mgrid[0:H, 0:W] * f
         z = d[v, u].astype(np.float64)
         X = np.stack([(u - K[0, 2]) / K[0, 0] * z, (v - K[1, 2]) / K[1, 1] * z, z])
-        T = r["T_world_cam"][row]
+        T = np.eye(4) if self.camera_frame else r["T_world_cam"][row]
         xyz = (np.einsum("ij,jhw->hwi", T[:3, :3], X) + T[:3, 3]).astype(np.float32)
         ok = (z > cfg.min_depth) & (z < min(cfg.max_depth, self.max_depth or np.inf))
         if self.drop_edges:
@@ -202,182 +195,10 @@ class Frames(Dataset):
             ok = cv2.warpAffine(ok, M, (W, H), flags=cv2.INTER_NEAREST, borderValue=0)
 
         o = STRIDE // 2
-        tgt = ((xyz[o::STRIDE, o::STRIDE] - self.centre) / 1000.0).transpose(2, 0, 1)
-        return (torch.from_numpy(rgb.transpose(2, 0, 1).copy()).float(), torch.from_numpy(tgt.copy()).float(),
-                torch.from_numpy(ok[o::STRIDE, o::STRIDE] > 0))
-
-
-# ---------------------------------------------------------------- rendered views (--render-views)
-
-def frame_points(ds, root, name, row, stride, max_depth):
-    """One frame as coloured room points: depth back-projected on a `stride`-pixel grid with the frame's pose,
-    depth edges dropped -> P (N, 3) mm world, colour (N, 3) uint8, size (N,) mm (the pixel footprint)."""
-    r = ds.runs[name]
-    rgb = cv2.cvtColor(cv2.imread(str(Path(root) / name / r["df"]["rgb"].iloc[row])), cv2.COLOR_BGR2RGB)
-    d = load_depth_mm(ds, root, name, row).astype(np.float32)
-    k3 = np.ones((3, 3), np.uint8)
-    edge = ((cv2.dilate(d, k3) - cv2.erode(np.where(d > 0, d, np.float32(1e9)), k3)) > 0.03 * d) | \
-           (cv2.erode((d > 0).astype(np.uint8), k3) == 0)
-    v, u = np.mgrid[0:d.shape[0]:stride, 0:d.shape[1]:stride]
-    z = d[v, u].astype(np.float64)
-    ok = (z > 100) & (z < max_depth) & ~edge[v, u]
-    K, T = np.asarray(r["K"], float), r["T_world_cam"][row]
-    X = np.stack([(u[ok] - K[0, 2]) / K[0, 0] * z[ok], (v[ok] - K[1, 2]) / K[1, 1] * z[ok], z[ok]], 1)
-    return X @ T[:3, :3].T + T[:3, 3], rgb[v[ok], u[ok]], z[ok] / K[0, 0] * stride
-
-
-def room_cloud(ds, root, items, every, stride, max_depth, voxel):
-    """Coloured point cloud of the room (mm, world frame) from every `every`-th training frame: depth
-    back-projected on a `stride`-pixel grid with the frame's pose, depth edges dropped, merged on a
-    `voxel`-mm grid (mean position and colour per voxel)."""
-    keys, pts, cols = [], [], []
-
-    def merge():
-        k = np.concatenate(keys)
-        u, inv = np.unique(k, return_inverse=True)
-        n = np.bincount(inv).astype(np.float64)[:, None]
-        p = np.zeros((len(u), 3))
-        c = np.zeros((len(u), 3))
-        np.add.at(p, inv, np.concatenate(pts))
-        np.add.at(c, inv, np.concatenate(cols))
-        keys[:], pts[:], cols[:] = [u], [p / n], [c / n]
-
-    for name, row in bar(items[::every], desc="room cloud"):
-        P, col, _ = frame_points(ds, root, name, row, stride, max_depth)
-        q = np.floor(P / voxel).astype(np.int64) + (1 << 20)
-        keys.append((q[:, 0] << 42) | (q[:, 1] << 21) | q[:, 2])
-        pts.append(P)
-        cols.append(col.astype(np.float64))
-        if len(keys) > 50:
-            merge()
-    merge()
-    return pts[0].astype(np.float32), np.clip(cols[0], 0, 255).astype(np.uint8)
-
-
-def render_view(P, C, T_wc, K, hw, size, device):
-    """Splat the coloured cloud into a camera at T_wc (render resolution hw, intrinsics K); size: the point
-    footprint in mm (a voxel size, or a tensor with one per point)
-    -> rgb (H, W, 3) uint8, room coordinate (H, W, 3) mm, depth (H, W) mm (0 = nothing)."""
-    H, W = hw
-    R, t = torch.tensor(T_wc[:3, :3], device=device, dtype=torch.float32), torch.tensor(T_wc[:3, 3], device=device, dtype=torch.float32)
-    Xc = (P - t) @ R                                                      # world -> camera
-    z = Xc[:, 2]
-    m = z > 100
-    idx = torch.nonzero(m)[:, 0]
-    z = z[m]
-    u = Xc[m, 0] / z * K[0, 0] + K[0, 2]
-    v = Xc[m, 1] / z * K[1, 1] + K[1, 2]
-    sz = size[m] if torch.is_tensor(size) else size
-    rad = torch.clamp((sz * K[0, 0] / z * 0.75).round().long(), 0, 2)       # splat half-size: covers the point footprint
-    key = (z * 10).long() * (len(P) + 1) + idx                          # nearest wins; ties by index
-    best = torch.full((H * W,), torch.iinfo(torch.long).max, device=device, dtype=torch.long)
-    ui, vi = u.round().long(), v.round().long()
-    for dy in range(-2, 3):
-        for dx in range(-2, 3):
-            s = (rad >= max(abs(dx), abs(dy)))
-            uu, vv = ui[s] + dx, vi[s] + dy
-            ok = (uu >= 0) & (uu < W) & (vv >= 0) & (vv < H)
-            best.scatter_reduce_(0, (vv[ok] * W + uu[ok]), key[s][ok], reduce="amin")
-    hit = best < torch.iinfo(torch.long).max
-    src = torch.where(hit, best % (len(P) + 1), torch.zeros_like(best))
-    rgb = torch.where(hit[:, None], C[src], torch.zeros_like(C[src])).reshape(H, W, 3)
-    xyz = P[src].reshape(H, W, 3)
-    dep = torch.where(hit, (best // (len(P) + 1)).float() / 10, torch.zeros_like(best, dtype=torch.float32)).reshape(H, W)
-    return rgb.cpu().numpy(), xyz.cpu().numpy(), dep.cpu().numpy()
-
-
-def perturb(T, shift, rot, rng):
-    """The camera pose T moved by up to `shift` mm and turned by up to `rot` deg about its centre (random directions)."""
-    a = rng.normal(size=3)
-    R = Rotation.from_rotvec(a / np.linalg.norm(a) * np.radians(rng.uniform(0, rot))).as_matrix()
-    d = rng.normal(size=3)
-    out = T.copy()
-    out[:3, :3] = T[:3, :3] @ R
-    out[:3, 3] = T[:3, 3] + T[:3, :3] @ (d / np.linalg.norm(d) * rng.uniform(0, shift))
-    return out
-
-
-class RenderedViews(Dataset):
-    """New viewpoints rendered with exact room-coordinate labels (rendered once, at the start of
-    training): a training pose turned by up to --render-rot and moved by up to --render-shift; kept if
-    at least --render-min-valid of its cells have a label. Two sources (--render-source):
-      cloud:  the room cloud of every --render-every-th training frame on --render-voxel mm voxels
-              (blocky: one colour per voxel);
-      frames: the --render-frames training frames nearest to the new pose (camera distance + 28 mm
-              per degree of viewing direction), each back-projected at full resolution, so the image
-              keeps the real texture.
-    Holes are filled from neighbouring pixels in the image only; a cell is labelled only where the
-    rendered surface is not seen through a hole (depth within 5 % of its 5 x 5 minimum) and closer
-    than the label depth limit. Photometric augmentation as the real frames."""
-
-    def __init__(self, ds, root, items, centre, args, device):
-        self.centre, self.seed = np.asarray(centre), args.seed
-        frames_mode = args.render_source == "frames"
-        if frames_mode:
-            Tc = np.stack([ds.runs[n]["T_world_cam"][r] for n, r in items])
-            pos, look = Tc[:, :3, 3], Tc[:, :3, 2]
-        else:
-            P, C = room_cloud(ds, root, items, args.render_every, 4, args.label_max_depth, args.render_voxel)
-            print(f"room cloud: {len(P) / 1e6:.2f} M points ({args.render_voxel:g} mm voxels)", flush=True)
-            Pt, Ct = torch.from_numpy(P).to(device), torch.from_numpy(C).to(device)
-            size = args.render_voxel
-        H, W = ds.cfg.image_size
-        rng = np.random.default_rng(args.seed + 7)
-        n_want = int(round(args.render_views * len(items)))
-        self.rgb, self.tgt, self.ok, self.poses = [], [], [], []
-        tries = 0
-        bar_ = tqdm(total=n_want, desc="rendering views", leave=False)
-        while len(self.rgb) < n_want and tries < 20 * n_want:
-            tries += 1
-            name, row = items[rng.integers(len(items))]
-            r = ds.runs[name]
-            K = np.asarray(r["K"], float) * np.array([[W / r["hw"][1]], [H / r["hw"][0]], [1]])
-            T = perturb(r["T_world_cam"][row], args.render_shift, args.render_rot, rng)
-            if frames_mode:                   # the nearest real frames, full resolution
-                ang = np.degrees(np.arccos(np.clip(look @ T[:3, 2], -1, 1)))
-                near = np.argsort(np.linalg.norm(pos - T[:3, 3], axis=1) + 28.0 * ang)[: args.render_frames]
-                parts = [frame_points(ds, root, *items[j], 1, args.label_max_depth) for j in near]
-                Pt = torch.from_numpy(np.concatenate([q[0] for q in parts]).astype(np.float32)).to(device)
-                Ct = torch.from_numpy(np.concatenate([q[1] for q in parts])).to(device)
-                size = torch.from_numpy(np.concatenate([q[2] for q in parts]).astype(np.float32)).to(device)
-            rgb, xyz, dep = render_view(Pt, Ct, T, K, (H, W), size, device)
-            dmin = cv2.erode(np.where(dep > 0, dep, np.float32(1e9)), np.ones((5, 5), np.uint8))
-            ok = (dep > 100) & (dep < args.label_max_depth) & (dep <= 1.05 * dmin)
-            o = STRIDE // 2
-            okc = ok[o::STRIDE, o::STRIDE]
-            if okc.mean() < args.render_min_valid:
-                continue
-            hole = (dep == 0).astype(np.uint8)
-            if hole.any():                                                       # fill holes in the image only
-                rgb = cv2.inpaint(rgb, hole, 3, cv2.INPAINT_TELEA)
-            self.rgb.append(rgb)
-            self.tgt.append(((xyz[o::STRIDE, o::STRIDE] - self.centre) / 1000.0).transpose(2, 0, 1).astype(np.float32))
-            self.ok.append(okc)
-            self.poses.append(T)
-            bar_.update(1)
-        bar_.close()
-        print(f"{len(self.rgb)} rendered views from {args.render_source} ({tries} tried; shift <= {args.render_shift:g} mm, "
-              f"rotation <= {args.render_rot:g} deg)", flush=True)
-
-    def __len__(self):
-        return len(self.rgb)
-
-    def __getitem__(self, i):
-        rng = np.random.default_rng([self.seed, torch.initial_seed() % 2 ** 32, i, 1])
-        b, c, g = rng.uniform(-0.2, 0.2), rng.uniform(0.8, 1.2), rng.uniform(0.9, 1.1, 3)
-        rgb = np.clip((self.rgb[i].astype(np.float32) / 255 * g - 0.5) * c + 0.5 + b, 0, 1)
-        rgb = ((rgb - IMAGENET_MEAN) / IMAGENET_STD).transpose(2, 0, 1)
-        return torch.from_numpy(np.ascontiguousarray(rgb)).float(), torch.from_numpy(self.tgt[i]), torch.from_numpy(self.ok[i])
-
-
-def render_preview(frames, rendered, path, n=4):
-    """A real training frame next to rendered views, for a visual check of the renders."""
-    tiles = []
-    for k in range(min(n, len(rendered))):
-        real = frames.ds.load_frame(*frames.items[(k * 997) % len(frames.items)])[0].transpose(1, 2, 0)
-        real = np.clip(real * IMAGENET_STD + IMAGENET_MEAN, 0, 1)
-        tiles.append(np.concatenate([(real * 255).astype(np.uint8), rendered.rgb[k * max(1, len(rendered) // n)]], 1))
-    cv2.imwrite(str(path), cv2.cvtColor(np.concatenate(tiles, 0), cv2.COLOR_RGB2BGR))
+        tgt = ((xyz[o::STRIDE, o::STRIDE] - (0.0 if self.camera_frame else self.centre)) / 1000.0).transpose(2, 0, 1)
+        out = (torch.from_numpy(rgb.transpose(2, 0, 1).copy()).float(), torch.from_numpy(tgt.copy()).float(),
+               torch.from_numpy(ok[o::STRIDE, o::STRIDE] > 0))
+        return out + (i,) if self.camera_frame else out
 
 
 def label_with_estimates(ds, paths):
@@ -587,6 +408,7 @@ def train(args):
     out.mkdir(parents=True, exist_ok=True)
     data, n_rendered = frames, 0
     if args.render_views > 0:                 # extra viewpoints rendered from the room cloud, exact labels
+        from scr_render import RenderedViews, render_preview
         rendered = RenderedViews(ds, args.root, items, centre, args, device)
         render_preview(frames, rendered, out / "render_preview.jpg")
         data, n_rendered = ConcatDataset([frames, rendered]), len(rendered)
@@ -930,9 +752,14 @@ def main():
     t.add_argument("--label-poses", nargs="+", default=[],
                    help="poses.py JSON exports: label these --scan-runs with the system's estimated poses "
                         "(T_world_cam_pred) instead of Polaris (map extension without a tracker)")
-    t.add_argument("--head", choices=["small", "big"], default="small", help="small: scr.py's 0.17 M head; big: ~2.2 M")
-    t.add_argument("--label-max-depth", type=float, default=3000.0, help="no training label beyond this depth (mm)")
-    t.add_argument("--drop-depth-edges", action="store_true", help="no training label on depth edges")
+    t.add_argument("--head", choices=["small", "big"], default="big",
+                   help="big: ~2.2 M (final, v2); small: scr.py's 0.17 M head (v1)")
+    t.add_argument("--label-max-depth", type=float, default=2000.0,
+                   help="no training label beyond this depth (mm); 2000 final, 3000 in v1")
+    t.add_argument("--drop-depth-edges", action="store_true", default=True,
+                   help="no training label on depth edges (default; final recipe)")
+    t.add_argument("--keep-depth-edges", dest="drop_depth_edges", action="store_false",
+                   help="label depth edges too (v1)")
     t.add_argument("--freeze-encoder", action="store_true", help="train the head only on frozen ImageNet features (ACE-style)")
     t.add_argument("--render-views", type=float, default=0.0,
                    help="add this many rendered views per training frame (e.g. 0.5), new viewpoints from the room cloud")

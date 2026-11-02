@@ -66,10 +66,10 @@ It should print the frames found, one line per epoch, and an evaluation table (e
 
 ## 4. Train, evaluate, track
 
-Train the final model (v2) on a collection's room scans (about 25–50 min on an A4500; the flags are needed, `train`'s defaults are the earlier v1 recipe), evaluate its anchors on the sweeps (one frame per second), and track every frame with the network alone:
+Train the final model (v2) on a collection's room scans (about 25–50 min on an A4500; `train`'s defaults are this recipe since 2 Nov 2026), evaluate its anchors on the sweeps (one frame per second), and track every frame with the network alone:
 
 ```bash
-python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --head big --label-max-depth 2000 --drop-depth-edges --out runs/v2-3XX
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/v2-3XX
 python scr_anchor.py eval  --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX                  # anchors, Kabsch (default)
 python scr_anchor.py eval  --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX --solver pnp     # anchors, PnP without depth
 python scr_anchor.py track --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-3XX   # the system
@@ -77,7 +77,19 @@ python scr_anchor.py track --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3X
 
 Outputs: `runs/v2-3XX/` `config.json` (all settings), `history.json` (loss and fit check per epoch), `best.pt`, and per evaluation `eval_<test>[_kabsch]/scr_eval.md` / `.json`; `runs/track-3XX/scr_track.md` (error at the US image, raw and smoothed with 0.25–2 s windows; the final system uses 2 s), `scr_track.json`, `poses.npz` (raw poses, reused when re-smoothing with other `--windows`).
 
-Other options of `train`: `--freeze-encoder` (train the head only on frozen ImageNet features, ACE-style), `--render-views 0.5` (add 0.5 rendered views per training frame: new viewpoints splatted from a point cloud of the room scan, exact labels; `--render-shift`, `--render-rot`, `--render-voxel`; writes `render_preview.jpg`), `--aug-scale 0.67 1.5 --aug-rot 15` (viewpoint augmentation), map extension (add sweeps to `--scan-runs`, labelled with Polaris, or with the system's own estimate via `--label-poses <poses.py JSON>`). `python scr_anchor.py train -h` lists everything.
+The earlier v1 recipe: `--head small --label-max-depth 3000 --keep-depth-edges`. Other options of `train` (studies, summary.md 4): `--freeze-encoder` (train the head only on frozen ImageNet features, ACE-style), `--render-views 0.5` (add 0.5 rendered views per training frame, code in `scr_render.py`: new viewpoints from a voxel point cloud of the room scan or, with `--render-source frames`, from the nearest real frames; exact labels; writes `render_preview.jpg`), `--confidence` with `track --weighted` (confidence head + weighted Kabsch), `--scan-seconds S` (only the first S s of each room scan), `--aug-scale 0.67 1.5 --aug-rot 15` (viewpoint augmentation), map extension (add sweeps to `--scan-runs`, labelled with Polaris, or with the system's own estimate via `--label-poses <poses.py JSON>`). `python scr_anchor.py train -h` lists everything.
+
+## 4b. Map without a tracker (`scr_map.py`)
+
+The room-scan poses that label the training frames come from Polaris. `scr_map.py` builds them with the SCR network itself (ACE0-style, with depth): one seed frame defines the map, then rounds of training on the mapped frames and localising their neighbours grow the map; a final pass re-localises every frame, and a joint refinement corrects the poses. Polaris is used only to evaluate the map (after one rigid alignment) and to express the poses in its frame, so the sweeps can be evaluated as before:
+
+```bash
+python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/map-3XX
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --label-poses runs/map-3XX/poses_room-301.json runs/map-3XX/poses_room-302.json --out runs/v2map-3XX
+python scr_anchor.py track --ckpt runs/v2map-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-v2map-3XX
+```
+
+Outputs of `scr_map.py`: `map_report.md` (map growth per round, and the map error against Polaris: position, rotation, 1 s relative motion), `map.json`, `poses_<scan>.json` (labels for `--label-poses`), `map.pt` (the mapping network, map frame).
 
 Coverage analysis of an evaluation:
 
@@ -105,17 +117,20 @@ Classical anchors for comparison: `python anchoring.py evaluate --anchor classic
 
 ## Files
 
-Our code (3 entry points + 5 tools):
+Our code (entry points and tools):
 
 | file | commands | purpose |
 |---|---|---|
-| `scr_anchor.py` | `train`, `eval`, `track` | train an SCR model on a room scan; evaluate its anchors; track with the network alone on every frame + temporal smoothing |
+| `scr_anchor.py` | `train`, `eval`, `track` | train an SCR model on a room scan; evaluate its anchors; track with the network alone on every frame + temporal smoothing (offline or real time) |
+| `scr_map.py` | | build the room-scan poses with the SCR network itself (no tracker); writes labels for `train --label-poses` |
+| `scr_render.py` | (used by `train --render-views`) | rendered training views (study, not adopted) |
 | `tools/anchoring_kabsch.py` | (wraps `anchoring.py`) | full system: SCR + Kabsch anchors, odometry, pose graph; error at the US image |
 | `tools/volume_pages.py` | | interactive 3D pages of compounded sweeps from anchoring results |
 | `tools/coverage_error.py` | | anchor error vs distance to the nearest room-scan pose |
 | `tools/us_analysis.py` | `inplane`, `speckle`, `shape` | US diagnostics U1–U3 (registration, speckle decorrelation) and the shape metric of a reconstruction |
 | `tools/li_baseline.py` | `repro`, `transfer` | Li et al. (TBME 2024): reproduction on the authors' code and data, and transfer to our sweeps |
-| `tools/draw_scr_figures.py` | | `tools/scr_pipeline.png/.pdf` (workflow) and `tools/scr_architecture.png/.pdf` (SCR anchor) |
+| `tools/draw_scr_figures.py` | | `tools/scr_pipeline.png/.pdf` (workflow) and `tools/scr_architecture.png/.pdf` (network: training and tracking) |
+| `tools/draw_overview_tables.py` | | `tools/tables/`: the overview tables of summary.md 1.2 as figures |
 
 Copied from rgbd-us (commit a5bf2ce, unchanged except `anchoring.py`: `--gate-recover`, `--scr-frames`):
 

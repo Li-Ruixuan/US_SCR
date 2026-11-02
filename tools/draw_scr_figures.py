@@ -4,10 +4,13 @@ Two figures of the SCR system, in tools/:
                     during it with the SCR network alone (every frame, Kabsch RANSAC, temporal
                     smoothing -> pose of every US image; summary 3.1); colours: blue sensors and data, purple learned, green training,
                     orange geometry (no learning), white result
-  scr_architecture  the SCR anchor in paper style (one column of a two-column page, 7.4 x 2.75 in):
-                    image encoder, coordinate head, scene coordinates, pose solver + smoothing, with
-                    tensor shapes and real thumbnails of one sweep frame (RGB, depth, and the
-                    room-coordinate labels of its 45 x 80 cells); flame = trained on the room scan
+  scr_architecture  the network in paper style (full page width, 7.4 x 5.0 in; style of Recon2Servo /
+                    MagServo), two stages: I room-scan training in detail (inputs, photometric
+                    augmentation, encoder + head with tensor shapes, label generation and mask, the
+                    loss L_coord and the optimiser); II tracking during the exam (frozen network, dense
+                    3D-3D pairs from the cell grid, Kabsch RANSAC, temporal smoothing, US image pose).
+                    Thumbnails: one sweep frame (RGB, depth, room-coordinate labels of its 45 x 80 cells);
+                    flame = trainable, snowflake = frozen
 
   python tools/draw_scr_figures.py                 # -> tools/scr_pipeline.png/.pdf, tools/scr_architecture.png/.pdf
   python tools/draw_scr_figures.py --root $DATA/train_3XX --run run-316 --row 400
@@ -166,36 +169,51 @@ def thumbnails(root, run, row):
 
 
 def architecture(thumbs=None):
+    """Paper-style figure in two stages (as Recon2Servo / MagServo): I training on the room scans (detail,
+    with the loss), II tracking during the exam (network frozen). Flame = trainable, snowflake = frozen."""
+    import numpy as np
+    from matplotlib.patches import Polygon
     plt.rcParams["font.family"] = "Nimbus Sans"
-    fig, ax = canvas(7.4, 2.75, 185, 68.75)
+    plt.rcParams["mathtext.fontset"] = "dejavusans"
+    fig, ax = canvas(7.4, 5.0, 185, 125)
+    STAGE1 = ("#eaf5ee", "#7fb08f")
+    STAGE2 = ("#fbf1e6", "#d1a46f")
+    LOSS = ("#fff5f4", "#c0504d")
 
-    def panel(x, y, w, h, title, style):
-        ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0,rounding_size=1.6", fc=style[0], ec=style[1], lw=0.9))
-        ax.text(x + w / 2, y + h + 1.4, title, ha="center", va="bottom", fontsize=7.4, weight="bold", color=INK)
+    def rbox(x, y, w, h, style, lw=0.7, dashed=False, r=1.2):
+        ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle=f"round,pad=0,rounding_size={r}", fc=style[0], ec=style[1],
+                                    lw=lw, ls="--" if dashed else "-"))
 
-    def sub(x, y, w, h, text, fs=5.6, style=SUB, dashed=False, weight="normal"):
-        ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0,rounding_size=1.0", fc=style[0], ec=style[1],
-                                    lw=0.7, ls="--" if dashed else "-"))
-        if text:
-            ax.text(x + w / 2, y + h / 2, text, ha="center", va="center", fontsize=fs, color=INK, linespacing=1.25,
-                    weight=weight)
+    def txt(x, y, t, fs=4.8, color=INK, ha="center", va="center", **kw):
+        ax.text(x, y, t, fontsize=fs, color=color, ha=ha, va=va, linespacing=1.32, **kw)
 
-    def arr(x1, y1, x2, y2, color="#2b2b2b", dashed=False, lw=0.7):
+    def arr(x1, y1, x2, y2, color="#2b2b2b", dashed=False, lw=0.7, rad=0.0):
         ax.add_patch(FancyArrowPatch((x1, y1), (x2, y2), arrowstyle="-|>", mutation_scale=6, color=color, lw=lw,
-                                     ls="--" if dashed else "-", shrinkA=0, shrinkB=0))
+                                     ls="--" if dashed else "-", shrinkA=0, shrinkB=0,
+                                     connectionstyle=f"arc3,rad={rad}"))
 
     def cells(x, y, n, color, s=1.7, gap=0.6, vertical=False):
         for i in range(n):
             xx, yy = (x, y - i * (s + gap)) if vertical else (x + i * (s + gap), y)
             ax.add_patch(plt.Rectangle((xx, yy), s, s, fc=color, ec="#555555", lw=0.35))
 
-    def flame(x, y, s=1.0):
-        import numpy as np
+    def flame(x, y, s=0.8):
         t = np.linspace(0, 2 * np.pi, 60)
         for sc, col in ((1.0, "#e8432e"), (0.55, "#f6b13c")):
             px = x + s * sc * 1.05 * np.sin(t) * (1 - 0.25 * np.cos(t))
             py = y + s * sc * (1.3 * (1 - np.cos(t)) / 2 * 1.4 - 0.2) * 1.25
-            ax.fill(px, py, color=col, lw=0)
+            ax.fill(px, py, color=col, lw=0, zorder=5)
+
+    def snow(x, y, s=1.3):
+        for a in (0, 60, 120):
+            dx, dy = s * np.cos(np.radians(a)), s * np.sin(np.radians(a))
+            ax.plot([x - dx, x + dx], [y - dy, y + dy], color="#3b8fd0", lw=0.7, zorder=5)
+            for sgn in (1, -1):
+                bx, by = x + sgn * 0.6 * dx, y + sgn * 0.6 * dy
+                for b in (35, -35):
+                    ang = np.radians(a + (0 if sgn > 0 else 180) + b + 180)
+                    ax.plot([bx, bx + 0.45 * np.cos(ang)], [by, by + 0.45 * np.sin(ang)], color="#3b8fd0", lw=0.5,
+                            zorder=5)
 
     def image(img, x, y, w, h, cmap=None, nearest=False):
         if img is None:
@@ -205,116 +223,161 @@ def architecture(thumbs=None):
                   aspect="auto", zorder=2)
         ax.add_patch(plt.Rectangle((x, y), w, h, fc="none", ec="#555555", lw=0.4, zorder=3))
 
+    def encoder(x, y, w, h):                  # trapezoid, narrowing to the right (down-sampling)
+        ax.add_patch(Polygon([(x, y), (x, y + h), (x + w, y + h * 0.78), (x + w, y + h * 0.22)], closed=True,
+                             fc="#d6e6f3", ec="#4f7ea6", lw=0.7))
+
+    def head(x0, yc, step=4.2, wbar=2.6):
+        for i, h in enumerate([13, 9.5, 9.5, 9.5, 9.5, 5.5]):
+            xx = x0 + i * step
+            ax.add_patch(FancyBboxPatch((xx, yc - h / 2), wbar, h, boxstyle="round,pad=0,rounding_size=1.0",
+                                        fc="#d8c3e0" if i in (0, 5) else "#ece0f1", ec="#8a6a98", lw=0.6))
+            if i:
+                arr(xx - step + wbar + 0.1, yc, xx - 0.1, yc, lw=0.45)
+        for i in range(1, 5):
+            xx = x0 + i * step + wbar / 2
+            ax.add_patch(FancyArrowPatch((xx - 2.2, yc + 5.6), (xx + 2.0, yc + 5.6), connectionstyle="arc3,rad=-0.9",
+                                         arrowstyle="-|>", mutation_scale=4, color="#8a6a98", lw=0.45))
+        return x0 + 5 * step + wbar
+
     rgb, dep, coord = thumbs if thumbs else (None, None, None)
 
-    # inputs
-    ax.text(10.5, 60.2, "RGB frame", ha="center", fontsize=6.4, color=INK)
-    image(rgb, 2, 49.5, 17, 9.6)
-    ax.text(10.5, 46.9, "3 × 360 × 640", ha="center", fontsize=5.4, color=MUTED)
-    ax.text(10.5, 22.2, "Depth (aligned)", ha="center", fontsize=6.4, color=INK)
-    image(dep, 2, 11.5, 17, 9.6, cmap="viridis")
-    ax.text(10.5, 8.9, "1 × 720 × 1280, mm", ha="center", fontsize=5.4, color=MUTED)
+    # ================================================================ Stage I: training on the room scans
+    rbox(1, 54, 183, 69.5, STAGE1, lw=0.8, r=2.0)
+    txt(3, 121.2, "Stage I: Room-scan training (once per room, before the exam)", fs=7.0, ha="left", va="top",
+        weight="bold")
+    txt(14, 116.2, "Room-scan frame $k$", fs=5.2)
+    image(rgb, 5, 103.5, 18, 10.1)
+    txt(14, 101.6, r"$\mathbf{I}_k \in \mathbb{R}^{3\times360\times640}$", fs=4.6)
+    image(dep, 5, 86.5, 18, 10.1, cmap="viridis")
+    txt(14, 84.6, r"$\mathbf{D}_k$: depth (mm)", fs=4.6)
+    rbox(4.5, 61, 19, 18, ("#ffffff", "#2f6db5"))
+    txt(14, 70, r"$\mathbf{T}_k \in SE(3)$" "\ncamera pose\n(Polaris here;\nSLAM in deployment)", fs=4.5)
 
-    # 1. encoder
-    panel(23, 6, 54, 54, "Image Encoder", P_ENC)
-    sub(25.5, 30, 15, 23, "EfficientNet-B0\n\nImageNet init.\nfine-tuned\n(lr 1e-4)", fs=5.6)
-    flame(38.4, 49.8, 0.9)
-    arr(19.4, 54.3, 25.3, 43)
-    sub(43.5, 9, 31, 47, "", fs=5.6)
-    ax.text(59, 53.4, "Two-scale fusion", ha="center", fontsize=6.0, color=INK)
-    ax.text(44.6, 49.3, "stride 8", fontsize=5.2, color=INK)
-    cells(51.8, 47.2, 4, CELL_A)
-    ax.text(45, 44.6, "40 × 45 × 80", fontsize=4.8, color=MUTED)
-    ax.text(44.6, 39.4, "stride 16", fontsize=5.2, color=INK)
-    cells(51.8, 37.2, 4, CELL_B)
-    ax.text(45, 34.6, "112 × 23 × 40", fontsize=4.8, color=MUTED)
-    ax.text(45, 31.2, "bilinear ×2", fontsize=4.8, color=MUTED, style="italic")
-    arr(40.9, 47.9, 51.3, 47.9)
-    arr(40.9, 38.0, 51.3, 38.0)
-    ax.text(66.5, 42.9, r"$\oplus$", ha="center", va="center", fontsize=10, color=INK)
-    arr(61.3, 48.0, 65.2, 44.3)
-    arr(61.3, 38.0, 65.2, 41.5)
-    cells(71.2, 47.8, 5, "#b6b0d8", s=1.5, gap=0.5, vertical=True)
-    arr(68.5, 42.9, 70.9, 42.9)
-    ax.text(59, 24.0, "concatenate per cell\n152 × 45 × 80", ha="center", fontsize=5.0, color=MUTED, linespacing=1.25)
-    ax.text(59, 13.5, "ImageNet features: fine detail (stride 8)\n+ wider context (stride 16)", ha="center",
-            fontsize=4.8, color=MUTED, linespacing=1.25)
+    # the network
+    rbox(29, 87, 108, 29.5, ("#ffffff", "#9a9a9a"))
+    txt(83, 114.6, r"SCR network $f_\theta$: image $\rightarrow$ room coordinate of every cell  (3.0 M parameters)",
+        fs=5.2, weight="bold")
+    rbox(31, 95, 12.5, 15, ("#f4f4f2", "#9a9a9a"))
+    txt(37.25, 102.5, "Photometric\naug. $\\mathcal{A}$\nbrightness ±0.2\ncontrast ×0.8–1.2\ncolour ×0.9–1.1", fs=4.0)
+    arr(23.4, 108.5, 30.8, 105.5)
+    encoder(46.5, 91.5, 13, 21)
+    txt(53.0, 102.5, "Encoder\nEfficientNet-B0\nblocks 0–5\nImageNet init.", fs=4.1)
+    flame(57.8, 110.6)
+    arr(43.7, 102.5, 46.3, 102.5)
+    cells(63.5, 106.2, 4, CELL_A)
+    txt(68.0, 110.4, r"$\mathbf{F}_8$: 40×45×80", fs=4.3)
+    cells(63.5, 96.6, 4, CELL_B)
+    txt(68.0, 93.6, r"$\mathbf{F}_{16}$: 112×23×40, bilinear ↑", fs=4.1)
+    arr(59.7, 107.0, 63.3, 107.0)
+    arr(59.7, 97.4, 63.3, 97.4)
+    ax.add_patch(plt.Circle((80.5, 102.2), 1.9, fc="white", ec="#2b2b2b", lw=0.6))
+    txt(80.5, 102.25, "C", fs=5.2, weight="bold")
+    arr(72.8, 107.0, 79.0, 103.6)
+    arr(72.8, 97.4, 79.0, 100.8)
+    txt(80.5, 98.4, "concat\n152×45×80", fs=3.9, color=MUTED, va="top")
+    hx = head(86.5, 102.2)
+    arr(82.6, 102.2, 86.3, 102.2)
+    flame(108.0, 110.6)
+    txt(97.5, 92.2, "Coordinate head: 1×1 convs\n152→512, 4 residual blocks, 512→3", fs=4.1, color=MUTED)
+    cells(118.5, 108.0, 5, "#b6b0d8", s=1.6, gap=0.5, vertical=True)
+    arr(hx + 0.4, 102.2, 118.2, 102.2)
+    txt(126.5, 106.0, r"$\hat{\mathbf{Y}}_k$", fs=5.6)
+    txt(126.5, 101.0, "3×45×80\nprediction", fs=4.1, color=MUTED)
 
-    # 2. coordinate head
-    panel(81, 6, 37, 54, "Coordinate Head", P_HEAD)
-    flame(114.6, 55.0, 0.9)
-    x0, yc = 84.2, 39
-    for i, (h, lab) in enumerate([(21, "152→512"), (16, ""), (16, ""), (16, ""), (16, ""), (8, "512→3")]):
-        xx = x0 + i * 5.1
-        col = "#d8c3e0" if i in (0, 5) else "#e9dcef"
-        ax.add_patch(FancyBboxPatch((xx, yc - h / 2), 3.0, h, boxstyle="round,pad=0,rounding_size=1.2", fc=col,
-                                    ec="#8a6a98", lw=0.6))
-        if i:
-            arr(xx - 2.0, yc, xx - 0.1, yc, lw=0.5)
-    for i in range(1, 5):                                                      # residual skips
-        xx = x0 + i * 5.1 + 1.5
-        ax.add_patch(FancyArrowPatch((xx - 2.6, yc + 8.6), (xx + 2.4, yc + 8.6), connectionstyle="arc3,rad=-0.9",
-                                     arrowstyle="-|>", mutation_scale=4, color="#8a6a98", lw=0.45))
-    ax.text(99.5, 22.0, "1×1 convolutions: every cell regressed on its own\n"
-            "4 residual blocks (width 512), ReLU, fp32\n2.18 M parameters (lr 1e-3)", ha="center", fontsize=4.8,
-            color=MUTED, linespacing=1.3)
-    ax.text(85.7, 50.8, "152→512", fontsize=4.6, color=MUTED)
-    ax.text(111.2, 32.6, "512→3", fontsize=4.6, color=MUTED, ha="center")
-    arr(74.6, 42.9, 84.0, 41.0)
-    sub(83.5, 9, 32, 7.5, "labels: depth + room-scan pose\n" r"loss: mean $\Vert\hat{y} - y\Vert_2$ (3D, m)", fs=4.8,
-        style=("#ffffff", "#178a5e"), dashed=True)
+    # label generation
+    rbox(29, 58, 108, 26, ("#ffffff", "#9a9a9a"))
+    txt(31.5, 81.6, "Label generation (geometry, no learning)", fs=5.2, ha="left", va="top", weight="bold")
+    txt(31.5, 75.6, r"$\mathbf{Y}_k(\mathbf{u}) = \mathbf{T}_k\,\pi^{-1}\!\left(\mathbf{u},\,\mathbf{D}_k(\mathbf{u})\right)$"
+        "   room coordinate of cell $\\mathbf{u}$", fs=4.7, ha="left")
+    txt(31.5, 70.4, r"$\mathbf{u}$: centre of each of the 45×80 cells (16×16 px of the 720×1280 image);"
+        r"  $\pi^{-1}$: back-projection", fs=4.3, ha="left")
+    txt(31.5, 65.2, r"$\mathbf{M}_k(\mathbf{u}) = 1$ only if $0.1 < \mathbf{D}_k(\mathbf{u}) < 2$ m"
+        "  and the depth is not on an edge", fs=4.3, ha="left")
+    txt(31.5, 60.6, "(far depth is noisy; an edge mixes two surfaces)", fs=4.0, ha="left", color=MUTED)
+    image(coord, 115.5, 66.5, 18, 10.1, nearest=True)
+    txt(124.5, 63.6, r"$\mathbf{Y}_k,\ \mathbf{M}_k$", fs=4.7)
+    arr(23.4, 89.5, 28.8, 77.0)
+    arr(23.9, 70.0, 28.8, 70.0)
 
-    # scene coordinates (output of the network)
-    ax.text(130.5, 60.2, "Scene coordinates", ha="center", fontsize=6.4, color=INK)
-    image(coord, 122, 49.5, 17, 9.6, nearest=True)
-    ax.text(130.5, 46.9, "3 × 45 × 80: room (x, y, z)", ha="center", fontsize=5.2, color=MUTED)
-    arr(114.0, 39.0, 121.6, 51.5)
+    # objective
+    rbox(141, 58, 41.5, 58.5, LOSS, lw=0.8, dashed=True)
+    txt(161.75, 114.2, "Training objective", fs=5.6, weight="bold")
+    txt(161.75, 110.0, r"$\mathcal{L}_{\mathrm{coord}} =$", fs=5.8)
+    txt(161.75, 104.0, r"$\frac{1}{|\mathcal{M}|}\sum_{(k,\mathbf{u})\in\mathcal{M}}"
+        r"\Vert\hat{\mathbf{Y}}_k(\mathbf{u})-\mathbf{Y}_k(\mathbf{u})\Vert_2$", fs=5.6)
+    txt(161.75, 97.4, r"$\mathcal{M}$: labelled cells ($\mathbf{M}_k=1$) of all" "\nframes in the batch\n"
+        "mean 3D (Euclidean) distance in m,\nnot squared: the only loss term", fs=4.3, color=MUTED, va="top")
+    ax.plot([144, 179.5], [86.3, 86.3], color="#e2b5b2", lw=0.5)
+    txt(161.75, 84.6, "AdamW, weight decay $10^{-4}$\nbatch 8, every room-scan frame\n120 epochs; lr warm-up,\n"
+        "flat to 60 %, cosine to 0\nencoder $10^{-4}$, head $10^{-3}$\n~25–50 min on one GPU", fs=4.3, va="top")
+    arr(129.6, 103.0, 140.8, 103.0)
+    arr(133.8, 71.5, 140.8, 92.0)
+    arr(161.75, 116.7, 100.0, 116.7, color="#c0504d", dashed=True, rad=0.07)
+    txt(131.0, 120.6, r"back-propagate $\nabla_\theta\mathcal{L}_{\mathrm{coord}}$", fs=4.3, color="#c0504d")
 
-    # 3. pose solver
-    panel(143, 6, 40, 54, "Pose Solver + Smoothing", P_SOLV)
-    sub(145.5, 43, 35, 13.5, "", fs=5.4)
-    ax.text(163, 53.6, "3D–3D correspondences", ha="center", fontsize=5.6, color=INK)
-    import numpy as np
+    # ================================================================ Stage II: tracking during the exam
+    rbox(1, 2, 183, 49.5, STAGE2, lw=0.8, r=2.0)
+    txt(3, 49.4, "Stage II: Tracking during the exam (every frame; network frozen; no keypoints, no odometry)",
+        fs=7.0, ha="left", va="top", weight="bold")
+    txt(14, 44.6, "Sweep frame $t$", fs=5.2)
+    image(rgb, 5, 31.8, 18, 10.1)
+    txt(14, 29.9, r"$\mathbf{I}_t$", fs=4.8)
+    image(dep, 5, 14.3, 18, 10.1, cmap="viridis")
+    txt(14, 12.4, r"$\mathbf{D}_t$", fs=4.8)
+
+    rbox(29.5, 31.5, 23, 11.5, ("#ece9fb", "#5b47c7"))
+    txt(41.0, 37.25, r"$f_\theta$ from Stage I" "\n(frozen)", fs=4.8)
+    snow(50.2, 40.9, 1.0)
+    arr(23.4, 37.0, 29.3, 37.0)
+    rbox(29.5, 12.5, 23, 13, ("#fff2dc", "#b8770b"))
+    txt(41.0, 19.0, "Back-projection\n" r"$\mathbf{C}_t(\mathbf{u}) = \pi^{-1}(\mathbf{u},\mathbf{D}_t(\mathbf{u}))$"
+        "\ncamera frame, 0.1–2 m", fs=4.3)
+    arr(23.4, 19.3, 29.3, 19.3)
+
+    rbox(58, 12.5, 32, 30.5, ("#ffffff", "#9a9a9a"))
     rng = np.random.default_rng(3)
-    for k in range(6):                                                         # C (camera) <-> P (room) pairs
-        yy = 46.6 + k * 1.0
-        bad = k in (2, 5)
-        ax.plot([150.5, 175.5], [yy, yy + rng.uniform(-0.4, 0.4)], color="#c94c4c" if bad else "#6d8f60",
-                lw=0.45, ls=":" if bad else "-")
-        ax.add_patch(plt.Circle((150.5, yy), 0.45, fc="#9fb7d6", ec="none"))
-        ax.add_patch(plt.Circle((175.5, yy), 0.45, fc="#b6b0d8", ec="none"))
-    ax.text(148.9, 49.1, r"$C$", fontsize=5.6, color=INK, ha="right", va="center")
-    ax.text(177.1, 49.1, r"$\hat{P}$", fontsize=5.6, color=INK, ha="left", va="center")
-    ax.text(163, 44.4, r"$C$: back-projected depth    $\hat{P}$: network", ha="center", fontsize=4.6, color=MUTED)
-    sub(145.5, 26.0, 21.5, 13.0, "Kabsch RANSAC\n256 hyp., < 20 mm\n3 refits\n≥ 400 inliers,\nelse frame dropped", fs=4.9)
-    sub(145.5, 9, 35, 11.5, "Temporal smoothing (no odometry)\nrobust local fit of the poses over ±1 s\n"
-        "→ camera pose of every frame", fs=5.0)
-    arr(156.2, 42.8, 156.2, 39.2)
-    for k in range(3):                                                          # 6-DoF output, R and t
-        ax.add_patch(plt.Circle((173.0, 34.8 - k * 2.6), 1.0, fc="#f2c9c3", ec="#b07a73", lw=0.5))
-        ax.add_patch(plt.Circle((177.6, 34.8 - k * 2.6), 1.0, fc="#d9d2ee", ec="#7f73a6", lw=0.5))
-    ax.text(173.0, 37.6, "R", ha="center", fontsize=5.4, color=INK)
-    ax.text(177.6, 37.6, "t", ha="center", fontsize=5.4, color=INK)
-    ax.text(175.3, 28.0, "per frame\n" r"$T_\mathrm{world,cam}$", ha="center", va="top", fontsize=5.0,
-            color=INK, linespacing=1.4)
-    arr(175.3, 23.3, 175.3, 20.7)
-    arr(167.2, 32.5, 171.6, 32.5)
-    arr(139.4, 52.0, 145.3, 49.5)
+    for k in range(5):
+        yy = 34.0 + k * 1.3
+        bad = k in (1, 4)
+        ax.plot([63.5, 84.5], [yy, yy + rng.uniform(-0.4, 0.4)], color="#c94c4c" if bad else "#6d8f60", lw=0.45,
+                ls=":" if bad else "-")
+        ax.add_patch(plt.Circle((63.5, yy), 0.45, fc="#9fb7d6", ec="none"))
+        ax.add_patch(plt.Circle((84.5, yy), 0.45, fc="#b6b0d8", ec="none"))
+    txt(61.8, 36.6, r"$\mathbf{C}_t$", fs=4.8, ha="right")
+    txt(86.2, 36.6, r"$\hat{\mathbf{Y}}_t$", fs=4.8, ha="left")
+    txt(74.0, 25.6, "Dense 3D–3D pairs\n" r"$\{(\mathbf{C}_t(\mathbf{u}),\,\hat{\mathbf{Y}}_t(\mathbf{u}))\}$"
+        "\none per cell (≤ 3,600)\nfixed by the cell grid:\nno keypoints, no matching", fs=4.3, va="center")
+    arr(52.7, 37.0, 57.8, 35.5)
+    arr(52.7, 19.3, 57.8, 21.0)
 
-    # depth: labels (training, dashed) and camera points (use)
-    ax.plot([19.4, 21.2, 21.2], [16.3, 16.3, 3.2], color="#2b2b2b", lw=0.6)
-    ax.plot([21.2, 184], [3.2, 3.2], color="#2b2b2b", lw=0.6)
-    ax.plot([184, 184], [3.2, 49.6], color="#2b2b2b", lw=0.6)
-    arr(184, 49.6, 180.7, 49.6)
-    ax.plot([99.5, 99.5], [3.2, 8.8], color="#178a5e", lw=0.6, ls="--")
-    ax.text(140, 4.0, "depth at the cell centres", fontsize=4.8, color=MUTED, ha="center", va="bottom")
+    rbox(95, 12.5, 26, 30.5, ("#fff2dc", "#b8770b"))
+    txt(108.0, 27.75, "Kabsch RANSAC\n256 hypotheses (3 pairs each)\ninlier: "
+        r"$\Vert\mathbf{T}\,\mathbf{C}_t(\mathbf{u})-\hat{\mathbf{Y}}_t(\mathbf{u})\Vert<20$ mm"
+        "\n3 refits on the inliers\n≥ 400 inliers, else no pose\n\n" r"$\rightarrow\ \hat{\mathbf{T}}_t \in SE(3)$",
+        fs=4.2)
+    arr(90.2, 27.75, 94.8, 27.75)
+    rbox(126, 12.5, 26, 30.5, ("#fff2dc", "#b8770b"))
+    txt(139.0, 27.75, "Temporal smoothing\nrobust local fit of the poses\n"
+        r"$\hat{\mathbf{T}}_{t'}$, $|t'-t| \leq 1$ s (offline)" "\nor last 1 s, 0.25 s delay\n(real time)\n\n"
+        r"$\rightarrow\ \bar{\mathbf{T}}_t$", fs=4.2)
+    arr(121.2, 27.75, 125.8, 27.75)
+    rbox(157, 12.5, 25, 30.5, ("#ffffff", "#1f1f1e"))
+    txt(169.5, 27.75, "US image pose\n" r"$\mathbf{T}^{\mathrm{US}}_t = \bar{\mathbf{T}}_t\,\mathbf{T}_{\mathrm{cam,US}}$"
+        "\n(hand-eye × US calib.)\n\n→ US images placed\nin the room:\n3D volume", fs=4.3)
+    arr(152.2, 27.75, 156.8, 27.75)
 
     # legend
-    flame(122.4, 19.0, 0.75)
-    ax.text(124.6, 20.0, "trained on the\nroom scan", fontsize=5.0, color=MUTED, va="center", linespacing=1.2)
-    ax.plot([121.2, 123.8], [13.6, 13.6], color="#178a5e", lw=0.7, ls="--")
-    ax.text(124.6, 13.6, "training only", fontsize=5.0, color=MUTED, va="center")
+    flame(31.5, 5.6, 0.6)
+    txt(33.3, 6.3, "trainable", fs=4.4, ha="left", color=MUTED)
+    snow(47.5, 6.3, 0.9)
+    txt(49.3, 6.3, "frozen", fs=4.4, ha="left", color=MUTED)
+    ax.plot([59.5, 63.5], [6.3, 6.3], color="#c0504d", lw=0.7, ls="--")
+    txt(64.5, 6.3, "training only", fs=4.4, ha="left", color=MUTED)
+    rbox(79.5, 5.3, 3.2, 2.0, ("#fff2dc", "#b8770b"), lw=0.5, r=0.4)
+    txt(83.5, 6.3, "geometry, no learning", fs=4.4, ha="left", color=MUTED)
     plt.rcParams["font.family"] = "DejaVu Sans"
+    plt.rcParams["mathtext.fontset"] = "dejavusans"
     return fig
 
 

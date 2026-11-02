@@ -1,15 +1,10 @@
-### AL ###
-#Template for AL projects for Dynamics 365 Business Central
-#launch.json folder
-.vscode/
-#Cache folder
-.alcache/ 
+# data stays outside the repo
 data/
 
-# checkpoints stay on the training PC
+# checkpoints and large exports stay on the training PC
 *.pt
-__pycache__/
+runs/**/saved_model/
 runs/**/poses/
 
-# model weights without .pt extension (tools/li_repro.py)
-runs/**/saved_model/
+__pycache__/
+.vscode/
