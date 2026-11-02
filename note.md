@@ -82,49 +82,18 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
-
-round 1: 0 of 257 candidates joined (inliers median 43, p90 79)                                                                                                          
-round 1: +0 frames, fewer than 3 mapped
-final pass: 1 of 3356 frames passed (inliers median 11)                                                                                                                  
-final pass: +1 frames, fewer than 3 mapped
-the map did not grow beyond the seed: train the seed longer (--seed-steps) or lower --gate
-/data2/u0137815/US_SCR/dataloader.py:130: UserWarning: room-301: only 87.4% of frames have a tracker pose. Check line of sight, and check that the probe stayed inside the Polaris measurement volume.
-  T_world_marker, valid, df = load_marker_poses(d / "frames.csv", cfg.pose_units)
-  room-301: 1796 rows, 1569 usable (227 skipped), 5 segments (4 time jumps, 0 spikes > 12.45 mm)
-  room-302: 1795 rows, 1787 usable (8 skipped), 1 segments (0 time jumps, 0 spikes > 25.49 mm)
-Traceback (most recent call last):
-  File "/data2/u0137815/US_SCR/scr_anchor.py", line 828, in <module>
-    main()
-  File "/data2/u0137815/US_SCR/scr_anchor.py", line 824, in main
-    {"train": train, "eval": evaluate, "track": track}[args.cmd](args)
-  File "/data2/u0137815/US_SCR/scr_anchor.py", line 392, in train
-    label_err = label_with_estimates(ds, args.label_poses)
-                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/data2/u0137815/US_SCR/scr_anchor.py", line 211, in label_with_estimates
-    d = json.load(open(p))
-                  ^^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: 'runs/map-3XX/poses_room-301.json'
-Traceback (most recent call last):
-  File "/data2/u0137815/US_SCR/scr_anchor.py", line 828, in <module>
-    main()
-  File "/data2/u0137815/US_SCR/scr_anchor.py", line 824, in main
-    {"train": train, "eval": evaluate, "track": track}[args.cmd](args)
-  File "/data2/u0137815/US_SCR/scr_anchor.py", line 679, in track
-    net, ck = load_model(args.ckpt, device)
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/data2/u0137815/US_SCR/scr_anchor.py", line 131, in load_model
-    ck = torch.load(path, map_location=device, weights_only=False)
-         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/data2/u0137815/conda/envs/free/lib/python3.11/site-packages/torch/serialization.py", line 1530, in load
-    with _open_file_like(f, "rb") as opened_file:
-         ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/data2/u0137815/conda/envs/free/lib/python3.11/site-packages/torch/serialization.py", line 795, in _open_file_like
-    return _open_file(name_or_buffer, mode)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/data2/u0137815/conda/envs/free/lib/python3.11/site-packages/torch/serialization.py", line 776, in __init__
-    super().__init__(open(name, mode))  # noqa: SIM115
-                     ^^^^^^^^^^^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: 'runs/v2map-3XX/best.pt'
+On the training PC. Run them one at a time, because each needs the previous one's output:
 
 
+git pull
+export DATA=/data2/u0137815/rgbd-us/data
 
+python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/map-3XX
+Only if it ends with a map_report.md (no "did not grow" message), continue:
+
+
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --label-poses runs/map-3XX/poses_room-301.json runs/map-3XX/poses_room-302.json --out runs/v2map-3XX
+
+python scr_anchor.py track --ckpt runs/v2map-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-v2map-3XX
+
+git add -A && git commit -m "Map without a tracker on 3XX" && git push

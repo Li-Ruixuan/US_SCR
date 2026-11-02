@@ -3,13 +3,18 @@ Map a room without a tracker: the SCR network builds the room-scan poses itself 
 et al. 2024, here with the measured depth). The poses it writes replace Polaris as the training labels,
 so the whole system needs no tracker; Polaris is used only to evaluate the map.
 
-  1. seed: one room-scan frame defines the map frame (identity pose);
+  1. seed: one room-scan frame defines the map frame (identity pose); the frames of the next and
+     previous --seed-seconds join by frame-to-frame depth ICP (point-to-plane, geometry only: no
+     features, no learning). A network trained on one image does not recognise even the next views
+     (3XX: 43 inliers median), so the seed needs several views;
   2. rounds: train the network on the frames mapped so far (labels: their depth placed with their
      poses), then localise unmapped frames with it (Kabsch RANSAC on the depth). Candidates: unmapped
      frames within --reach rows of a mapped frame of the same run (join with >= --gate inliers, if the
      pose is plausible given that frame: <= --max-speed mm/s and --max-turn deg/s plus a margin), and
      every --probe-every-th other unmapped frame (join with >= --gate-far inliers; other scans of the
-     room join this way). Stops when a round adds fewer than --min-growth of the frames;
+     room join this way). Then depth ICP extends every edge of the map by up to --icp-extend frames, so
+     the map grows even where the network does not yet recognise the views. Stops when a round adds
+     fewer than --min-growth of the frames;
   3. final pass: every frame localised again with the last network (>= --gate-far inliers), replacing
      the rough early poses; then refine (--refine-steps): the network and a pose correction per mapped
      frame trained jointly (T_k <- T_k Exp(delta_k), seed frame fixed), so pose errors are corrected
@@ -35,6 +40,8 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from scipy.spatial import cKDTree
+from scipy.spatial.transform import Rotation
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 
 import scr_anchor as sa
@@ -89,6 +96,76 @@ def map_errors(est, gt, items, rows_per_s=30):
     return A, {"mapped": len(ok), "frames": len(items), "mapped_pct": 100 * len(ok) / len(items),
                "pos_mm_median": q(dt, 50), "pos_mm_p90": q(dt, 90), "rot_deg_median": q(dr, 50),
                "rel1s_mm_median": q(rel, 50), "rel1s_mm_p90": q(rel, 90)}
+
+
+def depth_cloud(ds, root, n, r, stride, max_depth):
+    """Camera-frame points (N, 3, mm) and unit normals (N, 3, towards the camera) of one frame's depth on a
+    `stride`-pixel grid; no points on depth edges (neighbours more than 6 % apart) or beyond max_depth."""
+    run = ds.runs[n]
+    K = np.asarray(run["K"], float)
+    d = load_depth_mm(ds, root, n, r).astype(np.float64)
+    v, u = np.mgrid[0:d.shape[0]:stride, 0:d.shape[1]:stride]
+    z = d[v, u]
+    P = np.stack([(u - K[0, 2]) / K[0, 0] * z, (v - K[1, 2]) / K[1, 1] * z, z], -1)
+    ok = (z > 100) & (z < max_depth)
+    N = np.cross(P[1:-1, 2:] - P[1:-1, :-2], P[2:, 1:-1] - P[:-2, 1:-1])
+    norm = np.linalg.norm(N, axis=-1)
+    zc = z[1:-1, 1:-1]
+    good = (ok[1:-1, 1:-1] & ok[1:-1, 2:] & ok[1:-1, :-2] & ok[2:, 1:-1] & ok[:-2, 1:-1] & (norm > 0)
+            & (np.abs(z[1:-1, 2:] - z[1:-1, :-2]) < 0.06 * zc) & (np.abs(z[2:, 1:-1] - z[:-2, 1:-1]) < 0.06 * zc))
+    Pc = P[1:-1, 1:-1][good]
+    Nc = (N / np.maximum(norm, 1e-9)[..., None])[good]
+    Nc = Nc * -np.sign((Nc * Pc).sum(1, keepdims=True))
+    return Pc, Nc
+
+
+def icp(src, tgt, args):
+    """Point-to-plane ICP from frame src to frame tgt (each (points, normals), camera frame, mm), starting at
+    identity (consecutive frames). -> (T_tgt_src or None, fitness, rmse): accepted if at least --icp-fitness
+    of the source points end within --icp-dist mm of the target with an rmse of at most --icp-rmse mm."""
+    Ps = src[0][:: max(1, len(src[0]) // 8000)]
+    Pt, Nt = tgt
+    if len(Ps) < 500 or len(Pt) < 500:
+        return None, 0.0, float("inf")
+    tree = cKDTree(Pt)
+    T = np.eye(4)
+    for dmax in (40, 40, 25, 25, 15, 15, 10, 10, 10, 10):
+        X = Ps @ T[:3, :3].T + T[:3, 3]
+        dist, j = tree.query(X, distance_upper_bound=dmax)
+        m = np.isfinite(dist)
+        if m.sum() < 300:
+            return None, 0.0, float("inf")
+        p, q, nq = X[m], Pt[j[m]], Nt[j[m]]
+        A = np.hstack([np.cross(p, nq), nq])                    # n.(p + w x p + t - q) = 0, linearised
+        x = np.linalg.lstsq(A, -((p - q) * nq).sum(1), rcond=None)[0]
+        dT = np.eye(4)
+        dT[:3, :3], dT[:3, 3] = Rotation.from_rotvec(x[:3]).as_matrix(), x[3:]
+        T = dT @ T
+    dist, _ = tree.query(Ps @ T[:3, :3].T + T[:3, 3], distance_upper_bound=args.icp_dist)
+    m = np.isfinite(dist)
+    fit = float(m.mean())
+    rmse = float(np.sqrt((dist[m] ** 2).mean())) if m.any() else float("inf")
+    return (T if fit >= args.icp_fitness and rmse <= args.icp_rmse else None), fit, rmse
+
+
+def icp_extend(est, items, k0, step, n_max, cloud, args):
+    """Chain depth ICP from mapped item k0 to its unmapped neighbours in one direction (step +-1) of the
+    same scan, up to n_max frames or the first failure, gap or mapped frame. Returns the items added."""
+    added, k = [], k0
+    while len(added) < n_max:
+        j = k + step
+        if not 0 <= j < len(items) or items[j][0] != items[k][0] or abs(items[j][1] - items[k][1]) > 3 * args.every:
+            break
+        n, r = items[j]
+        if np.isfinite(est[n][r]).all():
+            break
+        T, _, _ = icp(cloud(j), cloud(k), args)
+        if T is None:
+            break
+        est[n][r] = est[items[k][0]][items[k][1]] @ T
+        added.append(j)
+        k = j
+    return added
 
 
 class LocFrames(Dataset):
@@ -182,14 +259,20 @@ def main():
     ap.add_argument("--every", type=int, default=1, help="use every n-th usable row of the scans")
     ap.add_argument("--seed-run", default=None, help="run of the seed frame (default: the first scan run)")
     ap.add_argument("--seed-row", type=int, default=None, help="row of the seed frame (default: its first usable row)")
-    ap.add_argument("--seed-steps", type=int, default=2000, help="training steps on the seed frame alone")
+    ap.add_argument("--seed-seconds", type=float, default=2.0, help="seed: frames this far before / after the seed frame, by depth ICP")
+    ap.add_argument("--seed-steps", type=int, default=2000, help="training steps on the seed frames")
+    ap.add_argument("--icp-extend", type=int, default=90, help="per round, depth ICP extends each map edge by up to this many frames (0 = off)")
+    ap.add_argument("--icp-stride", type=int, default=4, help="depth ICP: pixel grid of the point clouds")
+    ap.add_argument("--icp-dist", type=float, default=10.0, help="depth ICP: inlier distance (mm)")
+    ap.add_argument("--icp-fitness", type=float, default=0.5, help="depth ICP: minimum share of inliers")
+    ap.add_argument("--icp-rmse", type=float, default=6.0, help="depth ICP: maximum inlier rmse (mm)")
     ap.add_argument("--round-steps", type=int, default=1500, help="training steps per round")
     ap.add_argument("--max-rounds", type=int, default=40)
     ap.add_argument("--reach", type=int, default=150,
                     help="candidates: unmapped frames within this many (used) rows of a mapped one in the same scan")
     ap.add_argument("--probe-every", type=int, default=30, help="candidates: also every n-th other unmapped frame")
     ap.add_argument("--min-growth", type=float, default=0.005, help="stop when a round adds less than this share")
-    ap.add_argument("--gate", type=int, default=150, help="minimum inliers to join next to a mapped frame (with the check)")
+    ap.add_argument("--gate", type=int, default=60, help="minimum inliers to join next to a mapped frame (with the check)")
     ap.add_argument("--gate-far", type=int, default=400, help="minimum inliers without a mapped neighbour, and in the final pass")
     ap.add_argument("--max-speed", type=float, default=500.0, help="plausibility check: camera speed (mm/s)")
     ap.add_argument("--max-turn", type=float, default=90.0, help="plausibility check: turn rate (deg/s)")
@@ -225,6 +308,18 @@ def main():
     seed = pos[(seed_run, args.seed_row)] if args.seed_row is not None else next(k for k, (n, _) in enumerate(items) if n == seed_run)
     est[items[seed][0]][items[seed][1]] = np.eye(4)
     print(f"{len(items)} room-scan frames from {', '.join(args.scan_runs)}; seed {items[seed]} = map origin", flush=True)
+    clouds = {}
+
+    def cloud(k):                             # depth clouds, cached (ICP touches each frame a few times)
+        if k not in clouds:
+            if len(clouds) > 400:
+                clouds.clear()
+            clouds[k] = depth_cloud(ds, args.root, *items[k], args.icp_stride, args.label_max_depth)
+        return clouds[k]
+
+    n_seed = int(round(args.seed_seconds * 30 / args.every))
+    seed_icp = icp_extend(est, items, seed, 1, n_seed, cloud, args) + icp_extend(est, items, seed, -1, n_seed, cloud, args)
+    print(f"seed: {1 + len(seed_icp)} frames by depth ICP around the seed (up to {args.seed_seconds:g} s each way)", flush=True)
 
     net = sa.build_net("big").to(device)
     encoder = list(net.low.parameters()) + list(net.high.parameters())
@@ -253,7 +348,7 @@ def main():
     # rounds: train on the map, localise candidates, grow
     t0 = time.time()
     loss = fit(net, opt, scaler, frames(mapped()), args.seed_steps, args, device)
-    print(f"seed: {args.seed_steps} steps on the seed frame, loss {loss:.1f} mm", flush=True)
+    print(f"seed: {args.seed_steps} steps on the seed frames, loss {loss:.1f} mm", flush=True)
     for rnd in range(args.max_rounds):
         have = set(mapped())
         refs = {}                                                  # unmapped frame -> nearest mapped one, same run
@@ -270,12 +365,23 @@ def main():
                                gates={j: args.gate for j in refs}, refs=refs, est=est)
         for k, (T, _) in got.items():
             est[items[k][0]][items[k][1]] = T
-        print(f"round {rnd + 1}: {len(got)} of {len(cand)} candidates joined (inliers median {np.median(counts):.0f}, "
-              f"p90 {np.percentile(counts, 90):.0f})", flush=True)
-        log(f"round {rnd + 1}", loss, t0, len(got))
-        if len(got) < args.min_growth * len(items) or len(mapped()) == len(items):
+        by_icp = []
+        if args.icp_extend:                   # depth ICP from every edge of the map
+            for k in mapped():
+                for step in (1, -1):
+                    j = k + step
+                    if 0 <= j < len(items) and items[j][0] == items[k][0] and not np.isfinite(est[items[j][0]][items[j][1]]).all():
+                        by_icp += icp_extend(est, items, k, step, args.icp_extend, cloud, args)
+        print(f"round {rnd + 1}: network {len(got)} of {len(cand)} candidates (inliers median {np.median(counts):.0f}, "
+              f"p90 {np.percentile(counts, 90):.0f}); depth ICP {len(by_icp)} more", flush=True)
+        added = len(got) + len(by_icp)
+        log(f"round {rnd + 1}", loss, t0, added)
+        if added < args.min_growth * len(items) or len(mapped()) == len(items):
             break
         loss = fit(net, opt, scaler, frames(mapped()), args.round_steps, args, device)
+
+    if len(mapped()) < 3:
+        raise SystemExit("the map did not grow beyond the seed: check the 'seed:' and 'round' lines above")
 
     # final pass: every frame again with the last network, strict gate
     if args.final_pass:

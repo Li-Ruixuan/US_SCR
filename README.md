@@ -81,7 +81,7 @@ The earlier v1 recipe: `--head small --label-max-depth 3000 --keep-depth-edges`.
 
 ## 4b. Map without a tracker (`scr_map.py`)
 
-The room-scan poses that label the training frames come from Polaris. `scr_map.py` builds them with the SCR network itself (ACE0-style, with depth): one seed frame defines the map, then rounds of training on the mapped frames and localising their neighbours grow the map; a final pass re-localises every frame, and a joint refinement corrects the poses. Polaris is used only to evaluate the map (after one rigid alignment) and to express the poses in its frame, so the sweeps can be evaluated as before:
+The room-scan poses that label the training frames come from Polaris. `scr_map.py` builds them without a tracker (ACE0-style, with depth): one seed frame defines the map and the 2 s around it join by frame-to-frame depth ICP (geometry only); then rounds of training the network on the mapped frames, localising their neighbours with it, and extending the map edges by depth ICP grow the map; a final pass re-localises every frame with the network, and a joint refinement corrects the poses. Each round's log line says how many frames the network and the ICP added. Polaris is used only to evaluate the map (after one rigid alignment) and to express the poses in its frame, so the sweeps can be evaluated as before:
 
 ```bash
 python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/map-3XX
