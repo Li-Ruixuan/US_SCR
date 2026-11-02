@@ -13,7 +13,8 @@ Final pipeline (summary.md 2.2, 3.1):
          each --windows W (offline) and, with --lags L, in real time (last W s up to t + L, extrapolated
          linearly to t; L = 0 causal). Error at the US image (5 points, median per sweep) and step-to-step
          error per --every rows and per 8 rows. Raw poses cached in <out>/poses.npz; with the cache the
-         smoothing reruns on the CPU without the checkpoint.
+         smoothing reruns on the CPU without the checkpoint. --cam-calib <map.json>: network trained on
+         scr_map.py labels; every pose is multiplied by the map's camera calibration (camera -> probe).
   eval   anchors only: one frame every --every usable rows, camera error against Polaris
          (--solver kabsch, or pnp without depth as rgbd-us scr.py).
 
@@ -694,6 +695,15 @@ def track(args):
         np.savez_compressed(cache, **{f"{sw}_{k}": v for sw, (r, T, i) in raw.items() for k, v in (("rows", r), ("T", T), ("inl", i))})
         json.dump({"ckpt": args.ckpt, "every": args.every, "gate": args.gate, "weighted": args.weighted},
                   open(out / "poses.json", "w"))
+    X = None
+    if args.cam_calib:                        # map labels: camera pose x the probe's camera calibration (scr_map.py)
+        X = np.asarray(json.load(open(args.cam_calib))["cam_calib"], float)
+        raw = {sw: (r, T @ X, i) for sw, (r, T, i) in raw.items()}
+        print(f"camera calibration from {args.cam_calib}: {np.linalg.norm(X[:3, 3]):.1f} mm, "
+              f"{np.degrees(np.linalg.norm(Rotation.from_matrix(X[:3, :3]).as_rotvec())):.2f} deg")
+    meta = json.load(open(out / "poses.json"))                  # raw poses stay uncalibrated; volume_pages.py reads this
+    meta["cam_calib"] = None if X is None else X.tolist()
+    json.dump(meta, open(out / "poses.json", "w"))
 
     scaling, rigid = read_us_calib(args.calib)
     P = np.linalg.inv(T_mc) @ rigid @ scaling @ np.stack([US_PX[:, 0], US_PX[:, 1], np.zeros(5), np.ones(5)])
@@ -728,7 +738,8 @@ def track(args):
     mean = lambda m, k: float(np.nanmean([v[k] for v in res[m].values()]))
     md = [f"# Single-model tracking: SCR alone on every {'' if args.every == 1 else f'{args.every}th '}row "
           f"({Path(args.test_root).name}, `{args.ckpt}`)", "",
-          f"No odometry, no Polaris start pose; Kabsch RANSAC, gate >= {args.gate} inliers. Error at the US image (5 points, "
+          f"No odometry, no Polaris start pose; Kabsch RANSAC, gate >= {args.gate} inliers"
+          f"{f'; camera calibration from `{args.cam_calib}`' if args.cam_calib else ''}. Error at the US image (5 points, "
           "mm): median per sweep, mean over sweeps; step-to-step error = mean change of the error vector between rows "
           f"({args.every} row(s), {args.every * 33} ms) and 8 rows (anchoring.py's odometry step).", "",
           f"| method | US image median | p90 | frames with a pose | step, {args.every} row(s) | step, 8 rows |", "|---|---|---|---|---|---|"]
@@ -822,6 +833,9 @@ def main():
     k.add_argument("--weighted", action="store_true",
                    help="confidence checkpoints: sample and fit the Kabsch RANSAC with the predicted confidence")
     k.add_argument("--calib", default=str(REPO / "calib_matrix.csv"), help="US calibration (TUS-REC format)")
+    k.add_argument("--cam-calib", default=None,
+                   help="map.json of scr_map.py: for a network trained on map labels, apply its camera calibration "
+                        "(fixed camera-frame transform) to every pose")
     k.add_argument("--out", required=True)
     args = ap.parse_args()
     {"train": train, "eval": evaluate, "track": track}[args.cmd](args)

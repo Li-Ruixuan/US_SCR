@@ -39,13 +39,13 @@ What the data support, and how strongly. **Strong:** several splits, large effec
 
 - *Robust to the room changing after the scan:* with an outdated map SCR is better in 2 of 3 cases (2XX → 3XX 6.5 vs 10.4 mm, A → C 13.4 vs 80.1) and worse in one (A → B 14.0 vs 7.9); both are 2–7× worse than with a current scan. Rule: rescan after a change, keep the old scans in the map.
 - *Better than classical in new sessions with short room scans:* 4XX 5.45 vs 4.76 mm (1.15×).
-- *Works without a tracker:* the room-scan poses come from Polaris; building them with SLAM is untested (limitation 2).
+- *Works without a tracker:* the final system's room-scan poses come from Polaris. A first map built by the network itself (3XX, Table F) works end to end, but gives a 4.74 mm shape against 1.57 mm with Polaris labels.
 - *Generalises to new rooms:* the network is trained per room, by design.
 - *2 mm everywhere:* reached on the well-covered session only.
 
 ## 1.2 Overview tables
 
-Five tables cover every test: A every system at the US image, B single-image pose methods, C coverage (what decides SCR vs classical), D where the error sits (local, shape, placement), E one row per test with its verdict. 4XX mean = mean of A–E. Details are in the sections given. As figures: `tools/tables/table_A.png` … `table_E.png` and `tools/tables/overview_tables.pdf` (`python tools/draw_overview_tables.py`; numbers copied from here, edit both together).
+Six tables cover every test: A every system at the US image, B single-image pose methods, C coverage (what decides SCR vs classical), D where the error sits (local, shape, placement), E one row per test with its verdict, F maps without a tracker. 4XX mean = mean of A–E. Details are in the sections given. As figures: `tools/tables/table_A.png` … `table_F.png` and `tools/tables/overview_tables.pdf` (`python tools/draw_overview_tables.py`; numbers copied from here, edit both together).
 
 **Table A. Every system at the US image** (median mm per sweep, mean over sweeps; 3.1, 4.6)
 
@@ -164,13 +164,34 @@ Five tables cover every test: A every system at the US image, B single-image pos
 | map | strict protocol (room-301 only) | 3XX run-315…317 US | 1.85 → 2.98 (classical 3.0) | report both |
 | map | outdated map (previous session) | anchors | 2XX → 3XX 6.5; A → B 14.0; A → C 13.4 | re-scan per session |
 | map | shorter room scans: first 20 / 40 s of each | 3XX US | 3.00 / 2.03 vs 1.85 (~60 s) | study: content over length |
+| map | map without a tracker: the network + depth ICP build the room-scan poses (labels) | 3XX US / shape | 1.85 / 1.57 (Polaris labels) → 13.26 / 8.54 | works, not accurate |
+| map | map aligned to Polaris on view points, not camera positions (evaluation) | 3XX US | 50.6 → 12.8 | fixed |
+| map | joint refinement of network and map poses | 3XX map camera position | 8.4 → 8.9 | no |
+| map | + pose graph over the room scan (depth ICP edges + network priors) | 3XX US / shape | 13.26 / 8.54 → 12.49 / 4.74 | **adopted** |
+| map | pose-graph prior 10 / 30 mm | 3XX map scene points | 6.9 / 7.3 | default kept |
 | US | U1 in-plane registration (ECC) | 2XX, 10 rows | 1.91 vs 1.55 for zero motion | no |
 | US | U2 speckle decorrelation → distance | all | 0.27–0.43 mm, magnitude only | no |
 | US | U3 per-patch speckle vs camera | 3XX, 4 rows | 0.78 vs camera 0.19 mm | no |
 | US | Li et al. reproduced on its own data | their test set | 21.4 vs 22.8 mm published | reproduced |
 | US | Li et al. on our sweeps | 3XX / A / D | zero-shot 129; fine-tuned 75–125; scratch = zero motion | no |
 
-**Conclusions from the five tables**
+**Table F. Map without a tracker** (3XX; training labels from a map the network builds itself, Polaris for evaluation only; `runs/map-3XX`, `runs/map-3XX-graph*`, `runs/shape-map-3XX.md`, `runs/shape-graph-3XX.md`; mm; 8)
+
+| training labels from | map: scene points at 1 m | map: camera position | map: 1 s motion | US: absolute | US: shape | placement | out-of-plane 8 / 30 rows | step 8 rows |
+|---|---|---|---|---|---|---|---|---|
+| Polaris (reference) | – | – | – | **1.85** | **1.57** | 0.28 | 0.37 / 0.62 | **0.93** |
+| map, each frame localised on its own | 9.0 | 15.3 | 7.2 | 13.26 | 8.54 | 4.72 | 0.46 / 1.14 | 1.39 |
+| map + pose graph (depth ICP edges, network priors 10 mm) | **6.9** | **11.6** | **3.4** | 12.49 | 4.74 | 7.75 | 0.46 / 1.24 | 1.14 |
+| map + pose graph, priors 30 mm (map only, not trained) | 7.3 | 12.2 | 3.4 | – | – | – | – | – |
+| classical system (needs no labels) | – | – | – | 3.11 | 2.47 | 0.64 | 0.29 / 0.62 | – |
+| classical odometry only | – | – | – | 9.43 | 6.23 | 3.20 | 0.28 / 0.54 | – |
+
+- The network reproduces its labels: the same network gives 1.85 mm with Polaris labels and 12.5–13.3 mm with map labels. More training cannot help; the map decides.
+- The pose graph ties neighbouring room-scan frames together: the map's 1 s motion error halves (7.2 → 3.4 mm) and the volume shape improves from 8.54 to 4.74 mm (per sweep 1.9–4.4, run-317 9.8): better than odometry alone (6.23), still 2–3× Polaris labels (1.57) and classical (2.47).
+- What is left of the absolute error is one fixed offset in the camera frame, the same in every sweep (9.6 mm, 0.4°; spread 1–2 mm over sweeps; in room coordinates it varies more): the signature of a hand–eye mismatch between Polaris and the camera, not of the map. Removing it (estimated on the other sweeps) brings the difference to the Polaris-labelled track from 8.4–12.2 to 2.2–4.3 mm (run-317 7.9). Proxy only: compared with the Polaris-labelled track, not yet with Polaris.
+- A looser prior (30 mm) gives the same 1 s motion (3.4 mm): the remaining local error sits in the ICP edges (or the hand–eye of the evaluation), not in the priors.
+
+**Conclusions from the six tables**
 
 1. **Geometry beats regression.** Predicting room coordinates and solving the pose on the measured depth is what works (Table B); every learned shortcut (pose regression, learned odometry, US-only networks) is worse or no better than zero motion (Tables A, E).
 2. **One network is enough.** With SCR on every frame and smoothing, odometry adds nothing (Table A), and the shape and local accuracy are classical-grade or better (Table D).
@@ -179,6 +200,7 @@ Five tables cover every test: A every system at the US image, B single-image pos
 5. **SCR can use partly outdated data, classical cannot.** Room scans from earlier in the day, with objects moved since, improve SCR and ruin classical (B–E 4.90 → 13.93 mm, Tables A, C). More scanning always helps SCR.
 6. **It runs in real time:** a 0.25 s delay gives the offline accuracy; fully causal only adds some jitter (Table A).
 7. **The US images carry no usable pose information** beyond what the camera gives (Table E, US rows).
+8. **A map without a tracker works, but is not yet as accurate as Polaris labels.** The network reproduces its labels, so the map decides the result. Tying neighbouring room-scan frames together (pose graph) halves the shape error (8.54 → 4.74 mm, better than odometry alone); most of the remaining absolute error is one fixed camera-frame offset, likely the hand–eye calibration, not the map (Table F).
 
 ## 2. Setup
 
@@ -420,8 +442,10 @@ The four tasks of 30 Oct are done: real time works (3.3), scan content matters m
 |---|---|---|
 | 1 | record a session with ~1 min room scans that pass the exam viewpoints, all scans of the day in the map | recording |
 | 2 | live run on the hardware (real-time version, 0.25 s delay) | hardware |
-| 3 | maps without Polaris: the SCR network builds the room-scan poses itself (ACE0-style, `scr_map.py`); first result on 3XX below; next: make the map locally accurate (frame-to-frame depth ICP in a pose graph with the network's poses) | code, run |
+| 3 | maps without Polaris: the SCR network builds the room-scan poses itself (ACE0-style, `scr_map.py`, with a pose graph); results on 3XX below and in Table F; next: estimate the camera-frame (hand–eye) offset from the room scan alone, then evaluate again | code, run |
 
 **Map without a tracker, first result (3XX, 2 Nov; `runs/map-3XX`, `runs/v2map-3XX`, `runs/track-v2map-3XX`).** The map covers all 3,356 room-scan frames (88 % after round 1, 100 % after round 2). Against Polaris, after one rigid alignment on the points 1 m in front of each camera: scene points 9.0 / 16.0 mm (median / p90), camera position 15.3 mm, rotation 0.93°, relative motion over 1 s 7.2 / 18.5 mm. The first alignment used the camera positions only; that left a 17° rotation and 50.6 mm tracking. Tracking with the network trained on these labels: **12.78 mm** at the US image (2 s smoothing; per sweep 8.2–18.2; 100 % of frames posed; step over 8 rows 1.39 mm), against 1.85 mm with Polaris labels and 3.1 mm for the classical system. The network follows its labels: its camera error (15 mm) is the map's. Compared with the Polaris-labelled track (a proxy for Polaris, points near the camera), most of the difference remains after a rigid fit of each sweep (3.4–10.9 mm), and the frame-to-frame jitter is the same (0.6–1.1 mm). So the error is a smooth bend of the map, not noise and not only a rigid offset. Its likely source is the 7 mm error of the map's 1 s relative motion: each frame is localised on its own, so nothing ties neighbouring frames together. **Shape confirms it** (`runs/shape-map-3XX.md`, US image, mm): absolute 13.26, shape **8.54** (per sweep 4.8–14.0), against 1.85 / 1.57 with Polaris labels, 3.11 / 2.47 for classical and 9.43 / 6.23 for odometry only. The error grows with the time between frames: 1 frame 0.12 / 0.08 (in / out of plane; Polaris labels 0.08 / 0.08), 8 rows 0.76 / 0.46 (0.50 / 0.37), 1 s 2.21 / 1.14 (1.07 / 0.62), whole sweep 8.5 (1.6). Frame to frame it is as good as with Polaris labels; over seconds the map bends. Conclusions: (1) a map without a tracker works end to end (every frame mapped and tracked, no failure); (2) the network's accuracy is set by its labels (1.85 → 13 mm with the same network), so in a new room the map's quality decides the result; (3) a map localised frame by frame is not good enough: its shape is worse than odometry alone. It needs constraints between neighbouring frames (ICP pose graph); target before training: 1 s relative motion ≤ 1 mm, scene points ≤ 3 mm.
+
+**Pose graph (3XX, 2 Nov; `runs/map-3XX-graph`, `runs/v2graph-3XX`, `runs/track-v2graph-3XX`, `runs/shape-graph-3XX.md`).** `scr_map.py --from runs/map-3XX` adds depth-ICP edges between room-scan frames 1, 5, 15 and 30 rows apart (started from the map's relative pose) to each frame's network pose (prior on its view points, 10 mm), robust least squares. Map against Polaris: scene points 9.0 → **6.9** / 12.0 mm, camera position 15.3 → 11.6 mm, rotation 0.93 → 0.76°, 1 s motion 7.2 → **3.4** / 8.4 mm (target 1 mm not reached). A 30 mm prior gives 7.3 mm and the same 3.4 mm 1 s motion. Tracking with the network trained on the graph labels: 12.49 mm at the US image (2 s smoothing; per sweep 11.4–15.6; p90 14.6, was 22.2; step over 8 rows 1.14 mm, was 1.39). Shape **4.74 mm** (was 8.54; per sweep 1.9, 3.4, 4.4, 4.2, 9.8), better than odometry alone (6.23), worse than Polaris labels (1.57) and classical (2.47). Out-of-plane over 1 s 1.24 mm (Polaris labels 0.62). The absolute error now sits in one offset: compared with the Polaris-labelled track, the difference is a fixed transform in the camera frame (9.6 mm, mostly along camera x, and 0.4°), the same in all five sweeps to 1–2 mm, while in room coordinates it varies by up to 5 mm. A fixed camera-frame transform is what a hand–eye mismatch looks like: Polaris labels and Polaris ground truth share the hand–eye calibration (limitation 7), so its error cancels for the Polaris-labelled network but not for a map built from the camera alone. Removing one such transform, estimated on the other four sweeps, brings the difference to the Polaris-labelled track from 8.4–12.2 to 2.2–4.3 mm (run-317 7.9). Proxy only; the proper test estimates the transform from the room scan (map vs Polaris) and evaluates the sweeps with it.
 
 Files and commands: `README.md`.

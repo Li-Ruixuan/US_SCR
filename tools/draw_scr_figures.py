@@ -1,6 +1,7 @@
 """
 Two figures of the SCR system, in tools/:
-  scr_pipeline      how the project works: map the room before the exam, then track the probe
+  scr_pipeline      how the project works: map the room before the exam (the network builds its own
+                    room-scan poses, scr_map.py), then track the probe
                     during it with the SCR network alone (every frame, Kabsch RANSAC, temporal
                     smoothing -> pose of every US image; summary 3.1); colours: blue sensors and data, purple learned, green training,
                     orange geometry (no learning), white result
@@ -11,8 +12,11 @@ Two figures of the SCR system, in tools/:
                     3D-3D pairs from the cell grid, Kabsch RANSAC, temporal smoothing, US image pose).
                     Thumbnails: one sweep frame (RGB, depth, room-coordinate labels of its 45 x 80 cells);
                     flame = trainable, snowflake = frozen
+  scr_mapping       how the room-scan poses (the training labels) are made without a tracker (scr_map.py):
+                    seed by depth ICP, rounds of train / localise / extend, final pass, pose graph, labels;
+                    Polaris only to evaluate (alignment + camera calibration)
 
-  python tools/draw_scr_figures.py                 # -> tools/scr_pipeline.png/.pdf, tools/scr_architecture.png/.pdf
+  python tools/draw_scr_figures.py                 # -> tools/scr_pipeline, scr_architecture, scr_mapping (.png/.pdf)
   python tools/draw_scr_figures.py --root $DATA/train_3XX --run run-316 --row 400
 
 No result numbers in the figures (they are in summary.md).
@@ -83,18 +87,19 @@ def pipeline():
     fig, ax = canvas(16, 8.6, 160, 86)
     ax.text(2, 83.2, "Markerless probe tracking with one scene coordinate regression (SCR) network", fontsize=15.5,
             weight="bold", color=INK)
-    ax.text(2, 79.8, "one RGB-D camera on the ultrasound probe, one network, no odometry; nothing outside the probe "
-            "during the exam", fontsize=10, color=MUTED)
+    ax.text(2, 79.8, "one RGB-D camera on the ultrasound probe, one network, no odometry, no tracker: the network also "
+            "builds its own training labels", fontsize=10, color=MUTED)
 
     # A. before the exam
     band(ax, 50, 77, "A   Before the exam: map the room (once per room / session)", 160)
-    box(ax, 4, 54, 34, 15, "Room scan", "move the probe camera around\nthe room for 1-3 min\nRGB + depth video", DATA)
-    box(ax, 50, 54, 34, 15, "Room-scan poses", "camera pose of every scan frame\n(here: Polaris; in deployment:\nSLAM from the scan itself)", DATA)
-    box(ax, 96, 54, 34, 15, "Train the SCR network", "learns the room coordinate of\nevery image cell, from depth\n(one GPU, 25-50 min)", TRAIN)
+    box(ax, 4, 54, 27, 15, "Room scan", "move the probe camera\naround the room, 1-3 min\nRGB + depth video", DATA)
+    box(ax, 38, 53, 46, 17, "Self-mapping (no tracker)", "the SCR network + depth ICP give the\npose of every scan frame;"
+        " a pose graph\nties neighbouring frames together\n(scr_map.py; benchmark runs: Polaris)", NET, sfs=8.3)
+    box(ax, 91, 54, 40, 15, "Train the SCR network", "on those poses: the room coordinate\nof every image cell, from depth\n(one GPU, 25-50 min)", TRAIN)
     box(ax, 140, 56.5, 17, 10, "Room model", "SCR network\nweights", NET, fs=10.5, sfs=8.4)
-    arrow(ax, 38.4, 61.5, 49.6, 61.5)
-    arrow(ax, 84.4, 61.5, 95.6, 61.5)
-    arrow(ax, 130.4, 61.5, 139.6, 61.5)
+    arrow(ax, 31.4, 61.5, 37.6, 61.5)
+    arrow(ax, 84.4, 61.5, 90.6, 61.5)
+    arrow(ax, 131.4, 61.5, 139.6, 61.5)
 
     # B. during the exam
     band(ax, 4, 47, "B   During the exam: track the probe with the network alone", 160)
@@ -102,7 +107,7 @@ def pipeline():
     box(ax, 35, 23, 28, 15, "SCR network", "every frame:\nroom coordinate of\nevery image cell", NET)
     box(ax, 70, 23, 26, 15, "Kabsch RANSAC", "+ measured depth\n-> camera pose in the room\n(dropped if < 400 inliers)", GEO)
     box(ax, 103, 23, 22, 15, "Temporal\nsmoothing", "robust local fit\nover +-1 s", GEO, sfs=8.4)
-    box(ax, 131, 26, 26, 12, "Pose of every\nUS image", "camera pose x hand-eye\nx US calibration", GEO, sfs=8.2)
+    box(ax, 131, 26, 26, 12, "Pose of every\nUS image", "camera pose x camera-to-US\ncalibration (once per probe)", GEO, sfs=8.0)
     box(ax, 131, 8, 26, 12, "3D ultrasound volume", "US images placed in the\nroom and compounded", OUT, sfs=8.4)
     arrow(ax, 28.4, 32, 34.6, 32, label="RGB", ly=1.3)
     arrow(ax, 63.4, 30.5, 69.6, 30.5)
@@ -122,10 +127,48 @@ def pipeline():
 
     # evaluation note
     ax.text(4, 5.2, "Evaluation only: a Polaris marker on the probe gives the true pose; errors at the US image (~16 cm "
-            "from the camera, 1 degree ~ 1.6 mm). The earlier hybrid (SCR anchors + SIFT odometry + pose graph) is no better.",
+            "from the camera, 1 degree ~ 1.6 mm). Polaris also gives the probe's camera-to-US calibration once.",
             fontsize=8.8, color=MUTED)
     legend(ax, 4, 0.8, [(DATA, "sensors and data"), (NET, "learned"), (TRAIN, "training"), (GEO, "geometry, no learning"),
                         (OUT, "result")])
+    return fig
+
+
+# ---------------------------------------------------------------- 3. mapping without a tracker
+def mapping():
+    fig, ax = canvas(16, 7.8, 160, 78)
+    ax.text(2, 75.2, "Mapping without a tracker: the SCR network makes its own training labels (scr_map.py)", fontsize=15.5,
+            weight="bold", color=INK)
+    ax.text(2, 71.8, "input: the room-scan RGB-D video only; no Polaris, no SLAM system, no keypoints. Output: the camera "
+            "pose of every scan frame, the labels of Stage I", fontsize=10, color=MUTED)
+
+    band(ax, 38, 69, "A   Grow the map (ACE0-style, with the measured depth)", 160)
+    box(ax, 4, 44, 22, 16, "Room scan", "RGB + depth video\n1-3 min, 30 frames/s", DATA)
+    box(ax, 32, 44, 26, 16, "1  Seed", "one frame = map origin;\nthe 2 s around it joined\nby frame-to-frame\ndepth ICP", GEO)
+    box(ax, 66, 44, 26, 16, "2a  Train", "the network on the\nframes mapped so far\n(labels from their poses,\nL_coord, 1,500 steps)", TRAIN)
+    box(ax, 99, 44, 27, 16, "2b  Localise", "unmapped neighbours:\nKabsch RANSAC >= 60 inliers\n+ plausible motion;\nfar frames >= 400", NET)
+    box(ax, 133, 44, 24, 16, "2c  Extend", "each map edge\nby depth ICP\n(up to 90 frames)", GEO)
+    arrow(ax, 26.4, 52, 31.6, 52)
+    arrow(ax, 58.4, 52, 65.6, 52)
+    arrow(ax, 92.4, 52, 98.6, 52)
+    arrow(ax, 126.4, 52, 132.6, 52)
+    arrow(ax, 145, 43.6, 79, 43.6, rad=-0.18, label="next round, until a round adds < 0.5 % of the frames", ly=-1.2)
+
+    band(ax, 6, 35, "B   Refine and hand over", 160)
+    box(ax, 4, 11, 30, 16, "3  Final pass", "every frame localised\nagain by the last network\n(>= 400 inliers)", NET)
+    box(ax, 41, 9, 44, 20, "4  Pose graph", "depth-ICP edges between frames\n1, 5, 15, 30 apart (1 mm)\n+ each frame's network pose as a\n"
+        "prior on the points 1 m ahead (10 mm)\nrobust least squares", GEO, sfs=8.3)
+    box(ax, 92, 11, 30, 16, "5  Labels", "pose of every scan frame\n-> train the final network\n(Stage I, 120 epochs)", TRAIN)
+    box(ax, 129, 11, 28, 16, "Evaluation only", "Polaris: one rigid alignment\n+ camera-to-US calibration\n(once per probe)", DATA,
+        dashed=True, sfs=8.3)
+    arrow(ax, 34.4, 19, 40.6, 19)
+    arrow(ax, 85.4, 19, 91.6, 19)
+    arrow(ax, 122.4, 19, 128.6, 19, dashed=True)
+    ax.plot([157.5, 158.6, 158.6, 31, 31], [52, 52, 36.5, 36.5, 28.5], color=MUTED, lw=1.35)
+    arrow(ax, 31, 28.6, 31, 27.4)
+    ax.text(95, 36.5, "map complete", fontsize=8.3, color=MUTED, ha="center", va="center", bbox=dict(fc="white", ec="none", pad=0.6))
+    legend(ax, 4, 1.6, [(DATA, "data"), (NET, "network (inference)"), (TRAIN, "network training"),
+                        (GEO, "geometry, no learning")], step=30)
     return fig
 
 
@@ -252,7 +295,7 @@ def architecture(thumbs=None):
     image(dep, 5, 86.5, 18, 10.1, cmap="viridis")
     txt(14, 84.6, r"$\mathbf{D}_k$: depth (mm)", fs=4.6)
     rbox(4.5, 61, 19, 18, ("#ffffff", "#2f6db5"))
-    txt(14, 70, r"$\mathbf{T}_k \in SE(3)$" "\ncamera pose\n(Polaris here;\nSLAM in deployment)", fs=4.5)
+    txt(14, 70, r"$\mathbf{T}_k \in SE(3)$" "\ncamera pose from\nself-mapping\n(scr_map.py; Polaris\nin benchmarks)", fs=4.3)
 
     # the network
     rbox(29, 87, 108, 29.5, ("#ffffff", "#9a9a9a"))
@@ -364,7 +407,7 @@ def architecture(thumbs=None):
     arr(121.2, 27.75, 125.8, 27.75)
     rbox(157, 12.5, 25, 30.5, ("#ffffff", "#1f1f1e"))
     txt(169.5, 27.75, "US image pose\n" r"$\mathbf{T}^{\mathrm{US}}_t = \bar{\mathbf{T}}_t\,\mathbf{T}_{\mathrm{cam,US}}$"
-        "\n(hand-eye × US calib.)\n\n→ US images placed\nin the room:\n3D volume", fs=4.3)
+        "\n(camera-to-US calib.,\nonce per probe)\n\n→ US images placed\nin the room:\n3D volume", fs=4.3)
     arr(152.2, 27.75, 156.8, 27.75)
 
     # legend
@@ -390,10 +433,10 @@ def main():
     ap.add_argument("--row", type=int, default=None, help="frame (default: middle of the sweep)")
     args = ap.parse_args()
     thumbs = thumbnails(args.root, args.run, args.row)
-    for name, make in (("scr_pipeline", pipeline), ("scr_architecture", lambda: architecture(thumbs))):
+    for name, make in (("scr_pipeline", pipeline), ("scr_architecture", lambda: architecture(thumbs)), ("scr_mapping", mapping)):
         fig = make()
         for ext in ("png", "pdf"):
-            fig.savefig(Path(args.out_dir) / f"{name}.{ext}", dpi=170 if name == "scr_pipeline" else 400, facecolor="white")
+            fig.savefig(Path(args.out_dir) / f"{name}.{ext}", dpi=400 if name == "scr_architecture" else 170, facecolor="white")
         plt.close(fig)
         print(f"wrote {Path(args.out_dir) / name}.png and .pdf")
 

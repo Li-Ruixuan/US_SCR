@@ -24,8 +24,11 @@ so the whole system needs no tracker; Polaris is used only to evaluate the map.
      prior on its view points; robust least squares. Without it, every frame is localised on its own and the
      map bends over seconds (3XX: 7 mm error of the 1 s motion, shape 8.5 mm at the US image).
      --from <map folder> runs only this step on an existing map (edges cached in its graph_edges.npz);
-  4. evaluate against Polaris after one rigid alignment of the whole map (positions, Kabsch): camera
-     position / rotation error per frame and the error of 1 s relative motions (local consistency);
+  4. evaluate against Polaris after one rigid alignment of the whole map (Kabsch on the points 1 m in front
+     of each camera) and one fixed camera-frame transform (camera calibration, a property of the probe: Polaris
+     gives the camera through the hand-eye, the map from the camera itself; --no-cam-calib leaves it out):
+     scene-point / camera position / rotation error per frame and the error of 1 s relative motions. The
+     calibration is saved in map.json; `scr_anchor.py track --cam-calib map.json` applies it;
   5. write the aligned poses per scan in the poses.py JSON format, for
      `scr_anchor.py train --label-poses` (frames that never joined the map get no label).
 
@@ -84,17 +87,34 @@ def align(Te, Tg):
     return A
 
 
-def map_errors(est, gt, items, rows_per_s=30):
-    """Map vs Polaris after one rigid alignment of the whole map (on the view points): per frame the error
-    of the scene points 1 m in front of the camera (what the training labels are made of), camera position
-    and rotation; and the error of relative motions over 1 s (local consistency, needs no alignment)."""
+def align_calib(Te, Tg, iters=10):
+    """Rigid A (world frame) and X (camera frame) with A Te X ~ Tg: the map's alignment plus one fixed transform
+    in the camera frame, the same for every frame. Polaris gives the camera pose through the hand-eye
+    calibration, the map gives it from the camera itself, so a hand-eye error appears as X (3XX: ~10 mm).
+    X is a property of the probe (camera -> US image), estimated once on the room scan; it never enters the
+    labels. Alternating: A by Kabsch on the view points, X = mean of (A Te)^-1 Tg."""
+    X = np.eye(4)
+    for _ in range(iters):
+        A = align(Te @ X, Tg)
+        D = np.linalg.inv(A @ Te) @ Tg
+        X = np.eye(4)
+        X[:3, :3] = Rotation.from_matrix(D[:, :3, :3]).mean().as_matrix()
+        X[:3, 3] = np.median(D[:, :3, 3], axis=0)
+    return align(Te @ X, Tg), X
+
+
+def map_errors(est, gt, items, rows_per_s=30, calib=False):
+    """Map vs Polaris after one rigid alignment of the whole map (on the view points) and, with calib, one fixed
+    camera-frame transform X (align_calib): per frame the error of the scene points 1 m in front of the camera
+    (what the training labels are made of), camera position and rotation; and the error of relative motions
+    over 1 s (local consistency, needs no alignment). -> (A, errors, X)."""
     ok = [k for k, (n, r) in enumerate(items) if np.isfinite(est[n][r]).all()]
     if len(ok) < 3:
-        return None, {}
+        return None, {}, None
     Te = np.stack([est[items[k][0]][items[k][1]] for k in ok])
     Tg = np.stack([gt[items[k][0]][items[k][1]] for k in ok])
-    A = align(Te, Tg)
-    Ta = A @ Te
+    A, X = align_calib(Te, Tg) if calib else (align(Te, Tg), np.eye(4))
+    Ta = A @ Te @ X
     dv = np.linalg.norm(view_points(Ta) - view_points(Tg), axis=2).mean(1)
     dt = np.linalg.norm(Ta[:, :3, 3] - Tg[:, :3, 3], axis=1)
     dR = np.einsum("nji,njk->nik", Ta[:, :3, :3], Tg[:, :3, :3])
@@ -105,13 +125,15 @@ def map_errors(est, gt, items, rows_per_s=30):
         have = set(rows)
         for r in rows:
             if r + rows_per_s in have:
-                Re = np.linalg.inv(est[n][r]) @ est[n][r + rows_per_s]
+                Re = np.linalg.inv(est[n][r] @ X) @ est[n][r + rows_per_s] @ X
                 Rg = np.linalg.inv(gt[n][r]) @ gt[n][r + rows_per_s]
                 rel.append(np.linalg.norm(Re[:3, 3] - Rg[:3, 3]))
     q = lambda v, p: float(np.percentile(v, p)) if len(v) else None
+    cal = {"calib_mm": float(np.linalg.norm(X[:3, 3])),
+           "calib_deg": float(np.degrees(np.linalg.norm(Rotation.from_matrix(X[:3, :3]).as_rotvec())))} if calib else {}
     return A, {"mapped": len(ok), "frames": len(items), "mapped_pct": 100 * len(ok) / len(items),
                "view_mm_median": q(dv, 50), "view_mm_p90": q(dv, 90), "pos_mm_median": q(dt, 50), "pos_mm_p90": q(dt, 90), "rot_deg_median": q(dr, 50),
-               "rel1s_mm_median": q(rel, 50), "rel1s_mm_p90": q(rel, 90)}
+               "rel1s_mm_median": q(rel, 50), "rel1s_mm_p90": q(rel, 90), **cal}, X
 
 
 def depth_cloud(ds, root, n, r, stride, max_depth):
@@ -381,7 +403,7 @@ def write_outputs(args, out, items, est, gt, history, stage, net, mapping_args=N
     """Align the map to Polaris (view points), write poses_<scan>.json (labels for scr_anchor.py train
     --label-poses), map.json, map_report.md and, after mapping, map.pt (the mapping network). With `stage`,
     the final errors are added to the history under that name (--realign)."""
-    A, e = map_errors(est, gt, items)
+    A, e, X = map_errors(est, gt, items, calib=args.cam_calib)
     if A is None:
         raise SystemExit("the map did not grow beyond the seed: train the seed longer (--seed-steps) or lower --gate")
     if stage:
@@ -396,6 +418,7 @@ def write_outputs(args, out, items, est, gt, history, stage, net, mapping_args=N
                    "frames": [{"row": int(r), "T_world_cam_pred": (A @ est[n][r]).tolist()} for r in rows]},
                   open(out / f"poses_{n}.json", "w"))
     json.dump({"args": mapping_args or vars(args), "history": history, "final": e, "map_to_polaris": A.tolist(),
+               "cam_calib": X.tolist(),
                **({"rerun_args": vars(args)} if mapping_args else {})}, open(out / "map.json", "w"), indent=1)
     f = lambda v: "-" if v is None else f"{v:.1f}"
     md = [f"# Map without a tracker: {', '.join(args.scan_runs)} ({Path(args.root).name})", "",
@@ -405,13 +428,18 @@ def write_outputs(args, out, items, est, gt, history, stage, net, mapping_args=N
           "| stage | frames added | mapped | scene points at 1 m, mm (median / p90) | camera position mm | rotation deg "
           "| 1 s motion mm (median / p90) | loss mm |",
           "|---|---|---|---|---|---|---|---|"]
-    md += [f"| {h['stage']} | {h['added'] if h['added'] is not None else ''} | {h['mapped']}/{h['frames']} ({h['mapped_pct']:.0f} %) | "
+    md += [f"| {h['stage']}{' (+ camera calibration)' if 'calib_mm' in h else ''} | {h['added'] if h['added'] is not None else ''} | {h['mapped']}/{h['frames']} ({h['mapped_pct']:.0f} %) | "
            f"{f(h.get('view_mm_median'))} / {f(h.get('view_mm_p90'))} | {f(h['pos_mm_median'])} / {f(h['pos_mm_p90'])} | "
            f"{h['rot_deg_median']:.2f} | {f(h['rel1s_mm_median'])} / {f(h['rel1s_mm_p90'])} | "
            f"{'' if h.get('loss_mm') is None else format(h['loss_mm'], '.1f')} |" for h in history]
     if any("view_mm_median" not in h for h in history):
         md += ["", "Stages without scene-point errors were aligned on camera positions only (before 3 Nov): their "
                "rotation and position errors include an alignment error."]
+    if "calib_mm" in e:
+        md += ["", f"Camera calibration from the room scan (one fixed camera-frame transform, a property of the probe; "
+               f"Polaris sees the marker, the map the camera): {e['calib_mm']:.1f} mm, {e['calib_deg']:.2f} deg. Rows marked "
+               "(+ camera calibration) include it. It is not in the labels; `scr_anchor.py track --cam-calib "
+               f"{out / 'map.json'}` applies it when placing the US images."]
     md += ["", "Labels for training: " + ", ".join(f"`poses_{n}.json`" for n in args.scan_runs) +
            " (`scr_anchor.py train --label-poses`)."]
     (out / "map_report.md").write_text("\n".join(md) + "\n")
@@ -449,7 +477,9 @@ def main():
     ap.add_argument("--refine-steps", type=int, default=0,
                     help="joint training of the network and pose corrections (off: on 3XX it made the map worse)")
     ap.add_argument("--realign", action="store_true",
-                    help="no mapping: re-align the map already in --out (its poses_*.json and map.json) and rewrite them")
+                    help="no mapping: re-align the map in --out (or --from, written to --out): its poses_*.json and map.json")
+    ap.add_argument("--no-cam-calib", dest="cam_calib", action="store_false",
+                    help="evaluate without the camera calibration (one fixed camera-frame transform fitted with the alignment)")
     ap.add_argument("--no-graph", dest="graph", action="store_false",
                     help="skip the pose graph (depth-ICP edges between nearby frames + the network's poses) after the final pass")
     ap.add_argument("--from", dest="from_map", default=None,
@@ -499,7 +529,7 @@ def main():
         for n in args.scan_runs:
             for f in json.load(open(src / f"poses_{n}.json"))["frames"]:
                 est[n][f["row"]] = np.linalg.inv(A_old) @ np.asarray(f["T_world_cam_pred"])
-        if args.realign:
+        if args.realign:                      # with --from: the map of --from, written to --out
             write_outputs(args, out, items, est, gt, old["history"], "re-aligned", None, mapping_args=old["args"])
             return
         run_graph(est, items, cloud, args, src / "graph_edges.npz")
@@ -526,7 +556,7 @@ def main():
     history = []
 
     def log(stage, loss, t0, added=None):
-        _, e = map_errors(est, gt, items)
+        _, e, _ = map_errors(est, gt, items, calib=args.cam_calib)
         if not e:
             print(f"{stage}: +{added} frames, fewer than 3 mapped", flush=True)
             return

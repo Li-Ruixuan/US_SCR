@@ -3,9 +3,9 @@ The overview tables of summary.md 1.2 as figures, in tools/tables/: one PNG per 
 them in one PDF (one page each), with the conclusions of each table under it.
   A  every system at the US image          B  pose from one image (anchors)
   C  coverage: what decides SCR vs classical  D  where the error sits (absolute, shape, placement)
-  E  every test and its verdict
+  E  every test and its verdict             F  map without a tracker (labels from the network's own map)
 
-  python tools/draw_overview_tables.py              # -> tools/tables/table_<A..E>.png, tools/tables/overview_tables.pdf
+  python tools/draw_overview_tables.py              # -> tools/tables/table_<A..F>.png, tools/tables/overview_tables.pdf
 
 The numbers are copied from summary.md (no run files are read): edit both together.
 A cell starting with "*" is drawn bold (best in its column).
@@ -176,6 +176,14 @@ TABLES = [
                 "re-scan per session"],
                ["map", "shorter room scans: first 20 / 40 s of each", "3XX US", "3.00 / 2.03 vs 1.85 (~60 s)",
                 "content over length"],
+               ["map", "map without a tracker: the network + depth ICP build the room-scan poses (labels)", "3XX US / shape",
+                "1.85 / 1.57 (Polaris labels) → 13.26 / 8.54", "works, not accurate"],
+               ["map", "map aligned to Polaris on view points, not camera positions (evaluation)", "3XX US", "50.6 → 12.8",
+                "fixed"],
+               ["map", "joint refinement of network and map poses", "3XX map camera position", "8.4 → 8.9", "no"],
+               ["map", "+ pose graph over the room scan (depth ICP edges + network priors)", "3XX US / shape",
+                "13.26 / 8.54 → 12.49 / 4.74", "adopted"],
+               ["map", "pose-graph prior 10 / 30 mm", "3XX map scene points", "6.9 / 7.3", "default kept"],
                ["US", "U1 in-plane registration (ECC)", "2XX, 10 rows", "1.91 vs 1.55 for zero motion", "no"],
                ["US", "U2 speckle decorrelation → distance", "all", "0.27–0.43, magnitude only", "no"],
                ["US", "U3 per-patch speckle vs camera", "3XX, 4 rows", "0.78 vs camera 0.19", "no"],
@@ -184,8 +192,33 @@ TABLES = [
                 "no"]],
          group=0, verdict=4, left=4,
          notes=["Adopted: longer training, Kabsch on depth, big head + clean labels, 2 s smoothing, pooled same-day "
-                "room scans; real time with a 0.25 s delay. Everything else is "
+                "room scans; real time with a 0.25 s delay; for maps without a tracker, the pose graph. Everything else is "
                 "neutral or worse; odometry and every US-image method were dropped."]),
+    dict(name="table_F", title="F. Map without a tracker (3XX): training labels from a map the network builds itself "
+                               "(Polaris for evaluation only; mm)",
+         cols=["training labels from", "map: scene points at 1 m", "map: camera position", "map: 1 s motion",
+               "US: absolute", "US: shape (after a rigid fit of each sweep)", "placement (absolute − shape)",
+               "out-of-plane over 8 / 30 rows", "step over 8 rows"],
+         widths=[2.7, 0.95, 0.95, 0.85, 0.85, 1.3, 1.15, 1.2, 0.8],
+         rows=[["Polaris (reference)", "–", "–", "–", "*1.85", "*1.57", "0.28", "0.37 / 0.62", "*0.93"],
+               ["map, each frame localised on its own", "9.0", "15.3", "7.2", "13.26", "8.54", "4.72", "0.46 / 1.14", "1.39"],
+               ["map + pose graph (depth ICP edges, network priors 10 mm)", "*6.9", "*11.6", "*3.4", "12.49", "4.74",
+                "7.75", "0.46 / 1.24", "1.14"],
+               ["map + pose graph, priors 30 mm (map only, not trained)", "7.3", "12.2", "3.4", "–", "–", "–", "–", "–"],
+               ["classical system (needs no labels)", "–", "–", "–", "3.11", "2.47", "0.64", "0.29 / 0.62", "–"],
+               ["classical odometry only", "–", "–", "–", "9.43", "6.23", "3.20", "0.28 / 0.54", "–"]],
+         shade={0: OURS, 2: OURS, 4: CLASSICAL}, left=1,
+         notes=["The network reproduces its labels: the same network gives 1.85 mm with Polaris labels and 12.5–13.3 mm "
+                "with map labels. More training cannot help; the map decides.",
+                "The pose graph ties neighbouring room-scan frames together: the map's 1 s motion error halves (7.2 → 3.4) "
+                "and the volume shape improves from 8.54 to 4.74 (per sweep 1.9–4.4, run-317 9.8): better than odometry "
+                "alone (6.23), still 2–3× Polaris labels (1.57) and classical (2.47).",
+                "What is left of the absolute error is one fixed offset in the camera frame, the same in every sweep "
+                "(9.6 mm, 0.4°; spread 1–2 mm over sweeps): the signature of a hand–eye mismatch between Polaris and the "
+                "camera, not of the map. Removing it (estimated on the other sweeps) brings the difference to the "
+                "Polaris-labelled track from 8.4–12.2 to 2.2–4.3 mm (run-317 7.9; proxy, not yet against Polaris).",
+                "A looser prior (30 mm) gives the same 1 s motion (3.4): the remaining local error sits in the ICP edges "
+                "(or the hand–eye of the evaluation), not in the priors."]),
 ]
 
 

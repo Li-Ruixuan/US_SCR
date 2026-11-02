@@ -50,7 +50,10 @@ def track_export(track_dir, ref_path, window, out_path):
     sw = ref["run"]
     if f"{sw}_rows" not in z:
         return False
-    pose = {int(r): (T, k) for r, T, k in zip(z[f"{sw}_rows"], z[f"{sw}_T"], z[f"{sw}_inl"])}
+    meta = Path(track_dir) / "poses.json"
+    X = json.load(open(meta)).get("cam_calib") if meta.exists() else None    # scr_anchor.py track --cam-calib
+    X = np.eye(4) if X is None else np.asarray(X, float)
+    pose = {int(r): (T @ X, k) for r, T, k in zip(z[f"{sw}_rows"], z[f"{sw}_T"], z[f"{sw}_inl"])}
     T_cam_us = np.asarray(ref["T_cam_us"])
     frames = [dict(f) for f in ref["frames"]]
     for seg in sorted({f["segment"] for f in frames}):

@@ -86,10 +86,10 @@ The room-scan poses that label the training frames come from Polaris. `scr_map.p
 ```bash
 python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/map-3XX
 python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --label-poses runs/map-3XX/poses_room-301.json runs/map-3XX/poses_room-302.json --out runs/v2map-3XX
-python scr_anchor.py track --ckpt runs/v2map-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-v2map-3XX
+python scr_anchor.py track --ckpt runs/v2map-3XX/best.pt --test-root $DATA/train_3XX --every 2 --cam-calib runs/map-3XX/map.json --out runs/track-v2map-3XX
 ```
 
-`--from <map folder>` runs only the pose graph on an existing map and writes the result to `--out` (the ICP edges are cached in `<map folder>/graph_edges.npz`, so a second run with other `--graph-prior-mm` takes minutes). `--realign` re-aligns a map already in `--out` (no mapping; e.g. after the 3 Nov fix of the alignment, which now uses the points 1 m in front of each camera, not the camera positions). Outputs of `scr_map.py`: `map_report.md` (map growth per round, and the map error against Polaris: position, rotation, 1 s relative motion), `map.json`, `poses_<scan>.json` (labels for `--label-poses`), `map.pt` (the mapping network, map frame).
+The map is evaluated after one rigid alignment to Polaris plus one fixed camera-frame transform, the camera calibration of the probe (Polaris gives the camera pose through the hand–eye calibration, the map from the camera itself; 3XX: ~10 mm). It is saved in `map.json`, kept out of the labels, and applied when tracking with `track --cam-calib <map folder>/map.json`. `--from <map folder>` runs only the pose graph on an existing map and writes the result to `--out` (the ICP edges are cached in `<map folder>/graph_edges.npz`, so a second run with other `--graph-prior-mm` takes minutes). `--realign` re-aligns a map already in `--out` (no mapping; e.g. after the 3 Nov fix of the alignment, which now uses the points 1 m in front of each camera, not the camera positions). Outputs of `scr_map.py`: `map_report.md` (map growth per round, and the map error against Polaris: position, rotation, 1 s relative motion), `map.json`, `poses_<scan>.json` (labels for `--label-poses`), `map.pt` (the mapping network, map frame).
 
 Coverage analysis of an evaluation:
 
