@@ -80,11 +80,19 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
  
-Labels for training: `poses_room-301.json`, `poses_room-302.json` (`scr_anchor.py train --label-poses`).
--> runs/map-3XX
-bash: syntax error near unexpected token `('
-/data2/u0137815/US_SCR/dataloader.py:130: UserWarning: room-301: only 87.4% of frames have a tracker pose. Check line of sight, and check that the probe stayed inside the Polaris measurement volume.
+On the training PC, one at a time:
 
+
+git pull
+export DATA=/data2/u0137815/rgbd-us/data
+
+python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/map-3XX --realign
+
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --label-poses runs/map-3XX/poses_room-301.json runs/map-3XX/poses_room-302.json --out runs/v2map-3XX
+
+python scr_anchor.py track --ckpt runs/v2map-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-v2map-3XX
+
+git add -A && git commit -m "Map without a tracker on 3XX: re-aligned" && git push
 
 
 
