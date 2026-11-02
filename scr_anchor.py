@@ -673,6 +673,9 @@ def track(args):
     cache = out / "poses.npz"
     meta = json.load(open(out / "poses.json")) if cache.exists() else {}
     cached = meta.get("every") == args.every and meta.get("weighted", False) == args.weighted
+    if cached and Path(args.ckpt).exists() and Path(args.ckpt).stat().st_mtime > cache.stat().st_mtime:
+        print(f"{args.ckpt} is newer than {cache}: tracking again")      # retrained into the same folder
+        cached = False
     if cached:                                # smoothing only: no network needed (checkpoint may live elsewhere)
         hand_eye, image_size = REPO / "T_marker_cam.npy", (360, 640)
     else:

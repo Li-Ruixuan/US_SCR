@@ -62,24 +62,35 @@ def so3_exp(w):
     return torch.eye(3, device=w.device, dtype=w.dtype) + s * K + (1 - c) * K @ K
 
 
-def align(P, Q):
-    """Rigid A (4x4) with A P ~ Q for point sets (N, 3) (Kabsch, no scale)."""
-    R, t = sa.kabsch(P, Q)
+VIEW = np.array([[0, 0, 1000.0], [300, 0, 1000], [0, 300, 1000], [-300, -300, 1000]])   # camera frame, mm
+
+
+def view_points(T):
+    """Points 1 m in front of each camera (N, 4, 3), placed with the poses T (N, 4, 4): what the camera sees,
+    so they fix the orientation (a room scan barely moves the camera: its positions span a few cm only)."""
+    return np.einsum("nij,kj->nki", T[:, :3, :3], VIEW) + T[:, None, :3, 3]
+
+
+def align(Te, Tg):
+    """Rigid A (4x4) with A Te ~ Tg for poses (N, 4, 4): Kabsch on their view points (no scale)."""
+    R, t = sa.kabsch(view_points(Te).reshape(-1, 3), view_points(Tg).reshape(-1, 3))
     A = np.eye(4)
     A[:3, :3], A[:3, 3] = R, t
     return A
 
 
 def map_errors(est, gt, items, rows_per_s=30):
-    """Map vs Polaris after one rigid alignment of all mapped camera positions: per-frame position /
-    rotation error, and the error of relative motions over 1 s (local consistency)."""
+    """Map vs Polaris after one rigid alignment of the whole map (on the view points): per frame the error
+    of the scene points 1 m in front of the camera (what the training labels are made of), camera position
+    and rotation; and the error of relative motions over 1 s (local consistency, needs no alignment)."""
     ok = [k for k, (n, r) in enumerate(items) if np.isfinite(est[n][r]).all()]
     if len(ok) < 3:
         return None, {}
     Te = np.stack([est[items[k][0]][items[k][1]] for k in ok])
     Tg = np.stack([gt[items[k][0]][items[k][1]] for k in ok])
-    A = align(Te[:, :3, 3], Tg[:, :3, 3])
+    A = align(Te, Tg)
     Ta = A @ Te
+    dv = np.linalg.norm(view_points(Ta) - view_points(Tg), axis=2).mean(1)
     dt = np.linalg.norm(Ta[:, :3, 3] - Tg[:, :3, 3], axis=1)
     dR = np.einsum("nji,njk->nik", Ta[:, :3, :3], Tg[:, :3, :3])
     dr = np.degrees(np.arccos(np.clip((np.trace(dR, axis1=1, axis2=2) - 1) / 2, -1, 1)))
@@ -94,7 +105,7 @@ def map_errors(est, gt, items, rows_per_s=30):
                 rel.append(np.linalg.norm(Re[:3, 3] - Rg[:3, 3]))
     q = lambda v, p: float(np.percentile(v, p)) if len(v) else None
     return A, {"mapped": len(ok), "frames": len(items), "mapped_pct": 100 * len(ok) / len(items),
-               "pos_mm_median": q(dt, 50), "pos_mm_p90": q(dt, 90), "rot_deg_median": q(dr, 50),
+               "view_mm_median": q(dv, 50), "view_mm_p90": q(dv, 90), "pos_mm_median": q(dt, 50), "pos_mm_p90": q(dt, 90), "rot_deg_median": q(dr, 50),
                "rel1s_mm_median": q(rel, 50), "rel1s_mm_p90": q(rel, 90)}
 
 
@@ -251,6 +262,48 @@ def localise(net, ds, root, items, idx, args, device, gates=None, refs=None, est
     return out, counts
 
 
+def write_outputs(args, out, items, est, gt, history, stage, net, mapping_args=None):
+    """Align the map to Polaris (view points), write poses_<scan>.json (labels for scr_anchor.py train
+    --label-poses), map.json, map_report.md and, after mapping, map.pt (the mapping network). With `stage`,
+    the final errors are added to the history under that name (--realign)."""
+    A, e = map_errors(est, gt, items)
+    if A is None:
+        raise SystemExit("the map did not grow beyond the seed: train the seed longer (--seed-steps) or lower --gate")
+    if stage:
+        history = history + [{"stage": stage, "added": None, "loss_mm": None, **e}]
+    if net is not None:
+        torch.save({"model": net.state_dict(), "centre": [0.0, 0.0, 0.0], "head": "big", "image_size": [360, 640],
+                    "args": {"hand_eye": args.hand_eye}, "map_to_polaris": A.tolist()}, out / "map.pt")
+    for n in args.scan_runs:
+        rows = [r for m, r in items if m == n and np.isfinite(est[n][r]).all()]
+        json.dump({"run": n, "source": f"scr-map ({out.name})",
+                   "note": "map poses after one rigid alignment to Polaris (map_to_polaris in map.json)",
+                   "frames": [{"row": int(r), "T_world_cam_pred": (A @ est[n][r]).tolist()} for r in rows]},
+                  open(out / f"poses_{n}.json", "w"))
+    json.dump({"args": mapping_args or vars(args), "history": history, "final": e, "map_to_polaris": A.tolist(),
+               **({"realign_args": vars(args)} if mapping_args else {})}, open(out / "map.json", "w"), indent=1)
+    f = lambda v: "-" if v is None else f"{v:.1f}"
+    md = [f"# Map without a tracker: {', '.join(args.scan_runs)} ({Path(args.root).name})", "",
+          "Room-scan poses built without a tracker (scr_map.py). Error against Polaris after one rigid alignment of "
+          "the whole map on the points 1 m in front of each camera; scene points at 1 m = the error the training "
+          "labels inherit; 1 s motion = error of the relative pose between frames 30 rows apart (no alignment).", "",
+          "| stage | frames added | mapped | scene points at 1 m, mm (median / p90) | camera position mm | rotation deg "
+          "| 1 s motion mm (median / p90) | loss mm |",
+          "|---|---|---|---|---|---|---|---|"]
+    md += [f"| {h['stage']} | {h['added'] if h['added'] is not None else ''} | {h['mapped']}/{h['frames']} ({h['mapped_pct']:.0f} %) | "
+           f"{f(h.get('view_mm_median'))} / {f(h.get('view_mm_p90'))} | {f(h['pos_mm_median'])} / {f(h['pos_mm_p90'])} | "
+           f"{h['rot_deg_median']:.2f} | {f(h['rel1s_mm_median'])} / {f(h['rel1s_mm_p90'])} | "
+           f"{'' if h.get('loss_mm') is None else format(h['loss_mm'], '.1f')} |" for h in history]
+    if any("view_mm_median" not in h for h in history):
+        md += ["", "Stages without scene-point errors were aligned on camera positions only (before 3 Nov): their "
+               "rotation and position errors include an alignment error."]
+    md += ["", "Labels for training: " + ", ".join(f"`poses_{n}.json`" for n in args.scan_runs) +
+           " (`scr_anchor.py train --label-poses`)."]
+    (out / "map_report.md").write_text("\n".join(md) + "\n")
+    print("\n".join(md[4:]) + f"\n-> {out}", flush=True)
+
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--root", required=True)
@@ -278,7 +331,10 @@ def main():
     ap.add_argument("--max-turn", type=float, default=90.0, help="plausibility check: turn rate (deg/s)")
     ap.add_argument("--no-final-pass", dest="final_pass", action="store_false",
                     help="skip re-localising every frame before the refinement")
-    ap.add_argument("--refine-steps", type=int, default=4000, help="joint training of the network and pose corrections")
+    ap.add_argument("--refine-steps", type=int, default=0,
+                    help="joint training of the network and pose corrections (off: on 3XX it made the map worse)")
+    ap.add_argument("--realign", action="store_true",
+                    help="no mapping: re-align the map already in --out (its poses_*.json and map.json) and rewrite them")
     ap.add_argument("--refine-lr", type=float, default=1e-4, help="pose corrections (rad, m)")
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--lr", type=float, default=1e-3, help="head")
@@ -303,6 +359,14 @@ def main():
     est = {n: np.full_like(gt[n], np.nan) for n in args.scan_runs}
     for n in args.scan_runs:
         ds.runs[n]["T_world_cam"] = est[n]                                         # labels come from the map
+    if args.realign:                          # the map of an earlier run: est = inverse of its old alignment x its poses
+        old = json.load(open(out / "map.json"))
+        A_old = np.asarray(old["map_to_polaris"])
+        for n in args.scan_runs:
+            for f in json.load(open(out / f"poses_{n}.json"))["frames"]:
+                est[n][f["row"]] = np.linalg.inv(A_old) @ np.asarray(f["T_world_cam_pred"])
+        write_outputs(args, out, items, est, gt, old["history"], "re-aligned", None, mapping_args=old["args"])
+        return
     pos = {it: k for k, it in enumerate(items)}
     seed_run = args.seed_run or args.scan_runs[0]
     seed = pos[(seed_run, args.seed_row)] if args.seed_row is not None else next(k for k, (n, _) in enumerate(items) if n == seed_run)
@@ -340,7 +404,8 @@ def main():
         history.append(h)
         f = lambda v: "-" if v is None else f"{v:.1f}"
         print(f"{stage}: loss {loss:.1f} mm, +{added if added is not None else 0} frames, mapped {e['mapped']}/{e['frames']} "
-              f"({e['mapped_pct']:.0f} %); vs Polaris after one rigid alignment: position {f(e['pos_mm_median'])} / "
+              f"({e['mapped_pct']:.0f} %); vs Polaris after one rigid alignment: scene points at 1 m "
+              f"{f(e['view_mm_median'])} / {f(e['view_mm_p90'])} mm, camera position {f(e['pos_mm_median'])} / "
               f"{f(e['pos_mm_p90'])} mm, rotation {e['rot_deg_median']:.2f} deg, 1 s motion {f(e['rel1s_mm_median'])} mm "
               f"[{h['s']} s]", flush=True)
         json.dump({"args": vars(args), "history": history}, open(out / "map.json", "w"), indent=1)
@@ -417,33 +482,7 @@ def main():
             est[items[k][0]][items[k][1]] = T @ C
         log("refined", loss, t0, 0)
 
-    # aligned poses for scr_anchor.py train --label-poses; report
-    A, e = map_errors(est, gt, items)
-    if A is None:
-        raise SystemExit("the map did not grow beyond the seed: train the seed longer (--seed-steps) or lower --gate")
-    torch.save({"model": net.state_dict(), "centre": [0.0, 0.0, 0.0], "head": "big", "image_size": [360, 640],
-                "args": {"hand_eye": args.hand_eye}, "map_to_polaris": A.tolist()}, out / "map.pt")
-    for n in args.scan_runs:
-        rows = [r for m, r in items if m == n and np.isfinite(est[n][r]).all()]
-        json.dump({"run": n, "source": f"scr-map ({out.name})",
-                   "note": "map poses after one rigid alignment to Polaris (map_to_polaris in map.json)",
-                   "frames": [{"row": int(r), "T_world_cam_pred": (A @ est[n][r]).tolist()} for r in rows]},
-                  open(out / f"poses_{n}.json", "w"))
-    json.dump({"args": vars(args), "history": history, "final": e, "map_to_polaris": A.tolist()},
-              open(out / "map.json", "w"), indent=1)
-    f = lambda v: "-" if v is None else f"{v:.1f}"
-    md = [f"# Map without a tracker: {', '.join(args.scan_runs)} ({Path(args.root).name})", "",
-          "The SCR network built the room-scan poses from one seed frame (scr_map.py). Error against Polaris after one "
-          "rigid alignment of the whole map; 1 s motion = error of the relative pose between frames 30 rows apart.", "",
-          "| stage | frames added | mapped | position mm (median / p90) | rotation deg | 1 s motion mm (median / p90) | loss mm |",
-          "|---|---|---|---|---|---|---|"]
-    md += [f"| {h['stage']} | {h['added'] if h['added'] is not None else ''} | {h['mapped']}/{h['frames']} ({h['mapped_pct']:.0f} %) | "
-           f"{f(h['pos_mm_median'])} / {f(h['pos_mm_p90'])} | {h['rot_deg_median']:.2f} | {f(h['rel1s_mm_median'])} / "
-           f"{f(h['rel1s_mm_p90'])} | {h['loss_mm']:.1f} |" for h in history]
-    md += ["", "Labels for training: " + ", ".join(f"`poses_{n}.json`" for n in args.scan_runs) +
-           " (`scr_anchor.py train --label-poses`)."]
-    (out / "map_report.md").write_text("\n".join(md) + "\n")
-    print("\n".join(md[4:]) + f"\n-> {out}", flush=True)
+    write_outputs(args, out, items, est, gt, history, None, net)
 
 
 if __name__ == "__main__":

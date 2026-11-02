@@ -89,7 +89,7 @@ python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 
 python scr_anchor.py track --ckpt runs/v2map-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-v2map-3XX
 ```
 
-Outputs of `scr_map.py`: `map_report.md` (map growth per round, and the map error against Polaris: position, rotation, 1 s relative motion), `map.json`, `poses_<scan>.json` (labels for `--label-poses`), `map.pt` (the mapping network, map frame).
+`--realign` re-aligns a map already in `--out` (no mapping; e.g. after the 3 Nov fix of the alignment, which now uses the points 1 m in front of each camera, not the camera positions). Outputs of `scr_map.py`: `map_report.md` (map growth per round, and the map error against Polaris: position, rotation, 1 s relative motion), `map.json`, `poses_<scan>.json` (labels for `--label-poses`), `map.pt` (the mapping network, map frame).
 
 Coverage analysis of an evaluation:
 
