@@ -78,24 +78,6 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
+ 
 
-
-
-On the training PC, one at a time:
-
-
-git pull
-export DATA=/data2/u0137815/rgbd-us/data
-
-python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --from runs/map-3XX-graph --out runs/map-3XX-calib --realign
-
-python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --label-poses runs/map-3XX-calib/poses_room-301.json runs/map-3XX-calib/poses_room-302.json --out runs/v2calib-3XX
-
-python scr_anchor.py track --ckpt runs/v2calib-3XX/best.pt --test-root $DATA/train_3XX --every 2 --cam-calib runs/map-3XX-calib/map.json --out runs/track-v2calib-3XX
-
-python tools/volume_pages.py --test-root $DATA/train_3XX --track runs/track-v2calib-3XX --anchoring runs/sys-classical-r-3XX/anchor_eval_classical-odometry-odo-classical-vo-train_3XX-recover3-startanchor-train_3XX.json --extra classical-vo-train_3XX --labels "classical anchors + classical odometry" "classical odometry only" --out runs/volume3d-calib/3XX
-
-python tools/us_analysis.py shape --json runs/volume3d-calib/3XX/poses/*.json --out runs/shape-calib-3XX.md
-
-git add -A && git commit -m "Map without a tracker on 3XX: camera calibration" && git push
 
