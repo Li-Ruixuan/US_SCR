@@ -184,6 +184,8 @@ TABLES = [
                ["map", "+ pose graph over the room scan (depth ICP edges + network priors)", "3XX US / shape",
                 "13.26 / 8.54 → 12.49 / 4.74", "adopted"],
                ["map", "pose-graph prior 10 / 30 mm", "3XX map scene points", "6.9 / 7.3", "default kept"],
+               ["map", "+ camera calibration from the room scan (applied when tracking)", "3XX US / shape",
+                "12.49 / 4.74 → 3.60 / 2.86", "adopted"],
                ["US", "U1 in-plane registration (ECC)", "2XX, 10 rows", "1.91 vs 1.55 for zero motion", "no"],
                ["US", "U2 speckle decorrelation → distance", "all", "0.27–0.43, magnitude only", "no"],
                ["US", "U3 per-patch speckle vs camera", "3XX, 4 rows", "0.78 vs camera 0.19", "no"],
@@ -202,12 +204,14 @@ TABLES = [
          widths=[2.7, 0.95, 0.95, 0.85, 0.85, 1.3, 1.15, 1.2, 0.8],
          rows=[["Polaris (reference)", "–", "–", "–", "*1.85", "*1.57", "0.28", "0.37 / 0.62", "*0.93"],
                ["map, each frame localised on its own", "9.0", "15.3", "7.2", "13.26", "8.54", "4.72", "0.46 / 1.14", "1.39"],
-               ["map + pose graph (depth ICP edges, network priors 10 mm)", "*6.9", "*11.6", "*3.4", "12.49", "4.74",
+               ["map + pose graph (depth ICP edges, network priors 10 mm)", "6.9", "11.6", "3.4", "12.49", "4.74",
                 "7.75", "0.46 / 1.24", "1.14"],
                ["map + pose graph, priors 30 mm (map only, not trained)", "7.3", "12.2", "3.4", "–", "–", "–", "–", "–"],
+               ["map + pose graph + camera calibration from the room scan", "*4.9", "*4.8", "*1.8", "*3.60", "*2.86",
+                "0.74", "0.39 / 0.78", "1.01"],
                ["classical system (needs no labels)", "–", "–", "–", "3.11", "2.47", "0.64", "0.29 / 0.62", "–"],
                ["classical odometry only", "–", "–", "–", "9.43", "6.23", "3.20", "0.28 / 0.54", "–"]],
-         shade={0: OURS, 2: OURS, 4: CLASSICAL}, left=1,
+         shade={0: OURS, 4: OURS, 5: CLASSICAL}, left=1,
          notes=["The network reproduces its labels: the same network gives 1.85 mm with Polaris labels and 12.5–13.3 mm "
                 "with map labels. More training cannot help; the map decides.",
                 "The pose graph ties neighbouring room-scan frames together: the map's 1 s motion error halves (7.2 → 3.4) "
@@ -218,7 +222,11 @@ TABLES = [
                 "camera, not of the map. Removing it (estimated on the other sweeps) brings the difference to the "
                 "Polaris-labelled track from 8.4–12.2 to 2.2–4.3 mm (run-317 7.9; proxy, not yet against Polaris).",
                 "A looser prior (30 mm) gives the same 1 s motion (3.4): the remaining local error sits in the ICP edges "
-                "(or the hand–eye of the evaluation), not in the priors."]),
+                "(or the hand–eye of the evaluation), not in the priors.",
+                "Camera calibration fitted on the room scan (one camera-frame transform with the alignment; applied when "
+                "tracking, not in the labels): US error 12.49 → 3.60, shape 4.74 → 2.86 (per sweep 2.5–5.3), close to "
+                "classical (3.11 / 2.47). The fit was not converged (10 alternating steps; 27.8 mm, 1.77°): now solved "
+                "jointly by least squares; the reproduction from scratch (runs/repro/) uses it."]),
 ]
 
 

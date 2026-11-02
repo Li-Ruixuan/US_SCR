@@ -4,8 +4,8 @@ the camera pose of every sweep frame. Commands: train, eval, track (and scr_map.
 
 Final pipeline (summary.md 2.2, 3.1):
   train  every room-scan frame; label of each of the 45 x 80 cells = its depth point (0.1-2 m, not on a
-         depth edge) placed in the room with the frame's pose (Polaris, or --label-poses: estimated poses
-         in poses.py JSON, e.g. from scr_map.py); network: EfficientNet-B0 stride-8 + stride-16 features
+         depth edge) placed in the room with the frame's pose (Polaris, or --map: the poses of scr_map.py,
+         no tracker; --label-poses: any estimated poses in poses.py JSON); network: EfficientNet-B0 stride-8 + stride-16 features
          -> 1x1 head (big: 4 residual blocks, 512); loss: mean 3D distance; AdamW, 120 epochs, flat lr
          for 60 % then cosine; photometric augmentation. The defaults are this recipe (v2).
   track  every --every-th usable row: network -> room coordinates; Kabsch RANSAC with the measured depth
@@ -13,11 +13,17 @@ Final pipeline (summary.md 2.2, 3.1):
          each --windows W (offline) and, with --lags L, in real time (last W s up to t + L, extrapolated
          linearly to t; L = 0 causal). Error at the US image (5 points, median per sweep) and step-to-step
          error per --every rows and per 8 rows. Raw poses cached in <out>/poses.npz; with the cache the
-         smoothing reruns on the CPU without the checkpoint. --cam-calib <map.json>: network trained on
-         scr_map.py labels; every pose is multiplied by the map's camera calibration (camera -> probe).
+         smoothing reruns on the CPU without the checkpoint. Network trained with --map: every pose is
+         multiplied by the map's camera calibration (camera -> probe; or --cam-calib <map.json>). Writes the
+         system's poses (2 s) per sweep to <out>/poses/ for tools/us_analysis.py shape and tools/volume_pages.py.
   eval   anchors only: one frame every --every usable rows, camera error against Polaris
          (--solver kabsch, or pnp without depth as rgbd-us scr.py).
 
+  # without a tracker: labels from scr_map.py
+  python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/map-3XX
+  python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --map runs/map-3XX --out runs/v2map-3XX
+  python scr_anchor.py track --ckpt runs/v2map-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-v2map-3XX
+  # with Polaris labels (the benchmark)
   python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/v2-3XX
   python scr_anchor.py track --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-3XX
   python scr_anchor.py eval  --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX
@@ -26,12 +32,12 @@ Study options (results in summary.md 4; none adopted unless noted):
   --head small --label-max-depth 3000 --keep-depth-edges   the v1 recipe
   --aug-scale / --aug-rot          viewpoint augmentation (worse)
   --freeze-encoder                 head only on frozen ImageNet features (no gain)
-  --render-views (scr_render.py)   rendered extra views from a voxel cloud or real frames (small gain)
+  --render-views (studies/scr_render.py)   rendered extra views from a voxel cloud or real frames (small gain)
   --confidence, track --weighted   confidence head + weighted Kabsch (no gain)
   --scan-seconds S                 only the first S seconds of each room scan (scan-length study)
   --max-frames                     smoke tests
 
-Checkpoints keep scr.py's format (plus "head", "confidence"), so tools/anchoring_kabsch.py runs them in
+Checkpoints keep scr.py's format (plus "head", "confidence"), so baselines/anchoring_kabsch.py runs them in
 the hybrid system. dataloader.py, geometry.py and scr.py are unchanged copies of rgbd-us modules.
 """
 
@@ -55,7 +61,7 @@ from torch.utils.data import ConcatDataset, DataLoader, Dataset          # noqa:
 from scipy.spatial.transform import Rotation                            # noqa: E402
 from tqdm import tqdm                                                   # noqa: E402
 
-from dataloader import RPRConfig, RPRDataset, load_hand_eye, test_sweeps   # noqa: E402
+from dataloader import RPRConfig, RPRDataset, load_hand_eye, load_us_roi, test_sweeps   # noqa: E402
 from scr import STRIDE, SCRNet, coord_targets, grid_pixels, load_depth_mm, localize   # noqa: E402
 
 
@@ -142,7 +148,7 @@ class Frames(Dataset):
     """Training frames with their room-coordinate targets.
 
     The target of cell (u, v) is the room point seen at full-resolution pixel (16u + 8, 16v + 8),
-    as in scr.py. Photometric augmentation as scr.RoomScanFrames. Optional:
+    as in scr.py. Photometric augmentation (brightness, contrast, colour gain), as the first SCR. Optional:
       * viewpoint augmentation (ACE): a random zoom (log-uniform in `scale`) and in-plane rotation
         (+-`rot` deg) of the image and its room-coordinate map alike; zooming out leaves a border
         without labels;
@@ -390,6 +396,12 @@ def train(args):
     args.hand_eye = resolve_hand_eye(args.hand_eye)
     cfg = RPRConfig(T_marker_cam=load_hand_eye(args.hand_eye, "mm"), image_size=tuple(args.image_size))
     ds = RPRDataset(args.root, args.scan_runs, args.scan_runs, cfg)
+    if args.map:                              # labels from a map built without a tracker (scr_map.py)
+        found = [str(Path(args.map) / f"poses_{n}.json") for n in args.scan_runs if (Path(args.map) / f"poses_{n}.json").exists()]
+        if not found:
+            raise SystemExit(f"{args.map}: no poses_<scan>.json for {args.scan_runs} (run scr_map.py first)")
+        args.label_poses = list(args.label_poses) + found
+        args.map = str(Path(args.map).resolve())
     label_err = label_with_estimates(ds, args.label_poses)
     items = [(n, int(r)) for n in args.scan_runs for r in np.concatenate(ds.runs[n]["segments"])
              if np.isfinite(ds.runs[n]["T_world_cam"][r]).all()]
@@ -409,6 +421,7 @@ def train(args):
     out.mkdir(parents=True, exist_ok=True)
     data, n_rendered = frames, 0
     if args.render_views > 0:                 # extra viewpoints rendered from the room cloud, exact labels
+        sys.path.insert(0, str(REPO / "studies"))
         from scr_render import RenderedViews, render_preview
         rendered = RenderedViews(ds, args.root, items, centre, args, device)
         render_preview(frames, rendered, out / "render_preview.jpg")
@@ -665,6 +678,37 @@ def us_errors(T, T_gt, P, segs, steps=(1, 8)):
     return err, st
 
 
+def export_sweeps(args, ds, raw, T_mc, scaling, rigid, out):
+    """The system's poses (smoothed over --export-window s) on every usable row of each sweep, in the poses.py
+    JSON format: <out>/poses/fold0_<sweep>_scr-track.json (predicted and Polaris poses of the camera and the US
+    image). tools/us_analysis.py shape and tools/volume_pages.py --track read them; no other system needed."""
+    T_cam_us = np.linalg.inv(T_mc) @ rigid                       # US image plane (mm) -> camera
+    (out / "poses").mkdir(exist_ok=True)
+    for sw, (rows, T, inl) in raw.items():
+        r = ds.runs[sw]
+        df = r["df"]
+        pose = {int(x): (Tx, k) for x, Tx, k in zip(rows, T, inl)}
+        frames = []
+        for sid, seg in enumerate(r["segments"]):
+            Tp = np.array([pose[int(x)][0] if int(x) in pose else np.full((4, 4), np.nan) for x in seg])
+            w = np.array([pose[int(x)][1] if int(x) in pose else 0 for x in seg], float)
+            Ts = smooth_poses(r["stamps"][seg], Tp, w, args.export_window)
+            for x, Tn in zip(seg, Ts):
+                us, Tg = df["us"].iloc[x], r["T_world_cam"][x]
+                frames.append({"row": int(x), "segment": sid, "t": float(r["stamps"][x]), "keyframe": int(x) in pose,
+                               "rgb": df["rgb"].iloc[x], "depth": df["depth"].iloc[x], "us": us if isinstance(us, str) else None,
+                               "T_world_cam_pred": Tn.tolist(), "T_world_cam_gt": Tg.tolist(),
+                               "T_world_us_pred": (Tn @ T_cam_us).tolist(), "T_world_us_gt": (Tg @ T_cam_us).tolist()})
+        doc = {"ckpt": args.ckpt, "root": str(args.test_root), "fold": 0, "run": sw, "source": "scr-track",
+               "units": "mm", "world": "Polaris",
+               "chaining": f"SCR alone on every {args.every}th row, smoothed {args.export_window:g} s (scr_anchor.py track)",
+               "cam_calib": args.cam_calib, "T_marker_cam": T_mc.tolist(), "T_cam_us": T_cam_us.tolist(),
+               "S_us_px_to_mm": scaling.tolist(), "us_roi": list(load_us_roi(Path(args.test_root) / sw)),
+               "us_pixels": "1-based on the US ROI resized to 640x480", "frames": frames}
+        json.dump(doc, open(out / "poses" / f"fold0_{sw}_scr-track.json", "w"))
+    print(f"poses of the system (smoothed {args.export_window:g} s) -> {out / 'poses'}/fold0_<sweep>_scr-track.json")
+
+
 def track(args):
     """Single-model tracking: SCR + Kabsch on every --every usable row (no odometry, no Polaris start pose),
     gate, cache the poses; smooth them for each --windows W; error at the US image (as anchoring.py)."""
@@ -695,6 +739,13 @@ def track(args):
         np.savez_compressed(cache, **{f"{sw}_{k}": v for sw, (r, T, i) in raw.items() for k, v in (("rows", r), ("T", T), ("inl", i))})
         json.dump({"ckpt": args.ckpt, "every": args.every, "gate": args.gate, "weighted": args.weighted},
                   open(out / "poses.json", "w"))
+    if args.cam_calib is None:                # trained with --map: that map's camera calibration
+        cfg = Path(args.ckpt).parent / "config.json"
+        m = json.load(open(cfg))["args"].get("map") if cfg.exists() else None
+        if m and (Path(m) / "map.json").exists():
+            args.cam_calib = str(Path(m) / "map.json")
+    elif args.cam_calib == "none":
+        args.cam_calib = None
     X = None
     if args.cam_calib:                        # map labels: camera pose x the probe's camera calibration (scr_map.py)
         X = np.asarray(json.load(open(args.cam_calib))["cam_calib"], float)
@@ -752,6 +803,8 @@ def track(args):
         md.append(f"| {sw} | " + " | ".join(f"{res[m][sw]['us_median']:.1f} ({res[m][sw]['step_8rows']:.2f})" for m in methods) + " |")
     (out / "scr_track.md").write_text("\n".join(md) + "\n")
     json.dump({"args": vars(args), "per_sweep": res}, open(out / "scr_track.json", "w"), indent=1)
+    if args.export_window:
+        export_sweeps(args, ds, raw, T_mc, scaling, rigid, out)
     print("\n" + "\n".join(md[4:]) + f"\n-> {out / 'scr_track.md'}")
 
 
@@ -763,6 +816,9 @@ def main():
     t.add_argument("--root", required=True, help="collection folder, e.g. $DATA/train_3XX")
     t.add_argument("--scan-runs", nargs="+", required=True, help="room scans (and extra sweeps) to train on")
     t.add_argument("--out", required=True)
+    t.add_argument("--map", default=None,
+                   help="scr_map.py output folder: label the --scan-runs with its poses (poses_<scan>.json), no tracker "
+                        "needed; track then applies the map's camera calibration by itself")
     t.add_argument("--label-poses", nargs="+", default=[],
                    help="poses.py JSON exports: label these --scan-runs with the system's estimated poses "
                         "(T_world_cam_pred) instead of Polaris (map extension without a tracker)")
@@ -835,7 +891,10 @@ def main():
     k.add_argument("--calib", default=str(REPO / "calib_matrix.csv"), help="US calibration (TUS-REC format)")
     k.add_argument("--cam-calib", default=None,
                    help="map.json of scr_map.py: for a network trained on map labels, apply its camera calibration "
-                        "(fixed camera-frame transform) to every pose")
+                        "(fixed camera-frame transform) to every pose. Default: the map of train --map, if any; "
+                        "'none' = no calibration")
+    k.add_argument("--export-window", type=float, default=2.0,
+                   help="write the poses smoothed over this window (s; the system: 2) per sweep to <out>/poses/ (0 = no)")
     k.add_argument("--out", required=True)
     args = ap.parse_args()
     {"train": train, "eval": evaluate, "track": track}[args.cmd](args)

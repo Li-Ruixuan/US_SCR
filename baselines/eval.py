@@ -18,12 +18,14 @@ next to the first ckpt or to --out.
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # dataloader.py, geometry.py at the repo root
 from dataloader import (RPRConfig, RPRDataset, chain_config, load_hand_eye, split_runs,
                         test_sweeps)
 from model import RPRNet
@@ -47,7 +49,7 @@ def drift_curve(chains, preds, horizons=HORIZONS_S):
     return {h: np.asarray(v) for h, v in out.items()}
 
 
-CALIB_CSV = Path(__file__).parent / "calib_matrix.csv"
+CALIB_CSV = Path(__file__).resolve().parents[1] / "calib_matrix.csv"
 
 
 def read_calib_csv(path=CALIB_CSV) -> np.ndarray:

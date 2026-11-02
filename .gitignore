@@ -6,6 +6,7 @@ data/
 runs/**/saved_model/
 runs/**/poses/
 runs/**/graph_edges.npz
+runs/**/graph_loops.npz
 
 __pycache__/
 .vscode/

@@ -5,18 +5,24 @@ common grid, rotatable in a browser (tools/volume_3d.py; MIP, overlay and transl
 of the US image centre, image outlines).
 
 Two steps, chained:
-  1. poses.py --source anchored-<mode>-<tag> exports each estimate per sweep as JSON
+  1. baselines/poses.py --source anchored-<mode>-<tag> exports each estimate per sweep as JSON
      (from the trajectories anchoring.py saved in <odometry arm>/preds/; CPU, no network);
   2. tools/volume_3d.py --json <one JSON per estimate> builds the page of each sweep.
 
---track adds the single-network system (scr_anchor.py track): its raw poses (<track dir>/poses.npz)
+--track alone (no --anchoring / --extra) needs nothing else: the pages show the single-network system
+from its own export (<track dir>/poses/fold0_<sweep>_scr-track.json, written by scr_anchor.py track)
+against Polaris:
+
+  python tools/volume_pages.py --test-root $DATA/train_3XX --track runs/track-3XX --out runs/track-3XX/pages/3XX
+
+With --anchoring / --extra, --track adds the system to the comparison: its raw poses (<track dir>/poses.npz)
 are smoothed with --track-window (2 s, the chosen window) at every row of the reference export (the
 first --anchoring or --extra source) and written in the poses.py format, first on the page.
 
 Every run also rewrites <parent of --out>/index.html: one table per split (sub-folder), one row per
 sweep, the mean pixel error of each source and a link to its page.
 
---anchoring takes anchor_eval_<tag>.json files (from tools/anchoring_kabsch.py or anchoring.py):
+--anchoring takes anchor_eval_<tag>.json files (from baselines/anchoring_kabsch.py or baselines/anchoring.py):
 the tag and the odometry arm are read from them, so no source name has to be typed. --extra adds
 plain sources such as classical-vo-train_3XX (odometry only). The odometry run is the path stored in
 the anchoring file; give --odometry if that path is not valid here (e.g. files written in rgbd-us with
@@ -130,6 +136,25 @@ def run(cmd, dry, check=True):
     return True
 
 
+def track_pages(args):
+    """One page per sweep: the single-network system (scr_anchor.py track's export) against Polaris."""
+    js = sorted(glob.glob(str(Path(args.track) / "poses" / f"fold0_*_{TRACK}.json")))
+    if not js:
+        raise SystemExit(f"no {args.track}/poses/fold0_<sweep>_{TRACK}.json: run scr_anchor.py track (it writes them)")
+    out = Path(args.out).resolve()
+    failed = []
+    for j in js:
+        sweep = Path(j).name.split("_")[1]
+        if args.runs and sweep not in args.runs:
+            continue
+        if not run([sys.executable, REPO / "tools" / "volume_3d.py", "--json", j, "--labels", args.track_label,
+                    "--out", out / f"{sweep}.html", "--voxel", args.voxel, "--stride", args.stride], args.dry_run, check=False):
+            failed.append(sweep)
+    print(f"pages -> {out}/<run>.html" + (f"; FAILED: {failed} (error above each)" if failed else ""))
+    if not args.dry_run:
+        write_index(out.parent)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--test-root", required=True, help="e.g. data/train_3XX or data/test_4XXA (relative to rgbd-us)")
@@ -138,7 +163,8 @@ def main():
     ap.add_argument("--mode", default="pgo", choices=["pgo", "offline", "causal"],
                     help="which anchored trajectory: pose graph, offline or causal")
     ap.add_argument("--extra", nargs="+", default=[], help="plain poses.py sources, e.g. classical-vo-train_3XX, zero")
-    ap.add_argument("--track", default=None, help="scr_anchor.py track folder: the single-network system, first on the page")
+    ap.add_argument("--track", default=None, help="scr_anchor.py track folder: the single-network system, first on the page "
+                    "(alone: its own export, nothing else needed)")
     ap.add_argument("--track-window", type=float, default=2.0, help="smoothing window of --track (s)")
     ap.add_argument("--track-label", default="one SCR network (ours)")
     ap.add_argument("--labels", nargs="+", default=None, help="one per --anchoring, then one per --extra")
@@ -149,6 +175,9 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="print the commands only")
     args = ap.parse_args()
 
+    if args.track and not args.anchoring and not args.extra:   # the system alone, from its own export
+        track_pages(args)
+        return
     sources = [anchoring_source(p, args.mode) for p in args.anchoring]
     odo = args.odometry or (sources[0][1] if sources else None)
     if odo is None:
@@ -166,7 +195,7 @@ def main():
     if not ckpts and not args.dry_run:
         raise SystemExit(f"no {odo}/fold*/best.pt: give the odometry run with --odometry")
     for src, _ in sources:                              # 1. export (CPU, from the saved trajectories)
-        cmd = [sys.executable, REPO / "poses.py", "--ckpts", *ckpts, "--source", src, "--test-root", args.test_root,
+        cmd = [sys.executable, REPO / "baselines" / "poses.py", "--ckpts", *ckpts, "--source", src, "--test-root", args.test_root,
                "--out", out, "--no-plot", "--no-compound"]
         run(cmd + (["--test-runs", *args.runs] if args.runs else []), args.dry_run)
 

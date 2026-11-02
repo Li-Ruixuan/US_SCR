@@ -1,6 +1,6 @@
 # US_SCR
 
-Markerless pose estimation of a freehand ultrasound probe from a probe-mounted RGB-D camera with **one scene coordinate regression (SCR) network**: trained on a room scan, it predicts the room coordinate of every image cell; a 3D–3D RANSAC (Kabsch) on the measured depth turns them into the camera pose of every frame, smoothed over time. No odometry, no tracker at test time. Results and discussion: `summary.md`; working notes and data guide: `note.md`.
+Markerless pose estimation of a freehand ultrasound probe from a probe-mounted RGB-D camera with **one scene coordinate regression (SCR) network**. The network maps the room from a short room scan and is trained on it; it then predicts the room coordinate of every image cell, and a 3D–3D RANSAC (Kabsch) on the measured depth turns those coordinates into the camera pose of every frame, smoothed over time. No tracker, no odometry, no keypoints. Results and discussion: `summary.md`; working notes and data guide: `note.md`; run index: `runs/README.md`.
 
 ## Problem and claim
 
@@ -8,17 +8,21 @@ Freehand 3D ultrasound needs the 6-DoF pose of every B-mode frame. External opti
 
 Given `{I_t_rgb, D_t, I_t_US}`, output `T_t ∈ SE(3)` in a room-fixed frame established at the start of the exam, from a single probe-mounted RGB-D camera — no markers, no fiducial pattern, no external infrastructure. Downstream: 3D volume reconstruction, and navigation relative to previously scanned anatomy.
 
-**The goal is not a more accurate tracking system.** Sub-millimetre freehand US tracking already exists (optical ~0.5 mm, MLRecon 0.88 mm); beating it is neither likely nor interesting. The goal is a *useful* pose estimate with nothing outside the probe. Accuracy is a threshold to clear, not the axis of competition: miss it and the result is useless, clear it and the infrastructure argument becomes available. The claim is "this works without a prepared room", and the experiments should be built to support that, not a millimetre table.
+**The goal is not a more accurate tracking system.** Sub-millimetre freehand US tracking already exists (optical ~0.5 mm, MLRecon 0.88 mm); beating it is neither likely nor interesting. The goal is a *useful* pose estimate with nothing outside the probe. Accuracy is a threshold to clear, not the axis of competition: miss it and the result is useless, clear it and the infrastructure argument becomes available.
 
-## What runs from this repo alone
+**Where it stands** (3XX, error at the US image, mm; `summary.md` Table F): without any tracker (room scan mapped by the network itself) 3.60, volume shape 2.86; with Polaris labels for the room scan 1.85 / 1.57; classical system (SIFT anchors + SIFT odometry) 3.11 / 2.47.
 
-| | needs |
-|---|---|
-| train an SCR model, evaluate its anchors (`scr_anchor.py`) | this repo + the data |
-| coverage analysis, US diagnostics (`tools/coverage_error.py`, `tools/us_analysis.py inplane`) | this repo + the data |
-| full system: odometry + anchors + pose graph, error at the US image (`tools/anchoring_kabsch.py`); 3D pages (`tools/volume_pages.py`) | this repo + the data + two rgbd-us **result folders** (no rgbd-us code): the odometry run (`runs/rpr-rgb-gap8-*-gru8`, its checkpoint and odometry caches in `preds/`) and the anchor pairs (`runs/anchor-pairs/`) |
+## Repository layout
 
-All code is in this repo. The modules from rgbd-us (`dataloader.py`, `geometry.py`, `scr.py`, `anchoring.py`, `eval.py`, `poses.py`, `trajectory.py`, `model.py`, `loss.py`, `tools/anchor_classical.py`, `tools/anchor_saliency.py`, `tools/volume_3d.py`) are copies of rgbd-us commit a5bf2ce; only `anchoring.py` was changed here (options `--gate-recover`, `--scr-frames`).
+| folder | what | files |
+|---|---|---|
+| `.` | **the system** | `scr_map.py` (map the room scan without a tracker), `scr_anchor.py` (`train`, `track`, `eval`), `scr.py` (network, labels), `dataloader.py`, `geometry.py`; `T_marker_cam.npy`, `calib_matrix.csv` (calibrations) |
+| `tools/` | evaluation and figures | `us_analysis.py shape` (volume shape metric), `volume_pages.py` + `volume_3d.py` (interactive 3D pages), `coverage_error.py`, `draw_scr_figures.py`, `draw_overview_tables.py`; the figures and `tables/` |
+| `baselines/` | the systems we compare with | `anchoring.py` (classical SIFT anchors + odometry + pose graph; RPR anchor network), `anchoring_kabsch.py` (hybrid: SCR anchors in it), `anchor_classical.py`, `anchor_saliency.py`, and the RPR odometry stack `eval.py`, `poses.py`, `trajectory.py`, `model.py`, `loss.py` |
+| `studies/` | studies not adopted | `scr_render.py` (rendered training views, `train --render-views`), `li_baseline.py` (Li et al., TBME 2024) |
+| `runs/` | results behind every number in `summary.md` | checkpoints (`*.pt`) are not in git |
+
+Run every command from the repository folder.
 
 ## 1. Setup
 
@@ -51,7 +55,9 @@ Each run folder needs:
 | `record_config.json` | must contain `{"pose": {"units": "mm"}}` |
 | `us/`, `us_roi.json` | sweeps only: US screen grabs and the crop of the US image |
 
-The hand–eye calibration (`T_marker_cam.npy`, marker → camera, mm) and the US calibration (`calib_matrix.csv`, TUS-REC format) are in the repo root; they are valid for all recordings with this probe and mount. Do not use the 1XX collection (broken depth). See `note.md` section 6 for the sessions.
+The hand–eye calibration (`T_marker_cam.npy`, marker → camera, mm) and the US calibration (`calib_matrix.csv`, TUS-REC format) are valid for all recordings with this probe and mount. Do not use the 1XX collection (broken depth). Sessions: `note.md` section 3.
+
+Polaris is used to evaluate, and by the code to select the usable rows (rows with a marker pose); the system without a tracker does not use it otherwise, except for the camera calibration (below).
 
 ## 3. Quick check (a few minutes, any GPU)
 
@@ -64,84 +70,77 @@ python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 --out run
 
 It should print the frames found, one line per epoch, and an evaluation table (errors of several cm: three epochs on 200 frames only test the pipeline).
 
-## 4. Train, evaluate, track
+## 4. The pipeline without a tracker
 
-Train the final model (v2) on a collection's room scans (about 25–50 min on an A4500; `train`'s defaults are this recipe since 2 Nov 2026), evaluate its anchors on the sweeps (one frame per second), and track every frame with the network alone:
+Five commands: map the room scan, train on it, track the sweeps, measure, look.
+
+```bash
+export DATA=/path/to/data
+# 1. map: the network builds the room-scan poses itself (about 30 min on an A4500)
+python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/map-3XX
+# 2. train the room model on the map's poses (about 40 min)
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --map runs/map-3XX --out runs/v2map-3XX
+# 3. track every sweep frame with the network alone (applies the map's camera calibration by itself)
+python scr_anchor.py track --ckpt runs/v2map-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-v2map-3XX
+# 4. volume shape and relative motion at the US image
+python tools/us_analysis.py shape --json runs/track-v2map-3XX/poses/*.json --out runs/track-v2map-3XX/shape.md
+# 5. interactive 3D pages of each sweep (true vs estimated volume)
+python tools/volume_pages.py --test-root $DATA/train_3XX --track runs/track-v2map-3XX --out runs/track-v2map-3XX/pages/3XX
+```
+
+**1. `scr_map.py`** (ACE0-style, with depth; figure `tools/scr_mapping.png`):
+- *seed:* one room-scan frame defines the map; the frames of the 2 s around it join by frame-to-frame depth ICP (geometry only).
+- *rounds:* train the network on the mapped frames, localise their neighbours with it (Kabsch RANSAC), extend the map edges by depth ICP; until a round adds < 0.5 % of the frames. A final pass localises every frame with the last network.
+- *pose graph:* depth-ICP edges between frames 1–30 apart and loop closures (frames that see the same part of the room > 2 s apart or in the other scan), the network's poses as loose priors; robust least squares (`--no-graph`, `--loop-k 0` = no loops).
+- *camera calibration:* the map is compared with Polaris after one rigid alignment plus one fixed camera-frame transform, the probe's camera calibration (Polaris gives the camera pose through the hand–eye calibration, the map from the camera itself). It is saved in `map.json`, kept out of the labels, and applied by `track`. It is the one place where Polaris enters: like any probe calibration it is measured once per probe. The report also fits it on each scan alone (held out on the other) and checks the camera/Polaris timing.
+- *outputs:* `map_report.md` (map growth per round, map error against Polaris per stage: scene points 1 m ahead, camera position, rotation, 1 s relative motion; calibration and checks), `map.json`, `poses_<scan>.json` (labels), `network_poses.npz` (the network's poses before the pose graph), `map.pt` (the mapping network).
+- *new session, same probe:* `--cam-calib-from runs/map-3XX/map.json` reuses that map's camera calibration instead of fitting one, so the new session's Polaris only aligns the map for the evaluation (how 4XX is tested).
+- `--from <map folder> --out <new folder>` runs the pose graph again on an existing map (its network poses; ICP edges cached in `graph_edges.npz`, `graph_loops.npz`), e.g. with `--loop-k 0` or another `--graph-prior-mm`: minutes. `--realign` re-aligns a map's poses (no mapping).
+
+**3. `track`** writes `scr_track.md` (error at the US image: raw and smoothed over 0.25–2 s; the system uses 2 s), `scr_track.json`, `poses.npz` (raw poses; a second run only re-smooths), and `poses/fold0_<sweep>_scr-track.json` (the system's poses per sweep, camera and US image, predicted and Polaris), which steps 4 and 5 read. `--lags 0.25` adds real-time smoothing.
+
+## 5. The benchmark with Polaris labels
+
+The same network with the room-scan poses from Polaris (the paper's main results, `summary.md` 3–4): train (25–50 min; `train`'s defaults are the final recipe v2 since 2 Nov 2026), evaluate its anchors (one frame per second), track.
 
 ```bash
 python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/v2-3XX
 python scr_anchor.py eval  --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX                  # anchors, Kabsch (default)
 python scr_anchor.py eval  --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX --solver pnp     # anchors, PnP without depth
-python scr_anchor.py track --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-3XX   # the system
+python scr_anchor.py track --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-3XX
 ```
 
-Outputs: `runs/v2-3XX/` `config.json` (all settings), `history.json` (loss and fit check per epoch), `best.pt`, and per evaluation `eval_<test>[_kabsch]/scr_eval.md` / `.json`; `runs/track-3XX/scr_track.md` (error at the US image, raw and smoothed with 0.25–2 s windows; the final system uses 2 s), `scr_track.json`, `poses.npz` (raw poses, reused when re-smoothing with other `--windows`).
+Outputs of `train`: `config.json` (all settings), `history.json` (loss and fit check per epoch), `best.pt`; of `eval`: `eval_<test>[_kabsch]/scr_eval.md` / `.json`. Coverage analysis of an evaluation: `python tools/coverage_error.py runs/v2-3XX/eval_train_3XX_kabsch/scr_eval.json --out runs/coverage_3XX.md`.
 
-The earlier v1 recipe: `--head small --label-max-depth 3000 --keep-depth-edges`. Other options of `train` (studies, summary.md 4): `--freeze-encoder` (train the head only on frozen ImageNet features, ACE-style), `--render-views 0.5` (add 0.5 rendered views per training frame, code in `scr_render.py`: new viewpoints from a voxel point cloud of the room scan or, with `--render-source frames`, from the nearest real frames; exact labels; writes `render_preview.jpg`), `--confidence` with `track --weighted` (confidence head + weighted Kabsch), `--scan-seconds S` (only the first S s of each room scan), `--aug-scale 0.67 1.5 --aug-rot 15` (viewpoint augmentation), map extension (add sweeps to `--scan-runs`, labelled with Polaris, or with the system's own estimate via `--label-poses <poses.py JSON>`). `python scr_anchor.py train -h` lists everything.
+The v1 recipe: `--head small --label-max-depth 3000 --keep-depth-edges`. Study options of `train` (`summary.md` 4, none adopted): `--freeze-encoder` (head only, ACE-style), `--render-views 0.5` (rendered views, `studies/scr_render.py`; `--render-source frames` from the nearest real frames; writes `render_preview.jpg`), `--confidence` with `track --weighted`, `--scan-seconds S` (first S s of each scan), `--aug-scale 0.67 1.5 --aug-rot 15`, map extension (sweeps added to `--scan-runs`, labelled with Polaris or with `--label-poses <poses JSON>`). `python scr_anchor.py train -h` lists everything.
 
-## 4b. Map without a tracker (`scr_map.py`)
+## 6. Baselines (classical and hybrid systems)
 
-The room-scan poses that label the training frames come from Polaris. `scr_map.py` builds them without a tracker (ACE0-style, with depth): one seed frame defines the map and the 2 s around it join by frame-to-frame depth ICP (geometry only); then rounds of training the network on the mapped frames, localising their neighbours with it, and extending the map edges by depth ICP grow the map; a final pass re-localises every frame with the network; a pose graph then ties nearby frames together (depth ICP between frames 1–30 apart, the network's poses as loose priors; `--no-graph` skips it; the joint refinement `--refine-steps` is off). Each round's log line says how many frames the network and the ICP added. Polaris is used only to evaluate the map (after one rigid alignment) and to express the poses in its frame, so the sweeps can be evaluated as before:
-
-```bash
-python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/map-3XX
-python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --label-poses runs/map-3XX/poses_room-301.json runs/map-3XX/poses_room-302.json --out runs/v2map-3XX
-python scr_anchor.py track --ckpt runs/v2map-3XX/best.pt --test-root $DATA/train_3XX --every 2 --cam-calib runs/map-3XX/map.json --out runs/track-v2map-3XX
-```
-
-The map is evaluated after one rigid alignment to Polaris plus one fixed camera-frame transform, the camera calibration of the probe (Polaris gives the camera pose through the hand–eye calibration, the map from the camera itself; 3XX: ~10 mm). It is saved in `map.json`, kept out of the labels, and applied when tracking with `track --cam-calib <map folder>/map.json`. `--from <map folder>` runs only the pose graph on an existing map and writes the result to `--out` (the ICP edges are cached in `<map folder>/graph_edges.npz`, so a second run with other `--graph-prior-mm` takes minutes). `--realign` re-aligns a map already in `--out` (no mapping; e.g. after the 3 Nov fix of the alignment, which now uses the points 1 m in front of each camera, not the camera positions). Outputs of `scr_map.py`: `map_report.md` (map growth per round, and the map error against Polaris: position, rotation, 1 s relative motion), `map.json`, `poses_<scan>.json` (labels for `--label-poses`), `map.pt` (the mapping network, map frame).
-
-Coverage analysis of an evaluation:
-
-```bash
-python tools/coverage_error.py runs/v2-3XX/eval_train_3XX_kabsch/scr_eval.json --out runs/coverage_3XX.md
-```
-
-## 5. Hybrid system for comparison (anchors every 1 s + SIFT odometry + pose graph)
-
-The earlier system, kept as the comparison with classical anchors. Needs the odometry run and the anchor pairs, result folders of rgbd-us (`runs/rpr-rgb-gap8-12XX-gru8` for 2XX/3XX, `runs/rpr-rgb-gap8-123XX-gru8` for 4XX, with the classical odometry caches in `preds/`; `runs/anchor-pairs/`). Set `ODO` to the folder that holds them and run from this repo's folder (anchoring writes its trajectories into `$ODO/<odometry run>/preds/`):
+Need two rgbd-us **result folders** (no rgbd-us code): the odometry run with its classical odometry caches in `preds/` (`runs/rpr-rgb-gap8-12XX-gru8` for 2XX/3XX, `runs/rpr-rgb-gap8-123XX-gru8` for 4XX) and the anchor pairs (`runs/anchor-pairs/`). Set `ODO` to the folder that holds them (anchoring writes its trajectories into `$ODO/<odometry run>/preds/`):
 
 ```bash
 export DATA=/path/to/data ODO=/path/to/rgbd-us/runs
-python tools/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt runs/v2-3XX/best.pt --gate-recover 3 \
+# classical system: SIFT anchors + SIFT odometry + pose graph
+python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 \
+  --root $DATA/train_3XX --scan-runs room-301 room-302 --test-root $DATA/train_3XX \
+  --odometry-source classical-vo-train_3XX --odometry $ODO/rpr-rgb-gap8-12XX-gru8 --pairs $ODO/anchor-pairs/pairs_3XX.json \
+  --pgo --start anchor --out runs/sys-classical-r-3XX
+# hybrid: SCR anchors every 1 s + SIFT odometry + pose graph
+python baselines/anchoring_kabsch.py -- evaluate --anchor scr --scr-ckpt runs/v2-3XX/best.pt --gate-recover 3 \
   --root $DATA/train_3XX --scan-runs room-301 room-302 --test-root $DATA/train_3XX \
   --odometry-source classical-vo-train_3XX --odometry $ODO/rpr-rgb-gap8-12XX-gru8 --pairs $ODO/anchor-pairs/pairs_3XX.json \
   --pgo --start anchor --out runs/sys-v2r-3XX
-# 3D pages: the single network (track) vs the classical system vs odometry only; also writes runs/volume3d/index.html
+# 3D pages and shape: the single network vs the classical system vs odometry only (same rows for all)
 python tools/volume_pages.py --test-root $DATA/train_3XX --track runs/track-3XX \
   --anchoring runs/sys-classical-r-3XX/anchor_eval_classical-odometry-odo-classical-vo-train_3XX-recover3-startanchor-train_3XX.json \
   --extra classical-vo-train_3XX --labels "classical anchors + classical odometry" "classical odometry only" --out runs/volume3d/3XX
+python tools/us_analysis.py shape --json runs/volume3d/3XX/poses/*.json --out runs/shape-3XX.md
 ```
 
-Classical anchors for comparison: `python anchoring.py evaluate --anchor classical` with the same data options. Options: `--start anchor` (no ground-truth pose at the start of a segment), `--gate-recover 3` (accept anchors again after a wrong one was accepted), `--scr-frames M` (one SCR anchor from M chain frames).
+Options of `anchoring.py evaluate`: `--start anchor` (no ground-truth pose at the start of a segment), `--gate-recover 3` (accept anchors again after a wrong one was accepted), `--scr-frames M` (one SCR anchor from M chain frames). Its other commands: `coverage`, `simulate`, `pairs` (the RPR anchor network itself is trained in rgbd-us).
 
-## Files
+## 7. Reproducing the results
 
-Our code (entry points and tools):
+Every number in `summary.md` names its run folder in `runs/`; `runs/README.md` explains the files, and each folder's `config.json` / `map.json` / `scr_track.json` records the command's settings. Training is not bit-exact across machines (cuDNN), so a retrained model lands within the seed spread (3XX 1.85–2.12 mm over three seeds); tracking a given checkpoint is deterministic (RANSAC seeded per frame).
 
-| file | commands | purpose |
-|---|---|---|
-| `scr_anchor.py` | `train`, `eval`, `track` | train an SCR model on a room scan; evaluate its anchors; track with the network alone on every frame + temporal smoothing (offline or real time) |
-| `scr_map.py` | | build the room-scan poses with the SCR network itself (no tracker); writes labels for `train --label-poses` |
-| `scr_render.py` | (used by `train --render-views`) | rendered training views (study, not adopted) |
-| `tools/anchoring_kabsch.py` | (wraps `anchoring.py`) | full system: SCR + Kabsch anchors, odometry, pose graph; error at the US image |
-| `tools/volume_pages.py` | | interactive 3D pages of compounded sweeps from anchoring results |
-| `tools/coverage_error.py` | | anchor error vs distance to the nearest room-scan pose |
-| `tools/us_analysis.py` | `inplane`, `speckle`, `shape` | US diagnostics U1–U3 (registration, speckle decorrelation) and the shape metric of a reconstruction |
-| `tools/li_baseline.py` | `repro`, `transfer` | Li et al. (TBME 2024): reproduction on the authors' code and data, and transfer to our sweeps |
-| `tools/draw_scr_figures.py` | | `tools/scr_pipeline.png/.pdf` (workflow) and `tools/scr_architecture.png/.pdf` (network: training and tracking) |
-| `tools/draw_overview_tables.py` | | `tools/tables/`: the overview tables of summary.md 1.2 as figures |
-
-Copied from rgbd-us (commit a5bf2ce, unchanged except `anchoring.py`: `--gate-recover`, `--scr-frames`):
-
-| file | purpose |
-|---|---|
-| `dataloader.py`, `geometry.py`, `scr.py` | data loading, geometry, SCR network |
-| `anchoring.py`, `eval.py`, `poses.py`, `trajectory.py`, `model.py`, `loss.py` | full system: anchors + odometry + pose graph, pose export, evaluation |
-| `tools/anchor_classical.py`, `tools/anchor_saliency.py`, `tools/volume_3d.py` | classical (SIFT) anchors; 3D page builder |
-
-Data and results: `T_marker_cam.npy`, `calib_matrix.csv` (hand–eye and US calibration); `summary.md` (results), `note.md` (working notes, data guide); `runs/` (results; checkpoints and `saved_model/` weights are not in git).
-
-Renamed on 28 Oct 2026 (older run folders record the old names): `tools/us_inplane.py`, `us_speckle.py`, `shape_error.py` → `tools/us_analysis.py inplane / speckle / shape`; `tools/li_repro.py`, `li_transfer.py` → `tools/li_baseline.py repro / transfer`; `tools/scr_track.py` → `scr_anchor.py track`. `train.py` (rgbd-us RPRNet / anchor-network training, only needed by `anchoring.py train`) was removed: train those in rgbd-us.
-
-Runs made before 23 Oct 2026 used options removed in the clean-up (the first SCR's Huber loss and one-cycle schedule, Kabsch refinement); their `config.json` records the settings and commit `3599239` has the code that produced them.
+Code history: `dataloader.py`, `geometry.py`, `scr.py` and the files in `baselines/` (except `anchoring_kabsch.py`) are copies of rgbd-us commit a5bf2ce; changed here: `anchoring.py` (`--gate-recover`, `--scr-frames`; its unused `train` command removed), `scr.py` (its own `train` / `eval` commands removed: `scr_anchor.py` replaced them). Moved on 3 Nov 2026 (older run folders record the old paths): `anchoring.py`, `eval.py`, `poses.py`, `trajectory.py`, `model.py`, `loss.py`, `tools/anchoring_kabsch.py`, `tools/anchor_classical.py`, `tools/anchor_saliency.py` → `baselines/`; `scr_render.py`, `tools/li_baseline.py` → `studies/`. Renamed on 28 Oct 2026: `tools/us_inplane.py`, `us_speckle.py`, `shape_error.py` → `tools/us_analysis.py inplane / speckle / shape`; `tools/li_repro.py`, `li_transfer.py` → `li_baseline.py repro / transfer`; `tools/scr_track.py` → `scr_anchor.py track`. Runs made before 23 Oct 2026 used options removed then (Huber loss, one-cycle schedule, Kabsch refinement); commit `3599239` has that code.

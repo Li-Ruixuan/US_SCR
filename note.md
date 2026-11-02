@@ -1,12 +1,16 @@
 # US_SCR: working notes
 
-Status 28 Oct 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and commands: `README.md`. Source project: `rgbd-us` (`note_RPR.md` there). The earlier, longer version of these notes (status tables, experiment log) is in git commit 870a144.
+Status 3 Nov 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and commands: `README.md`. Source project: `rgbd-us` (`note_RPR.md` there). The earlier, longer version of these notes (status tables, experiment log) is in git commit 870a144.
 
 ## 1. Goal and current system
 
 A probe-mounted RGB-D camera (RealSense D435i) looks at the room; the pose of every US frame must come from it alone, ~2 mm at the US image (~16 cm from the camera; 1° ≈ 1.6 mm). Polaris (marker on the probe) is ground truth only.
 
-**Current system:** one SCR network (EfficientNet-B0 + big 1×1 head, trained per room on its room scan) on every frame → Kabsch RANSAC on the measured depth → temporal smoothing (`scr_anchor.py track`). It replaced the hybrid "SCR anchors every 1 s + SIFT odometry + pose graph" (`tools/anchoring_kabsch.py`), which is no better (`summary.md` 3.1).
+**Current system:** one SCR network (EfficientNet-B0 + big 1×1 head, trained per room on its room scan) on every frame → Kabsch RANSAC on the measured depth → temporal smoothing (`scr_anchor.py track`). It replaced the hybrid "SCR anchors every 1 s + SIFT odometry + pose graph" (`baselines/anchoring_kabsch.py`), which is no better (`summary.md` 3.1).
+
+**Without a tracker (3 Nov):** the room-scan poses that label the training come from the network itself (`scr_map.py`: seed by depth ICP, rounds of train / localise / extend, final pass, pose graph with depth-ICP edges and loop closures, camera calibration). 3XX: 3.60 mm at the US image, shape 2.86 (Polaris labels 1.85 / 1.57, classical 3.11 / 2.47), accepted as good enough (`summary.md` Table F). Polaris enters only the camera calibration (one camera-frame transform per probe, fitted on the room scan) and the evaluation.
+
+**Code layout (cleaned 3 Nov):** root = the system (`scr_map.py`, `scr_anchor.py`, `scr.py`, `dataloader.py`, `geometry.py`); `tools/` = evaluation and figures; `baselines/` = classical / hybrid systems and the RPR stack; `studies/` = not adopted (`scr_render.py`, `li_baseline.py`). README sections 4–7: the pipeline, the benchmark, the baselines, reproduction.
 
 ## 2. Workflow
 
@@ -23,7 +27,18 @@ python scr_anchor.py eval  --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3X
 python scr_anchor.py track --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-3XX
 ```
 
-`train`'s defaults are the final recipe (v2) since 2 Nov 2026; the v1 recipe is `--head small --label-max-depth 3000 --keep-depth-edges`. Maps without Polaris: `scr_map.py` (README 4b).
+`train`'s defaults are the final recipe (v2) since 2 Nov 2026; the v1 recipe is `--head small --label-max-depth 3000 --keep-depth-edges`.
+
+Without a tracker (README 4; `train --map` takes the map's labels and `track` then applies its camera calibration):
+
+```bash
+python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/map-3XX
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --map runs/map-3XX --out runs/v2map-3XX
+python scr_anchor.py track --ckpt runs/v2map-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-v2map-3XX
+python tools/us_analysis.py shape --json runs/track-v2map-3XX/poses/*.json --out runs/track-v2map-3XX/shape.md
+```
+
+The map without a tracker is the target approach (3 Nov). Open: reproduce Table F from scratch with the cleaned code (`runs/repro/`); loop closures (new default) vs none as the ablation; then 4XX with the 3XX camera calibration fixed (`scr_map.py --cam-calib-from runs/repro/map-3XX/map.json`): first each block's own scans (A: 401/402, B: 403/404, C: 405/406 for C, D, E; Polaris-label references 5.14, 5.77, 5.63, 9.63, 6.25 mm), then the pooled scans of the day.
 
 ## 3. Data
 
@@ -78,6 +93,65 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
+
+
+
+
+
+
+
+
+
+git pull
+export DATA=/data2/u0137815/rgbd-us/data ODO=/data2/u0137815/rgbd-us/runs
+
+python scr_anchor.py track --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/parity/track-3XX
+
+python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/train_3XX --scan-runs room-301 room-302 --test-root $DATA/train_3XX --odometry-source classical-vo-train_3XX --odometry $ODO/rpr-rgb-gap8-12XX-gru8 --pairs $ODO/anchor-pairs/pairs_3XX.json --pgo --start anchor --out runs/parity/sys-classical-r-3XX
+
+python tools/volume_pages.py --test-root $DATA/train_3XX --track runs/parity/track-3XX --anchoring runs/parity/sys-classical-r-3XX/anchor_eval_classical-odometry-odo-classical-vo-train_3XX-recover3-startanchor-train_3XX.json --extra classical-vo-train_3XX --labels "classical anchors + classical odometry" "classical odometry only" --out runs/parity/volume3d/3XX
+
+python tools/us_analysis.py shape --json runs/parity/volume3d/3XX/poses/*.json --out runs/parity/shape-3XX.md
+Expected: track gives 1.85 at 2 s smoothing, the classical system gives the same table as runs/sys-classical-r-3XX, and the shape file gives 1.85 / 1.57, 3.11 / 2.47 and 9.43 / 6.23.
+
+Then the reproduction from scratch:
+
+
+python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/repro/map-3XX
+
+python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --from runs/repro/map-3XX --loop-k 0 --out runs/repro/map-3XX-noloops
+
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --map runs/repro/map-3XX --out runs/repro/v2map-3XX
+
+python scr_anchor.py track --ckpt runs/repro/v2map-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/repro/track-v2map-3XX
+
+python tools/us_analysis.py shape --json runs/repro/track-v2map-3XX/poses/*.json --out runs/repro/shape-3XX.md
+
+python tools/volume_pages.py --test-root $DATA/train_3XX --track runs/repro/track-v2map-3XX --out runs/repro/pages/3XX
+
+git add -A && git commit -m "Parity check and from-scratch reproduction of the map without a tracker (3XX)" && git push
  
 
 
+
+
+
+export DATA=/data2/u0137815/rgbd-us/data
+
+python scr_map.py --root $DATA/test_4XXA --scan-runs room-401 room-402 --cam-calib-from runs/repro/map-3XX/map.json --out runs/map-4XXA
+python scr_map.py --root $DATA/test_4XXB --scan-runs room-403 room-404 --cam-calib-from runs/repro/map-3XX/map.json --out runs/map-4XXB
+python scr_map.py --root $DATA/test_4XXC --scan-runs room-405 room-406 --cam-calib-from runs/repro/map-3XX/map.json --out runs/map-4XXC
+
+python scr_anchor.py train --root $DATA/test_4XXA --scan-runs room-401 room-402 --map runs/map-4XXA --out runs/v2map-4XXA
+python scr_anchor.py train --root $DATA/test_4XXB --scan-runs room-403 room-404 --map runs/map-4XXB --out runs/v2map-4XXB
+python scr_anchor.py train --root $DATA/test_4XXC --scan-runs room-405 room-406 --map runs/map-4XXC --out runs/v2map-4XXC
+
+python scr_anchor.py track --ckpt runs/v2map-4XXA/best.pt --test-root $DATA/test_4XXA --every 2 --out runs/track-v2map-4XXA
+python scr_anchor.py track --ckpt runs/v2map-4XXB/best.pt --test-root $DATA/test_4XXB --every 2 --out runs/track-v2map-4XXB
+python scr_anchor.py track --ckpt runs/v2map-4XXC/best.pt --test-root $DATA/test_4XXC --every 2 --out runs/track-v2map-4XXC
+python scr_anchor.py track --ckpt runs/v2map-4XXC/best.pt --test-root $DATA/test_4XXD --every 2 --out runs/track-v2map-4XXD
+python scr_anchor.py track --ckpt runs/v2map-4XXC/best.pt --test-root $DATA/test_4XXE --every 2 --out runs/track-v2map-4XXE
+
+python tools/us_analysis.py shape --json runs/track-v2map-4XX*/poses/*.json --out runs/shape-v2map-4XX.md
+
+git add -A && git commit -m "Map without a tracker on 4XX (own scans, 3XX camera calibration)" && git push

@@ -35,6 +35,7 @@ Per-frame poses of the held-out sweeps: export, 3D plot, and US compounding.
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import cv2
@@ -42,6 +43,7 @@ import numpy as np
 import torch
 from scipy.spatial.transform import Rotation
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # dataloader.py, geometry.py at the repo root
 from dataloader import load_us_roi
 from eval import cached_preds, load_val_set, read_calib_parts
 from geometry import invert_se3, se3_exp, se3_log

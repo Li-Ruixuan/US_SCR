@@ -94,7 +94,7 @@ def pipeline():
     band(ax, 50, 77, "A   Before the exam: map the room (once per room / session)", 160)
     box(ax, 4, 54, 27, 15, "Room scan", "move the probe camera\naround the room, 1-3 min\nRGB + depth video", DATA)
     box(ax, 38, 53, 46, 17, "Self-mapping (no tracker)", "the SCR network + depth ICP give the\npose of every scan frame;"
-        " a pose graph\nties neighbouring frames together\n(scr_map.py; benchmark runs: Polaris)", NET, sfs=8.3)
+        " a pose graph\nties nearby and revisited frames together\n(scr_map.py; benchmark runs: Polaris)", NET, sfs=8.3)
     box(ax, 91, 54, 40, 15, "Train the SCR network", "on those poses: the room coordinate\nof every image cell, from depth\n(one GPU, 25-50 min)", TRAIN)
     box(ax, 140, 56.5, 17, 10, "Room model", "SCR network\nweights", NET, fs=10.5, sfs=8.4)
     arrow(ax, 31.4, 61.5, 37.6, 61.5)
@@ -156,8 +156,8 @@ def mapping():
 
     band(ax, 6, 35, "B   Refine and hand over", 160)
     box(ax, 4, 11, 30, 16, "3  Final pass", "every frame localised\nagain by the last network\n(>= 400 inliers)", NET)
-    box(ax, 41, 9, 44, 20, "4  Pose graph", "depth-ICP edges between frames\n1, 5, 15, 30 apart (1 mm)\n+ each frame's network pose as a\n"
-        "prior on the points 1 m ahead (10 mm)\nrobust least squares", GEO, sfs=8.3)
+    box(ax, 41, 8, 44, 22, "4  Pose graph", "depth-ICP edges between frames\n1, 5, 15, 30 apart, + loop closures\n(same view, > 2 s apart; 1 mm)\n"
+        "+ each frame's network pose as a\nprior on the points 1 m ahead (10 mm)\nrobust least squares", GEO, sfs=8.3)
     box(ax, 92, 11, 30, 16, "5  Labels", "pose of every scan frame\n-> train the final network\n(Stage I, 120 epochs)", TRAIN)
     box(ax, 129, 11, 28, 16, "Evaluation only", "Polaris: one rigid alignment\n+ camera-to-US calibration\n(once per probe)", DATA,
         dashed=True, sfs=8.3)

@@ -7,11 +7,8 @@ Anchoring against the room scan (note_RPR.md §2): network, classical and SCR an
   # feasibility (CPU)
   python anchoring.py coverage                          # distance to the best room-scan keyframe
   python anchoring.py simulate --runs runs/rpr-rgb-gap4 # odometry + simulated anchors
-  # learned anchors: the same RPRNet, trained on (room-scan keyframe, frame) pairs
+  # learned anchors: the same RPRNet on (room-scan keyframe, frame) pairs, trained in rgbd-us
   python anchoring.py pairs                             # CPU, once: runs/anchor-pairs/pairs_v2.json
-  # GPU, per fold; the current model (B) -> runs/anchor-rgbd-v2-reg/fold<k>
-  python anchoring.py train --fold 0 --amp --use-depth --epochs 10 --freeze-encoder \
-      --brightness 0.3 --contrast 0.3 --color 0.1 --out runs/anchor-rgbd-v2-reg
   python anchoring.py evaluate --ckpts runs/anchor-rgbd-v2-reg/fold*/best.pt   # GPU: odometry + anchors
   # fixed split: train --val-runs ...; test sweeps from another folder, with their own map or another one:
   python anchoring.py evaluate --root data/train_2XX --scan-runs room-201 room-202 ... \
@@ -48,23 +45,19 @@ import json
 import sys
 from pathlib import Path
 
-import dataclasses
-import time
-
 import cv2
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, Dataset
 
-from dataloader import RPRConfig, RPRDataset, leave_one_sweep_out, load_hand_eye, split_runs
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # dataloader.py, geometry.py at the repo root
+from dataloader import RPRConfig, RPRDataset, leave_one_sweep_out, load_hand_eye
 from eval import load_val_set, read_calib_parts
 from geometry import invert_se3, se3_exp, se3_log
-from loss import RPRLoss
 from model import RPRNet
 from trajectory import gt_chains, model_inputs
 
 ROOT, SCANS = "data/train", []          # set from --root / --scan-runs in main()
-HAND_EYE = "T_marker_cam.npy"
+HAND_EYE = str(Path(__file__).resolve().parents[1] / "T_marker_cam.npy")
 
 
 # --- coverage ---
@@ -425,51 +418,6 @@ def build_pairs(args):
     print(f"wrote {len(pairs)} pairs ({counts}), {len(key)} room-scan keyframes -> {out}")
 
 
-class AnchorPairs(Dataset):
-    """(frame A, frame B) -> xi of T_A_B = inv(T_world_A) @ T_world_B, as RPRDataset
-    returns for a 2-frame window, so RPRNet, RPRLoss and train.train_epoch apply as is.
-    A is the keyframe, B the query; with augmentation the pair is swapped with
-    probability swap_prob (target inverted), and each frame gets its own photometric
-    change (the two frames come from different sessions): brightness +-aug[0],
-    contrast x(1 +- aug[1]), per-channel gain x(1 +- aug[2])."""
-
-    def __init__(self, base: RPRDataset, pairs, swap_prob: float = 0.0, aug=(0.15, 0.15, 0.0)):
-        self.base, self.pairs, self.swap_prob, self.aug = base, pairs, swap_prob, aug
-
-    def photometric(self):
-        if not self.base.cfg.augment:
-            return None
-        b, c, g = self.aug
-        return (np.random.uniform(-b, b), 1 + np.random.uniform(-c, c),
-                1 + np.random.uniform(-g, g, 3))
-
-    def __len__(self):
-        return len(self.pairs)
-
-    def raw_target(self, p):
-        T_a = self.base.runs[p["key_run"]]["T_world_cam"][p["key_row"]]
-        T_b = self.base.runs[p["q_run"]]["T_world_cam"][p["q_row"]]
-        return se3_log((invert_se3(T_a) @ T_b)[None])[0]
-
-    def __getitem__(self, n):
-        cfg, p = self.base.cfg, self.pairs[n]
-        A, B = (p["key_run"], p["key_row"]), (p["q_run"], p["q_row"])
-        if cfg.augment and np.random.rand() < self.swap_prob:
-            A, B = B, A
-        fa = self.base.load_frame(*A, self.photometric())
-        fb = self.base.load_frame(*B, self.photometric())
-        T_a = self.base.runs[A[0]]["T_world_cam"][A[1]]
-        T_b = self.base.runs[B[0]]["T_world_cam"][B[1]]
-        xi_raw = se3_log((invert_se3(T_a) @ T_b)[None])                  # (1, 6)
-        out = {"rgb": torch.from_numpy(np.stack([fa[0], fb[0]]).astype(np.float32)),
-               "xi": torch.from_numpy(((xi_raw - cfg.target_mean) / cfg.target_std).astype(np.float32)),
-               "xi_raw": torch.from_numpy(xi_raw)}
-        if cfg.use_depth:
-            out["depth"] = torch.from_numpy(np.stack([fa[1], fb[1]]).astype(np.float32))
-            out["depth_mask"] = torch.from_numpy(np.stack([fa[2], fb[2]]).astype(np.float32))
-        return out
-
-
 def anchor_net(a, pretrained):
     return RPRNet(use_depth=a["use_depth"], use_us=False, pretrained=pretrained,
                   corr_radius=a["corr_radius"], coarse_radius=a["coarse_radius"])
@@ -478,129 +426,6 @@ def anchor_net(a, pretrained):
 # --- learned anchors: training ---
 
 @torch.no_grad()
-def predict_pairs(net, loader, device, mean, std, crit=None):
-    """-> (xi_pred (N, 6) mm|rad, xi_gt (N, 6), mean loss)."""
-    net.eval()
-    xp, xg, total, n = [], [], 0.0, 0
-    for batch in loader:
-        out = net(**model_inputs(batch, device))
-        if crit is not None:
-            total += crit(out, {"xi": batch["xi"].to(device)})[0].item()
-            n += 1
-        xp.append(out["xi"].double().cpu().numpy().reshape(-1, 6) * std + mean)
-        xg.append(batch["xi_raw"].numpy().reshape(-1, 6))
-    return np.concatenate(xp), np.concatenate(xg), (total / n if n else None)
-
-
-def pose_errors(xi_p, xi_g):
-    """Per pair: translation (mm) and rotation (deg) error between the transforms."""
-    T_p, T_g = se3_exp(xi_p), se3_exp(xi_g)
-    return (np.linalg.norm(T_p[:, :3, 3] - T_g[:, :3, 3], axis=1),
-            rot_angle_deg(T_g[:, :3, :3], T_p[:, :3, :3]))
-
-
-def train_anchor(args):
-    from train import train_epoch
-    torch.manual_seed(args.seed)
-    np.random.seed(args.seed)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    P = json.load(open(args.pairs))
-    if args.scan_pairs_only:                   # session adaptation: room-scan pairs only, no sweep at all
-        sc = set(SCANS)
-        allp = [p for p in P["pairs"] if p["q_run"] in sc and p["key_run"] in sc]
-        order = np.random.default_rng(args.seed).permutation(len(allp))
-        n_va = max(1, len(allp) // 10)          # 10 % held out, for monitoring only
-        va_pairs = [allp[i] for i in order[:n_va]]
-        tr_pairs = [allp[i] for i in order[n_va:]]
-        val_runs = []
-    else:
-        _, val_runs = split_runs(ROOT, SCANS, args.fold, args.val_runs)
-        # training: no frame from a validation sweep; validation: its queries vs room scan
-        tr_pairs = [p for p in P["pairs"] if p["q_run"] not in val_runs and p["key_run"] not in val_runs
-                    and p.get("kind", "scan") in args.kinds]
-        va_pairs = [p for p in P["pairs"] if p["q_run"] in val_runs and p.get("kind", "scan") == "scan"]
-    rng = np.random.default_rng(args.seed)
-    if args.max_pairs:
-        tr_pairs = [tr_pairs[i] for i in rng.choice(len(tr_pairs), min(args.max_pairs, len(tr_pairs)), replace=False)]
-        va_pairs = [va_pairs[i] for i in rng.choice(len(va_pairs), min(args.max_pairs // 4 + 1, len(va_pairs)), replace=False)]
-    out = Path(args.out) / f"fold{args.fold}"
-    out.mkdir(parents=True, exist_ok=True)
-    print(f"device {device} | {'fixed split' if args.val_runs else f'fold {args.fold}'}: val {val_runs} | pairs: train {len(tr_pairs)}, val {len(va_pairs)}")
-
-    T_mc = load_hand_eye(HAND_EYE, "mm")
-    runs = sorted({p[k] for p in tr_pairs + va_pairs for k in ("key_run", "q_run")})
-    cfg = RPRConfig(T_marker_cam=T_mc, use_depth=args.use_depth, image_size=tuple(args.image_size))
-    base_tr = RPRDataset(ROOT, runs, SCANS, dataclasses.replace(cfg, augment=True))
-    base_va = RPRDataset.__new__(RPRDataset)                 # same runs, no augmentation
-    base_va.__dict__ = dict(base_tr.__dict__, cfg=dataclasses.replace(cfg, augment=False))
-    tr_ds = AnchorPairs(base_tr, tr_pairs, args.swap_prob, (args.brightness, args.contrast, args.color))
-    va_ds = AnchorPairs(base_va, va_pairs)
-
-    x = np.stack([tr_ds.raw_target(p) for p in tr_pairs])
-    x = np.concatenate([x, -x]) if args.swap_prob > 0 else x  # swapped pairs: xi of the inverse ~ -xi
-    mean = np.median(x, 0)
-    std = 1.4826 * np.median(np.abs(x - mean), 0) + 1e-9
-    init = torch.load(args.init, map_location="cpu", weights_only=False) if args.init else None
-    if init is not None:                       # fine-tuning keeps the starting model's normalisation
-        mean, std = np.asarray(init["target_mean"]), np.asarray(init["target_std"])
-    for b in (base_tr, base_va):
-        b.cfg.target_mean, b.cfg.target_std = mean, std
-    print(f"target centre {np.round(mean, 3)}\ntarget scale  {np.round(std, 4)}")
-
-    pin = device.type == "cuda"
-    tr_dl = DataLoader(tr_ds, args.batch_size, shuffle=True, drop_last=True, num_workers=args.workers, pin_memory=pin)
-    va_dl = DataLoader(va_ds, args.batch_size, shuffle=False, num_workers=args.workers, pin_memory=pin)
-
-    xg = np.stack([va_ds.raw_target(p) for p in va_pairs])
-    zt, zr = pose_errors(np.zeros_like(xg), xg)
-    print(f"\nBASELINE (val): use the keyframe pose as is -> {np.median(zt):.1f} mm, {np.median(zr):.2f} deg (median)\n")
-
-    net = anchor_net(vars(args), pretrained=not args.no_pretrained).to(device)
-    if init is not None:
-        net.load_state_dict(init["model"])
-        print(f"initialised from {args.init}")
-    if args.freeze_encoder:                    # keep the ImageNet features; train the rest
-        for q in net.rgb_encoder.parameters():
-            q.requires_grad_(False)
-    print(f"trainable parameters: {sum(q.numel() for q in net.parameters() if q.requires_grad) / 1e6:.2f} M"
-          f"{' (RGB encoder frozen)' if args.freeze_encoder else ''}")
-    crit = RPRLoss(delta=args.huber_delta, w_rot=args.w_rot)
-    opt = torch.optim.AdamW([q for q in net.parameters() if q.requires_grad],
-                            lr=args.lr, weight_decay=args.weight_decay)
-    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.epochs)
-    scaler = torch.amp.GradScaler() if (args.amp and device.type == "cuda") else None
-    meta = {"args": vars(args), "kind": "anchor", "val_runs": val_runs,
-            "target_mean": mean, "target_std": std}
-    json.dump(vars(args) | {"val_runs": val_runs, "target_mean": mean.tolist(), "target_std": std.tolist(),
-                            "baseline_val": {"trans_mm_median": float(np.median(zt)), "rot_deg_median": float(np.median(zr))}},
-              open(out / "config.json", "w"), indent=2)
-
-    best, history = float("inf"), []
-    for ep in range(args.epochs):
-        t0 = time.time()
-        tr = train_epoch(net, crit, tr_dl, opt, scaler, device, mean, std, args.clip)
-        sched.step()
-        xp, xg, vl = predict_pairs(net, va_dl, device, mean, std, crit)
-        t, r = pose_errors(xp, xg)
-        va = {"loss": vl, "trans_mm_median": float(np.median(t)), "trans_mm_p90": float(np.percentile(t, 90)),
-              "rot_deg_median": float(np.median(r)), "rot_deg_p90": float(np.percentile(r, 90))}
-        print(f"[{ep + 1:3d}/{args.epochs}] train {tr['loss']:.4f} ({tr['trans_mm_median']:.1f}mm "
-              f"{tr['rot_deg_median']:.2f}deg) | val {vl:.4f} anchor error {va['trans_mm_median']:.1f}mm "
-              f"(p90 {va['trans_mm_p90']:.1f}) {va['rot_deg_median']:.2f}deg | {time.time() - t0:.0f}s")
-        history.append({"epoch": ep, "train": tr, "val": va})
-        json.dump(history, open(out / "history.json", "w"), indent=2)
-        ck = {"model": net.state_dict(), "epoch": ep, **meta}
-        torch.save(ck, out / "last.pt")
-        if args.save_last or vl < best:        # --save-last: no checkpoint choice at all
-            best = min(best, vl)
-            torch.save(ck, out / "best.pt")
-            json.dump(va | {"epoch": ep}, open(out / "best_eval.json", "w"), indent=2)
-            print(f"          new best: val loss {best:.4f}")
-    print(f"\ndone -> {out / 'best.pt'}")
-
-
-# --- learned anchors: full pipeline on the held-out sweep ---
-
 def mean_pose(Ts):
     """Average of rigid transforms: mean translation, mean rotation projected onto SO(3)."""
     U, _, Vt = np.linalg.svd(Ts[:, :3, :3].mean(0))
@@ -778,7 +603,7 @@ def evaluate_anchors(args):
             net.load_state_dict(ack["model"])
             net.eval()
         else:
-            sys.path.insert(0, str(Path(__file__).resolve().parent / "tools"))
+            sys.path.insert(0, str(Path(__file__).resolve().parent))      # baselines/
             from anchor_classical import pnp_pose, sift_features
             sift = cv2.SIFT_create(nfeatures=args.cl_features)
             K_full = np.array(base_map.runs[map_scans[0]]["K"], float)
@@ -1049,42 +874,6 @@ def main():
     p.add_argument("--stride", type=int, default=16)
     p.add_argument("--depth-tol", type=float, default=0.05)
 
-    t = sub.add_parser("train", parents=[common], help="train the anchor network on one fold (GPU)")
-    t.add_argument("--pairs", default="runs/anchor-pairs/pairs_v2.json")
-    t.add_argument("--fold", type=int, default=0, help="leave-one-sweep-out fold (ignored with --val-runs)")
-    t.add_argument("--val-runs", nargs="+", default=None,
-                   help="fixed split: these sweeps validate (use the same as for the odometry)")
-    t.add_argument("--init", default=None, help="start from this anchor checkpoint (fine-tuning)")
-    t.add_argument("--scan-pairs-only", action="store_true",
-                   help="session adaptation: train only on pairs within the room scans (no sweep frames); "
-                        "10 %% of them are held out for monitoring")
-    t.add_argument("--save-last", action="store_true", help="best.pt = last epoch (no checkpoint selection)")
-    t.add_argument("--out", default="runs/anchor-rgbd-v2-reg")
-    t.add_argument("--use-depth", action="store_true")
-    t.add_argument("--image-size", type=int, nargs=2, default=[360, 640])
-    t.add_argument("--corr-radius", type=int, default=3)
-    t.add_argument("--coarse-radius", type=int, default=4,
-                   help="correlation at stride 32, +-32*r px; 0 = off")
-    t.add_argument("--swap-prob", type=float, default=0.5)
-    t.add_argument("--kinds", nargs="+", default=["scan", "sweep"], choices=["scan", "sweep"],
-                   help="pair kinds to train on (sweep = cross-sweep pairs, if built)")
-    t.add_argument("--freeze-encoder", action="store_true", help="keep the ImageNet RGB encoder fixed")
-    t.add_argument("--brightness", type=float, default=0.15, help="per frame, +-")
-    t.add_argument("--contrast", type=float, default=0.15, help="per frame, x(1 +- c)")
-    t.add_argument("--color", type=float, default=0.0, help="per frame and channel, gain x(1 +- c)")
-    t.add_argument("--no-pretrained", action="store_true")
-    t.add_argument("--huber-delta", type=float, default=1.0)
-    t.add_argument("--w-rot", type=float, default=1.0)
-    t.add_argument("--epochs", type=int, default=20)
-    t.add_argument("--batch-size", type=int, default=16)
-    t.add_argument("--lr", type=float, default=3e-4)
-    t.add_argument("--weight-decay", type=float, default=1e-4)
-    t.add_argument("--clip", type=float, default=5.0)
-    t.add_argument("--workers", type=int, default=16)
-    t.add_argument("--amp", action="store_true")
-    t.add_argument("--seed", type=int, default=0)
-    t.add_argument("--max-pairs", type=int, default=0, help="smoke test: subsample pairs")
-
     e = sub.add_parser("evaluate", parents=[common], help="odometry + learned anchors on the held-out sweeps (GPU)")
     e.add_argument("--ckpts", nargs="+", default=None, help="anchor network fold*/best.pt (not with --anchor classical)")
     e.add_argument("--anchor", default="network", choices=["network", "classical", "scr"],
@@ -1149,7 +938,7 @@ def main():
     global ROOT, SCANS
     ROOT, SCANS = args.root, args.scan_runs
     {"coverage": coverage, "simulate": simulate, "pairs": build_pairs,
-     "train": train_anchor, "evaluate": evaluate_anchors}[args.cmd](args)
+     "evaluate": evaluate_anchors}[args.cmd](args)
 
 
 if __name__ == "__main__":

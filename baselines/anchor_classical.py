@@ -31,7 +31,7 @@ import torch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "tools"))
+sys.path.insert(0, str(ROOT / "baselines"))
 from anchor_saliency import CHANGED, SAME, change_labels, spearman   # noqa: E402
 from anchoring import load_depth                                      # noqa: E402
 from dataloader import RPRConfig, RPRDataset                          # noqa: E402

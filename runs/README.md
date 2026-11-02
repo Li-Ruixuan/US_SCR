@@ -1,5 +1,7 @@
 # runs/: index of the results
 
+Code moved on 3 Nov 2026: `anchoring.py`, `eval.py`, `poses.py`, `trajectory.py`, `model.py`, `loss.py`, `tools/anchoring_kabsch.py`, `tools/anchor_classical.py`, `tools/anchor_saliency.py` → `baselines/`; `scr_render.py`, `tools/li_baseline.py` → `studies/`. Commands recorded in older folders use the old paths.
+
 Every folder backs a number in `../summary.md` (section in the last column). Checkpoints (`best.pt`, `saved_model/`) are on the training PC only. Unless noted: anchors = camera position error against Polaris, mean of per-sweep medians / pooled p90 (mm), rotation median, one frame per second; system = median error at the US image (mm), step-to-step error over 8 rows in brackets.
 
 ## How to read the files
@@ -8,11 +10,12 @@ Every folder backs a number in `../summary.md` (section in the last column). Che
 |---|---|
 | `<model>/config.json`, `history.json` | training settings and code version; per epoch loss, learning rate, time and the fit check on training frames |
 | `<model>/eval_<test>[_<sweeps>][_kabsch]/scr_eval.md`, `.json` | anchor accuracy per sweep (`scr_anchor.py eval`; `_kabsch` = Kabsch solve, else PnP) |
-| `track-*/scr_track.md`, `.json`, `poses.npz` | single-network system (`scr_anchor.py track`): raw, smoothed offline and in real time ("real time W s, delay L s"; summary 3.3), per sweep; the raw poses per row |
-| `sys-*/anchor_eval_*.md`, `.json` | hybrid system (`anchoring.py` via `tools/anchoring_kabsch.py`): per sweep anchors, then the US-image error for no anchors, causal, offline, **offline pose graph** (the reported column) |
+| `track-*/scr_track.md`, `.json`, `poses.npz` | single-network system (`scr_anchor.py track`): raw, smoothed offline and in real time ("real time W s, delay L s"; summary 3.3), per sweep; the raw poses per row (tracks since 3 Nov also write `poses/fold0_<sweep>_scr-track.json`, git-ignored) |
+| `map-*/map_report.md`, `map.json`, `poses_<scan>.json`, `network_poses.npz` | map without a tracker (`scr_map.py`): growth per round, map error against Polaris, camera calibration, checks; the labels for `train --label-poses`; the network's poses before the pose graph |
+| `sys-*/anchor_eval_*.md`, `.json` | hybrid system (`baselines/anchoring.py` via `baselines/anchoring_kabsch.py`): per sweep anchors, then the US-image error for no anchors, causal, offline, **offline pose graph** (the reported column) |
 | `volume3d/index.html`, `volume3d/<split>/<run>.html` | 3D pages (open in a browser): true poses vs the single network, the classical system and odometry only; the index lists every sweep with its mean pixel error |
 | `us-*`, `us-speckle-*`, `shape-final.*` | `tools/us_analysis.py inplane / speckle / shape` |
-| `li-repro-M2`, `li-transfer/*` | `tools/li_baseline.py repro / transfer` |
+| `li-repro-M2`, `li-transfer/*` | `studies/li_baseline.py repro / transfer` |
 
 ## 1. Final system: one network on every frame (summary 3.1)
 

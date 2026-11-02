@@ -20,25 +20,33 @@ so the whole system needs no tracker; Polaris is used only to evaluate the map.
      frame trained jointly (T_k <- T_k Exp(delta_k), seed frame fixed), so pose errors are corrected
      instead of learned (off by default: on 3XX it made the map worse);
      then the pose graph (on by default; --no-graph): depth ICP between frames --graph-offsets apart (1 to 30,
-     started from the map's relative pose) gives exact local motion, each frame's map pose stays as a loose
-     prior on its view points; robust least squares. Without it, every frame is localised on its own and the
+     started from the map's relative pose) gives exact local motion, loop closures (depth ICP between frames that
+     see the same part of the room more than --loop-gap s apart or in another scan; --loop-k 0 = off) tie the
+     map together over longer times, each frame's map pose stays as a loose prior on its view points; robust
+     least squares. Without it, every frame is localised on its own and the
      map bends over seconds (3XX: 7 mm error of the 1 s motion, shape 8.5 mm at the US image).
-     --from <map folder> runs only this step on an existing map (edges cached in its graph_edges.npz);
+     --from <map folder> runs only this step again on an existing map: on its network poses (network_poses.npz,
+     saved before the pose graph; older maps: their poses_*.json), edges cached in its graph_edges.npz and
+     graph_loops.npz, so other graph settings take minutes;
   4. evaluate against Polaris after one rigid alignment of the whole map (Kabsch on the points 1 m in front
      of each camera) and one fixed camera-frame transform (camera calibration, a property of the probe: Polaris
      gives the camera through the hand-eye, the map from the camera itself; --no-cam-calib leaves it out):
      scene-point / camera position / rotation error per frame and the error of 1 s relative motions. The
-     calibration is saved in map.json; `scr_anchor.py track --cam-calib map.json` applies it;
-  5. write the aligned poses per scan in the poses.py JSON format, for
-     `scr_anchor.py train --label-poses` (frames that never joined the map get no label).
+     calibration is saved in map.json; `scr_anchor.py track` applies it (train --map, or --cam-calib map.json).
+     Two checks in the report: the calibration fitted on each scan alone (held out on the other), and the
+     camera/Polaris timing. --cam-calib-from <map.json>: the calibration of another map with the same probe, fixed
+     (a new session then uses Polaris for the evaluation only);
+  5. write the aligned poses per scan in the poses.py JSON format, for `scr_anchor.py train --map <out>`
+     (frames that never joined the map get no label).
 
 Only rows with a Polaris pose are used (the dataloader's segments), so that every map pose can be
 evaluated; in deployment all rows would be.
 
   python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/map-3XX
-  python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 \\
-      --label-poses runs/map-3XX/poses_room-301.json runs/map-3XX/poses_room-302.json --out runs/v2map-3XX
+  python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --map runs/map-3XX --out runs/v2map-3XX
   python scr_anchor.py track --ckpt runs/v2map-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-v2map-3XX
+  # the pose graph again on the same map, without loop closures (minutes; edges cached)
+  python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --from runs/map-3XX --loop-k 0 --out runs/map-3XX-noloops
 """
 
 import argparse
@@ -92,7 +100,10 @@ def align_calib(Te, Tg, iters=10):
     in the camera frame, the same for every frame. Polaris gives the camera pose through the hand-eye
     calibration, the map gives it from the camera itself, so a hand-eye error appears as X (3XX: ~10 mm).
     X is a property of the probe (camera -> US image), estimated once on the room scan; it never enters the
-    labels. Alternating: A by Kabsch on the view points, X = mean of (A Te)^-1 Tg."""
+    labels. Start: alternating (A by Kabsch on the view points, X = mean of (A Te)^-1 Tg), which converges slowly
+    (hundreds of iterations on a room scan; the first 3XX calibration used 10); then both jointly by robust least
+    squares on the camera centre and the view points (soft L1, 5 mm)."""
+    from scipy.optimize import least_squares
     X = np.eye(4)
     for _ in range(iters):
         A = align(Te @ X, Tg)
@@ -100,7 +111,41 @@ def align_calib(Te, Tg, iters=10):
         X = np.eye(4)
         X[:3, :3] = Rotation.from_matrix(D[:, :3, :3]).mean().as_matrix()
         X[:3, 3] = np.median(D[:, :3, 3], axis=0)
+    A = align(Te @ X, Tg)
+    P = GRAPH_POINTS
+    G = np.einsum("nij,kj->nki", Tg[:, :3, :3], P) + Tg[:, None, :3, 3]
+
+    def mats(x):
+        M = np.tile(np.eye(4), (2, 1, 1))
+        M[:, :3, :3] = Rotation.from_rotvec(x.reshape(2, 6)[:, :3]).as_matrix()
+        M[:, :3, 3] = x.reshape(2, 6)[:, 3:]
+        return (A @ M[0], X @ M[1])
+
+    def res(x):
+        Ax, Xx = mats(x)
+        T = Ax @ Te @ Xx
+        return (np.einsum("nij,kj->nki", T[:, :3, :3], P) + T[:, None, :3, 3] - G).ravel()
+
+    sol = least_squares(res, np.zeros(12), method="trf", loss="soft_l1", f_scale=5.0, x_scale=([1e-2] * 3 + [10.0] * 3) * 2)
+    return mats(sol.x)
+
+
+def fit_alignment(Te, Tg, calib):
+    """(A, X) with A Te X ~ Tg. calib: False = no camera calibration (X = I), True = fit X too (align_calib),
+    a 4x4 array = this X, fixed (the probe's calibration from another map): only A is fitted."""
+    if calib is True:
+        return align_calib(Te, Tg)
+    X = np.eye(4) if calib is False else calib
     return align(Te @ X, Tg), X
+
+
+def calib_of(args):
+    """The calib argument of fit_alignment for these options (--no-cam-calib, --cam-calib-from)."""
+    if not args.cam_calib:
+        return False
+    if args.cam_calib_from:
+        return np.asarray(json.load(open(args.cam_calib_from))["cam_calib"], float)
+    return True
 
 
 def map_errors(est, gt, items, rows_per_s=30, calib=False):
@@ -113,7 +158,7 @@ def map_errors(est, gt, items, rows_per_s=30, calib=False):
         return None, {}, None
     Te = np.stack([est[items[k][0]][items[k][1]] for k in ok])
     Tg = np.stack([gt[items[k][0]][items[k][1]] for k in ok])
-    A, X = align_calib(Te, Tg) if calib else (align(Te, Tg), np.eye(4))
+    A, X = fit_alignment(Te, Tg, calib)
     Ta = A @ Te @ X
     dv = np.linalg.norm(view_points(Ta) - view_points(Tg), axis=2).mean(1)
     dt = np.linalg.norm(Ta[:, :3, 3] - Tg[:, :3, 3], axis=1)
@@ -130,10 +175,58 @@ def map_errors(est, gt, items, rows_per_s=30, calib=False):
                 rel.append(np.linalg.norm(Re[:3, 3] - Rg[:3, 3]))
     q = lambda v, p: float(np.percentile(v, p)) if len(v) else None
     cal = {"calib_mm": float(np.linalg.norm(X[:3, 3])),
-           "calib_deg": float(np.degrees(np.linalg.norm(Rotation.from_matrix(X[:3, :3]).as_rotvec())))} if calib else {}
+           "calib_deg": float(np.degrees(np.linalg.norm(Rotation.from_matrix(X[:3, :3]).as_rotvec())))} if calib is not False else {}
     return A, {"mapped": len(ok), "frames": len(items), "mapped_pct": 100 * len(ok) / len(items),
                "view_mm_median": q(dv, 50), "view_mm_p90": q(dv, 90), "pos_mm_median": q(dt, 50), "pos_mm_p90": q(dt, 90), "rot_deg_median": q(dr, 50),
                "rel1s_mm_median": q(rel, 50), "rel1s_mm_p90": q(rel, 90), **cal}, X
+
+
+def calib_check(est, gt, items):
+    """Is the camera calibration a property of the probe? A and X fitted on each scan alone, and applied to the
+    other scans (held out). -> rows (scan, |t_X| mm, X deg, held-out scene points / camera position mm, median)."""
+    rows = []
+    runs = sorted({n for n, _ in items})
+    for n in runs:
+        fit = [(m, r) for m, r in items if m == n and np.isfinite(est[m][r]).all()]
+        rest = [(m, r) for m, r in items if m != n and np.isfinite(est[m][r]).all()]
+        if len(fit) < 3 or len(rest) < 3:
+            continue
+        A, X = align_calib(np.stack([est[m][r] for m, r in fit]), np.stack([gt[m][r] for m, r in fit]))
+        Ta = A @ np.stack([est[m][r] for m, r in rest]) @ X
+        Tg = np.stack([gt[m][r] for m, r in rest])
+        rows.append((n, float(np.linalg.norm(X[:3, 3])), float(np.degrees(np.linalg.norm(Rotation.from_matrix(X[:3, :3]).as_rotvec()))),
+                     float(np.median(np.linalg.norm(view_points(Ta) - view_points(Tg), axis=2).mean(1))),
+                     float(np.median(np.linalg.norm(Ta[:, :3, 3] - Tg[:, :3, 3], axis=1)))))
+    return rows
+
+
+def time_offset(est, gt, items, calib, shifts=range(-6, 7), ms_per_row=1000 / 30):
+    """Camera vs Polaris timing: the map (from the camera images) compared with the Polaris pose s rows later,
+    for each shift s; a minimum away from 0 means the Polaris poses lag (s > 0) or lead the images. A room scan
+    turns fast, so a lag of one row (33 ms) already moves the view points by several mm. Polaris labels share
+    the lag with the Polaris ground truth (it cancels), a map from the camera does not.
+    -> rows (shift ms, scene points mm, rotation deg, median) and the best shift (ms, parabola through the minimum)."""
+    have = {(n, r) for n, r in items if np.isfinite(est[n][r]).all()}
+    rows = []
+    for s in shifts:
+        pairs = [(n, r) for n, r in sorted(have)          # the same camera rows for every shift
+                 if (n, r + s) in have and (n, r + min(shifts)) in have and (n, r + max(shifts)) in have]
+        if len(pairs) < 3:
+            continue
+        Te = np.stack([est[n][r] for n, r in pairs])
+        Tg = np.stack([gt[n][r + s] for n, r in pairs])
+        A, X = fit_alignment(Te, Tg, calib)
+        Ta = A @ Te @ X
+        dR = np.einsum("nji,njk->nik", Ta[:, :3, :3], Tg[:, :3, :3])
+        rows.append((s * ms_per_row, float(np.median(np.linalg.norm(view_points(Ta) - view_points(Tg), axis=2).mean(1))),
+                     float(np.median(np.degrees(np.arccos(np.clip((np.trace(dR, axis1=1, axis2=2) - 1) / 2, -1, 1)))))))
+    if len(rows) < 3:
+        return rows, None
+    v = np.array([r[1] for r in rows])
+    i = int(np.clip(np.argmin(v), 1, len(v) - 2))
+    den = v[i - 1] - 2 * v[i] + v[i + 1]
+    best = rows[i][0] + (0.5 * (v[i - 1] - v[i + 1]) / den * ms_per_row if den > 0 else 0.0)
+    return rows, float(best)
 
 
 def depth_cloud(ds, root, n, r, stride, max_depth):
@@ -245,6 +338,47 @@ def graph_edges(est, items, cloud, args):
     return np.array(I, int), np.array(J, int), np.array(Z).reshape(-1, 4, 4)
 
 
+def loop_edges(est, items, cloud, args):
+    """Loop closures: depth ICP between frames that see the same part of the room at different times (more than
+    --loop-gap s apart, or in different scans), started from the map's relative pose. The edges between frames
+    up to 30 rows apart only fix the motion over a second; without loops, the network's poses alone hold the map
+    together over longer times, and their errors are smooth (they bend the map). Every --loop-every-th mapped
+    frame gets up to --loop-k partners: the nearest by camera centre and the point 1 m ahead (within
+    --loop-radius mm). -> (i, j, Z) as graph_edges."""
+    idx = [k for k, (n, r) in enumerate(items) if np.isfinite(est[n][r]).all()]
+    T = np.stack([est[items[k][0]][items[k][1]] for k in idx])
+    feat = np.hstack([T[:, :3, 3], view_points(T)[:, 0]])                 # camera centre, point 1 m ahead (mm)
+    tree = cKDTree(feat)
+    gap = args.loop_gap * 30
+    pairs = set()
+    for c in range(0, len(idx), args.loop_every):
+        k = idx[c]
+        d, nb = tree.query(feat[c], k=min(len(idx), 64), distance_upper_bound=args.loop_radius)
+        got = 0
+        for dist, b in zip(d, nb):
+            if not np.isfinite(dist) or got >= args.loop_k:
+                break
+            j = idx[b]
+            if items[j][0] == items[k][0] and abs(items[j][1] - items[k][1]) < gap:
+                continue
+            pairs.add((min(k, j), max(k, j)))
+            got += 1
+    I, J, Z, dt = [], [], [], []
+    for k, j in sa.bar(sorted(pairs), desc="loop edges", total=len(pairs)):
+        Tk = est[items[k][0]][items[k][1]]
+        rel = rinv(Tk) @ est[items[j][0]][items[j][1]]
+        Tm, _, _ = icp(cloud(j), cloud(k), args, init=rel)
+        if Tm is None or np.linalg.norm((Tm - rel)[:3, :3] @ VIEW.T + (Tm - rel)[:3, 3:], axis=0).mean() > args.graph_check:
+            continue
+        I.append(k), J.append(j), Z.append(Tm)
+        dt.append(abs(items[j][1] - items[k][1]) / 30 if items[j][0] == items[k][0] else np.inf)
+    dt = np.array(dt)
+    print(f"loop edges (depth ICP, kept / tried): {len(I)}/{len(pairs)}; across scans {int(np.isinf(dt).sum())}, "
+          f"within a scan {int(np.isfinite(dt).sum())} (median {np.median(dt[np.isfinite(dt)]) if np.isfinite(dt).any() else 0:.0f} s apart)",
+          flush=True)
+    return np.array(I, int), np.array(J, int), np.array(Z).reshape(-1, 4, 4)
+
+
 def pose_graph(est, items, edges, args):
     """Pose graph over the room scan: the depth-ICP edges (exact local motion, --graph-edge-mm at the camera
     centre and view points) and each frame's map pose as a prior on its view points (--graph-prior-mm: the
@@ -302,18 +436,28 @@ def pose_graph(est, items, edges, args):
 
 
 def run_graph(est, items, cloud, args, cache):
-    """Edges + pose graph. With `cache` (a map's folder file: the edges depend on its poses), edges for the same
-    offsets and ICP settings are read from it instead of computed again."""
+    """Edges (nearby frames, loop closures) + pose graph. With `cache` (a map's folder file: the edges depend on its
+    poses), edges for the same offsets and ICP settings are read from it (loops: graph_loops.npz next to it)
+    instead of computed again."""
     key = np.array([args.every, args.icp_stride, args.icp_dist, args.icp_fitness, args.icp_rmse, args.graph_check, *args.graph_offsets], float)
-    if cache is not None and cache.exists() and np.array_equal(np.load(cache)["key"], key):
-        z = np.load(cache)
-        edges = (z["i"], z["j"], z["Z"])
-        print(f"graph edges: {len(edges[0])} from {cache}", flush=True)
-    else:
-        edges = graph_edges(est, items, cloud, args)
-        if cache is not None:
-            np.savez(cache, key=key, i=edges[0], j=edges[1], Z=edges[2])
+    edges = cached(cache, key, lambda: graph_edges(est, items, cloud, args), "graph edges")
+    if args.loop_k:
+        lkey = np.concatenate([key, [args.loop_gap, args.loop_every, args.loop_k, args.loop_radius]])
+        loops = cached(cache and cache.with_name("graph_loops.npz"), lkey, lambda: loop_edges(est, items, cloud, args), "loop edges")
+        edges = tuple(np.concatenate([a, b]) for a, b in zip(edges, loops))
     pose_graph(est, items, edges, args)
+
+
+def cached(path, key, make, what):
+    """(i, j, Z) edges from `path` if it holds them for the same `key`, else make() and save them there."""
+    if path is not None and path.exists() and np.array_equal(np.load(path)["key"], key):
+        z = np.load(path)
+        print(f"{what}: {len(z['i'])} from {path}", flush=True)
+        return z["i"], z["j"], z["Z"]
+    edges = make()
+    if path is not None:
+        np.savez(path, key=key, i=edges[0], j=edges[1], Z=edges[2])
+    return edges
 
 
 class LocFrames(Dataset):
@@ -403,7 +547,7 @@ def write_outputs(args, out, items, est, gt, history, stage, net, mapping_args=N
     """Align the map to Polaris (view points), write poses_<scan>.json (labels for scr_anchor.py train
     --label-poses), map.json, map_report.md and, after mapping, map.pt (the mapping network). With `stage`,
     the final errors are added to the history under that name (--realign)."""
-    A, e, X = map_errors(est, gt, items, calib=args.cam_calib)
+    A, e, X = map_errors(est, gt, items, calib=calib_of(args))
     if A is None:
         raise SystemExit("the map did not grow beyond the seed: train the seed longer (--seed-steps) or lower --gate")
     if stage:
@@ -436,12 +580,28 @@ def write_outputs(args, out, items, est, gt, history, stage, net, mapping_args=N
         md += ["", "Stages without scene-point errors were aligned on camera positions only (before 3 Nov): their "
                "rotation and position errors include an alignment error."]
     if "calib_mm" in e:
-        md += ["", f"Camera calibration from the room scan (one fixed camera-frame transform, a property of the probe; "
+        src = (f"from `{args.cam_calib_from}` (fixed, not fitted here: only the alignment uses this session's Polaris)"
+               if args.cam_calib_from else "from the room scan")
+        md += ["", f"Camera calibration {src} (one fixed camera-frame transform, a property of the probe; "
                f"Polaris sees the marker, the map the camera): {e['calib_mm']:.1f} mm, {e['calib_deg']:.2f} deg. Rows marked "
-               "(+ camera calibration) include it. It is not in the labels; `scr_anchor.py track --cam-calib "
-               f"{out / 'map.json'}` applies it when placing the US images."]
+               "(+ camera calibration) include it. It is not in the labels; `scr_anchor.py track` applies it when placing "
+               f"the US images (network trained with `train --map {out}`, or `track --cam-calib {out / 'map.json'}`)."]
+    cc = calib_check(est, gt, items) if args.cam_calib else []
+    if cc:
+        md += ["", "Camera calibration fitted here on one scan alone, errors on the other scan(s) (held out, median): " +
+               "; ".join(f"from {n}: {t:.1f} mm, {a:.2f} deg -> scene points {v:.1f} mm, camera {p:.1f} mm" for n, t, a, v, p in cc) +
+               ". Similar values from each scan = a property of the probe; different values = the map's own error."]
+    to, best = time_offset(est, gt, items, calib_of(args))
+    if to:
+        md += ["", "Timing (map vs Polaris s ms later, same frames; median scene points mm / rotation deg): " +
+               ", ".join(f"{s:+.0f}: {v:.1f} / {a:.2f}" for s, v, a in to) +
+               f". Best {best:+.0f} ms" + (" (Polaris lags the images)" if best > 10 else " (Polaris leads the images)" if best < -10 else
+                                          " (no timing offset)") + "."]
     md += ["", "Labels for training: " + ", ".join(f"`poses_{n}.json`" for n in args.scan_runs) +
-           " (`scr_anchor.py train --label-poses`)."]
+           f" (`scr_anchor.py train --map {out}`)."]
+    m = json.load(open(out / "map.json"))
+    m["checks"] = {"calib_per_scan": cc, "timing": to, "timing_best_ms": best}
+    json.dump(m, open(out / "map.json", "w"), indent=1)
     (out / "map_report.md").write_text("\n".join(md) + "\n")
     print("\n".join(md[4:]) + f"\n-> {out}", flush=True)
 
@@ -480,15 +640,23 @@ def main():
                     help="no mapping: re-align the map in --out (or --from, written to --out): its poses_*.json and map.json")
     ap.add_argument("--no-cam-calib", dest="cam_calib", action="store_false",
                     help="evaluate without the camera calibration (one fixed camera-frame transform fitted with the alignment)")
+    ap.add_argument("--cam-calib-from", default=None,
+                    help="map.json of another map with the same probe (e.g. runs/map-3XX/map.json): use its camera calibration "
+                         "instead of fitting one here; Polaris of this session then only aligns the map (evaluation)")
     ap.add_argument("--no-graph", dest="graph", action="store_false",
                     help="skip the pose graph (depth-ICP edges between nearby frames + the network's poses) after the final pass")
     ap.add_argument("--from", dest="from_map", default=None,
-                    help="no mapping: run the pose graph on the map in this folder (e.g. runs/map-3XX) and write the result to --out")
+                    help="no mapping: run the pose graph again on the map in this folder (its network poses) and write the result to --out")
     ap.add_argument("--graph-offsets", type=int, nargs="+", default=[1, 5, 15, 30], help="pose graph: ICP edges between frames this many apart")
     ap.add_argument("--graph-edge-mm", type=float, default=1.0, help="pose graph: ICP edge uncertainty at the camera centre and view points (mm)")
     ap.add_argument("--graph-prior-mm", type=float, default=10.0, help="pose graph: uncertainty of the network's view points (mm)")
     ap.add_argument("--graph-check", type=float, default=50.0, help="pose graph: drop ICP edges this far from the map's relative pose (mm)")
     ap.add_argument("--graph-iters", type=int, default=300, help="pose graph: maximum least-squares evaluations")
+    ap.add_argument("--loop-k", type=int, default=3, help="pose graph: loop-closure partners per frame (0 = no loop closures)")
+    ap.add_argument("--loop-every", type=int, default=3, help="pose graph: loop closures from every n-th mapped frame")
+    ap.add_argument("--loop-gap", type=float, default=2.0, help="pose graph: loop partners at least this far apart in time (s), or in another scan")
+    ap.add_argument("--loop-radius", type=float, default=150.0,
+                    help="pose graph: loop partners within this distance (mm) of camera centre + point 1 m ahead")
     ap.add_argument("--refine-lr", type=float, default=1e-4, help="pose corrections (rad, m)")
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--lr", type=float, default=1e-3, help="head")
@@ -526,9 +694,16 @@ def main():
         src = Path(args.from_map) if args.from_map else out
         old = json.load(open(src / "map.json"))
         A_old = np.asarray(old["map_to_polaris"])
-        for n in args.scan_runs:
-            for f in json.load(open(src / f"poses_{n}.json"))["frames"]:
-                est[n][f["row"]] = np.linalg.inv(A_old) @ np.asarray(f["T_world_cam_pred"])
+        raw = src / "network_poses.npz"           # maps made since 3 Nov: the poses before their pose graph
+        if args.from_map and not args.realign and raw.exists():
+            z = np.load(raw)
+            for n in args.scan_runs:
+                est[n][:] = z[n]
+            print(f"network poses (before the pose graph) from {raw}", flush=True)
+        else:
+            for n in args.scan_runs:
+                for f in json.load(open(src / f"poses_{n}.json"))["frames"]:
+                    est[n][f["row"]] = np.linalg.inv(A_old) @ np.asarray(f["T_world_cam_pred"])
         if args.realign:                      # with --from: the map of --from, written to --out
             write_outputs(args, out, items, est, gt, old["history"], "re-aligned", None, mapping_args=old["args"])
             return
@@ -556,7 +731,7 @@ def main():
     history = []
 
     def log(stage, loss, t0, added=None):
-        _, e, _ = map_errors(est, gt, items, calib=args.cam_calib)
+        _, e, _ = map_errors(est, gt, items, calib=calib_of(args))
         if not e:
             print(f"{stage}: +{added} frames, fewer than 3 mapped", flush=True)
             return
@@ -642,8 +817,9 @@ def main():
             est[items[k][0]][items[k][1]] = T @ C
         log("refined", loss, t0, 0)
 
-    if args.graph:
-        run_graph(est, items, cloud, args, None)
+    if args.graph:                            # the network's poses, so that --from can redo the pose graph on them
+        np.savez(out / "network_poses.npz", **{n: est[n] for n in args.scan_runs})
+        run_graph(est, items, cloud, args, out / "graph_edges.npz")
         log("pose graph", loss, t0, 0)
 
     write_outputs(args, out, items, est, gt, history, None, net)
