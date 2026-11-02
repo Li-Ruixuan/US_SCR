@@ -18,7 +18,12 @@ so the whole system needs no tracker; Polaris is used only to evaluate the map.
   3. final pass: every frame localised again with the last network (>= --gate-far inliers), replacing
      the rough early poses; then refine (--refine-steps): the network and a pose correction per mapped
      frame trained jointly (T_k <- T_k Exp(delta_k), seed frame fixed), so pose errors are corrected
-     instead of learned;
+     instead of learned (off by default: on 3XX it made the map worse);
+     then the pose graph (on by default; --no-graph): depth ICP between frames --graph-offsets apart (1 to 30,
+     started from the map's relative pose) gives exact local motion, each frame's map pose stays as a loose
+     prior on its view points; robust least squares. Without it, every frame is localised on its own and the
+     map bends over seconds (3XX: 7 mm error of the 1 s motion, shape 8.5 mm at the US image).
+     --from <map folder> runs only this step on an existing map (edges cached in its graph_edges.npz);
   4. evaluate against Polaris after one rigid alignment of the whole map (positions, Kabsch): camera
      position / rotation error per frame and the error of 1 s relative motions (local consistency);
   5. write the aligned poses per scan in the poses.py JSON format, for
@@ -130,16 +135,16 @@ def depth_cloud(ds, root, n, r, stride, max_depth):
     return Pc, Nc
 
 
-def icp(src, tgt, args):
+def icp(src, tgt, args, init=None):
     """Point-to-plane ICP from frame src to frame tgt (each (points, normals), camera frame, mm), starting at
-    identity (consecutive frames). -> (T_tgt_src or None, fitness, rmse): accepted if at least --icp-fitness
-    of the source points end within --icp-dist mm of the target with an rmse of at most --icp-rmse mm."""
+    `init` (default identity: consecutive frames). -> (T_tgt_src or None, fitness, rmse): accepted if at least
+    --icp-fitness of the source points end within --icp-dist mm of the target with an rmse of at most --icp-rmse mm."""
     Ps = src[0][:: max(1, len(src[0]) // 8000)]
     Pt, Nt = tgt
     if len(Ps) < 500 or len(Pt) < 500:
         return None, 0.0, float("inf")
     tree = cKDTree(Pt)
-    T = np.eye(4)
+    T = np.eye(4) if init is None else init.copy()
     for dmax in (40, 40, 25, 25, 15, 15, 10, 10, 10, 10):
         X = Ps @ T[:3, :3].T + T[:3, 3]
         dist, j = tree.query(X, distance_upper_bound=dmax)
@@ -177,6 +182,116 @@ def icp_extend(est, items, k0, step, n_max, cloud, args):
         added.append(j)
         k = j
     return added
+
+
+GRAPH_POINTS = np.vstack([np.zeros((1, 3)), VIEW])          # camera centre + view points (camera frame, mm)
+
+
+def rinv(T):
+    """Inverse of rigid poses (..., 4, 4)."""
+    Ti = np.zeros_like(T)
+    Rt = np.swapaxes(T[..., :3, :3], -1, -2)
+    Ti[..., :3, :3], Ti[..., :3, 3], Ti[..., 3, 3] = Rt, -(Rt @ T[..., :3, 3, None])[..., 0], 1.0
+    return Ti
+
+
+def graph_edges(est, items, cloud, args):
+    """Depth ICP between mapped frames --graph-offsets apart in the same scan, started from the map's relative
+    pose. -> (i, j, Z (M, 4, 4) = measured T_i^-1 T_j). Pairs whose ICP result differs from the map's relative
+    pose by more than --graph-check mm at the view points are dropped (wrong convergence)."""
+    ok = lambda k: np.isfinite(est[items[k][0]][items[k][1]]).all()
+    I, J, Z = [], [], []
+    tried = {o: 0 for o in args.graph_offsets}
+    kept = {o: 0 for o in args.graph_offsets}
+    for k in sa.bar(range(len(items)), desc="graph edges", total=len(items)):
+        if not ok(k):
+            continue
+        Tk = est[items[k][0]][items[k][1]]
+        for o in args.graph_offsets:
+            j = k + o
+            if j >= len(items) or items[j][0] != items[k][0] or not ok(j) or items[j][1] - items[k][1] > 3 * o * args.every:
+                continue
+            tried[o] += 1
+            rel = rinv(Tk) @ est[items[j][0]][items[j][1]]
+            T, _, _ = icp(cloud(j), cloud(k), args, init=rel)
+            if T is None or np.linalg.norm((T - rel)[:3, :3] @ VIEW.T + (T - rel)[:3, 3:], axis=0).mean() > args.graph_check:
+                continue
+            I.append(k), J.append(j), Z.append(T)
+            kept[o] += 1
+    print("graph edges (depth ICP, kept / tried): " + ", ".join(f"{o} frames apart {kept[o]}/{tried[o]}"
+                                                                for o in args.graph_offsets), flush=True)
+    return np.array(I, int), np.array(J, int), np.array(Z).reshape(-1, 4, 4)
+
+
+def pose_graph(est, items, edges, args):
+    """Pose graph over the room scan: the depth-ICP edges (exact local motion, --graph-edge-mm at the camera
+    centre and view points) and each frame's map pose as a prior on its view points (--graph-prior-mm: the
+    network fixes where the scene is, not the camera; it keeps the graph from drifting). Robust (soft L1)
+    least squares; poses T_k = T0_k Exp(delta_k). Updates est in place."""
+    from scipy.optimize import least_squares
+    from scipy.sparse import coo_matrix
+    idx = [k for k, (n, r) in enumerate(items) if np.isfinite(est[n][r]).all()]
+    col = {k: c for c, k in enumerate(idx)}
+    I, J, Z = edges
+    keep = np.array([i in col and j in col for i, j in zip(I, J)], bool)
+    ei = np.array([col[i] for i in I[keep]], int)
+    ej = np.array([col[j] for j in J[keep]], int)
+    Zinv = rinv(Z[keep])
+    T0 = np.stack([est[items[k][0]][items[k][1]] for k in idx])
+    V0 = view_points(T0)
+    P = GRAPH_POINTS
+    m, K = len(ei), len(idx)
+
+    def poses(x):
+        d = x.reshape(-1, 6)
+        T = T0.copy()
+        T[:, :3, :3] = T0[:, :3, :3] @ Rotation.from_rotvec(d[:, :3]).as_matrix()
+        T[:, :3, 3] = T0[:, :3, 3] + (T0[:, :3, :3] @ d[:, 3:, None])[..., 0]
+        return T
+
+    def res(x):
+        T = poses(x)
+        E = Zinv @ rinv(T[ei]) @ T[ej]
+        re = (np.einsum("nij,kj->nki", E[:, :3, :3], P) + E[:, None, :3, 3] - P) / args.graph_edge_mm
+        rp = (view_points(T) - V0) / args.graph_prior_mm
+        return np.concatenate([re.ravel(), rp.ravel()])
+
+    ne, npr = 3 * len(P), 3 * len(VIEW)                       # residuals per edge, per prior
+    r_e = np.broadcast_to(np.arange(ne * m).reshape(m, ne, 1), (m, ne, 12))
+    c_e = np.broadcast_to(np.concatenate([6 * ei[:, None] + np.arange(6), 6 * ej[:, None] + np.arange(6)], 1)[:, None], (m, ne, 12))
+    r_p = np.broadcast_to(ne * m + np.arange(npr * K).reshape(K, npr, 1), (K, npr, 6))
+    c_p = np.broadcast_to((6 * np.arange(K))[:, None, None] + np.arange(6), (K, npr, 6))
+    rows = np.concatenate([r_e.ravel(), r_p.ravel()])
+    cols = np.concatenate([c_e.ravel(), c_p.ravel()])
+    S = coo_matrix((np.ones(len(rows)), (rows, cols)), shape=(ne * m + npr * K, 6 * K))
+    edge_mm = lambda r: np.linalg.norm(r[: ne * m].reshape(m, len(P), 3), axis=2).mean(1) * args.graph_edge_mm
+    prior_mm = lambda r: np.linalg.norm(r[ne * m:].reshape(K, len(VIEW), 3), axis=2).mean(1) * args.graph_prior_mm
+    r0 = res(np.zeros(6 * K))
+    print(f"pose graph: {K} poses, {m} edges; before: edges {np.median(edge_mm(r0)):.2f} mm median (ICP vs map)", flush=True)
+    sol = least_squares(res, np.zeros(6 * K), jac_sparsity=S, method="trf", tr_solver="lsmr", loss="soft_l1",
+                        f_scale=1.0, x_scale="jac", max_nfev=args.graph_iters, verbose=1)
+    r1 = sol.fun
+    print(f"pose graph: after: edges {np.median(edge_mm(r1)):.2f} / {np.percentile(edge_mm(r1), 90):.2f} mm, moved from "
+          f"the network's view points {np.median(prior_mm(r1)):.1f} / {np.percentile(prior_mm(r1), 90):.1f} mm "
+          f"(median / p90; {sol.nfev} evaluations)", flush=True)
+    for c, T in enumerate(poses(sol.x)):
+        n, r = items[idx[c]]
+        est[n][r] = T
+
+
+def run_graph(est, items, cloud, args, cache):
+    """Edges + pose graph. With `cache` (a map's folder file: the edges depend on its poses), edges for the same
+    offsets and ICP settings are read from it instead of computed again."""
+    key = np.array([args.every, args.icp_stride, args.icp_dist, args.icp_fitness, args.icp_rmse, args.graph_check, *args.graph_offsets], float)
+    if cache is not None and cache.exists() and np.array_equal(np.load(cache)["key"], key):
+        z = np.load(cache)
+        edges = (z["i"], z["j"], z["Z"])
+        print(f"graph edges: {len(edges[0])} from {cache}", flush=True)
+    else:
+        edges = graph_edges(est, items, cloud, args)
+        if cache is not None:
+            np.savez(cache, key=key, i=edges[0], j=edges[1], Z=edges[2])
+    pose_graph(est, items, edges, args)
 
 
 class LocFrames(Dataset):
@@ -281,7 +396,7 @@ def write_outputs(args, out, items, est, gt, history, stage, net, mapping_args=N
                    "frames": [{"row": int(r), "T_world_cam_pred": (A @ est[n][r]).tolist()} for r in rows]},
                   open(out / f"poses_{n}.json", "w"))
     json.dump({"args": mapping_args or vars(args), "history": history, "final": e, "map_to_polaris": A.tolist(),
-               **({"realign_args": vars(args)} if mapping_args else {})}, open(out / "map.json", "w"), indent=1)
+               **({"rerun_args": vars(args)} if mapping_args else {})}, open(out / "map.json", "w"), indent=1)
     f = lambda v: "-" if v is None else f"{v:.1f}"
     md = [f"# Map without a tracker: {', '.join(args.scan_runs)} ({Path(args.root).name})", "",
           "Room-scan poses built without a tracker (scr_map.py). Error against Polaris after one rigid alignment of "
@@ -335,6 +450,15 @@ def main():
                     help="joint training of the network and pose corrections (off: on 3XX it made the map worse)")
     ap.add_argument("--realign", action="store_true",
                     help="no mapping: re-align the map already in --out (its poses_*.json and map.json) and rewrite them")
+    ap.add_argument("--no-graph", dest="graph", action="store_false",
+                    help="skip the pose graph (depth-ICP edges between nearby frames + the network's poses) after the final pass")
+    ap.add_argument("--from", dest="from_map", default=None,
+                    help="no mapping: run the pose graph on the map in this folder (e.g. runs/map-3XX) and write the result to --out")
+    ap.add_argument("--graph-offsets", type=int, nargs="+", default=[1, 5, 15, 30], help="pose graph: ICP edges between frames this many apart")
+    ap.add_argument("--graph-edge-mm", type=float, default=1.0, help="pose graph: ICP edge uncertainty at the camera centre and view points (mm)")
+    ap.add_argument("--graph-prior-mm", type=float, default=10.0, help="pose graph: uncertainty of the network's view points (mm)")
+    ap.add_argument("--graph-check", type=float, default=50.0, help="pose graph: drop ICP edges this far from the map's relative pose (mm)")
+    ap.add_argument("--graph-iters", type=int, default=300, help="pose graph: maximum least-squares evaluations")
     ap.add_argument("--refine-lr", type=float, default=1e-4, help="pose corrections (rad, m)")
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--lr", type=float, default=1e-3, help="head")
@@ -359,19 +483,6 @@ def main():
     est = {n: np.full_like(gt[n], np.nan) for n in args.scan_runs}
     for n in args.scan_runs:
         ds.runs[n]["T_world_cam"] = est[n]                                         # labels come from the map
-    if args.realign:                          # the map of an earlier run: est = inverse of its old alignment x its poses
-        old = json.load(open(out / "map.json"))
-        A_old = np.asarray(old["map_to_polaris"])
-        for n in args.scan_runs:
-            for f in json.load(open(out / f"poses_{n}.json"))["frames"]:
-                est[n][f["row"]] = np.linalg.inv(A_old) @ np.asarray(f["T_world_cam_pred"])
-        write_outputs(args, out, items, est, gt, old["history"], "re-aligned", None, mapping_args=old["args"])
-        return
-    pos = {it: k for k, it in enumerate(items)}
-    seed_run = args.seed_run or args.scan_runs[0]
-    seed = pos[(seed_run, args.seed_row)] if args.seed_row is not None else next(k for k, (n, _) in enumerate(items) if n == seed_run)
-    est[items[seed][0]][items[seed][1]] = np.eye(4)
-    print(f"{len(items)} room-scan frames from {', '.join(args.scan_runs)}; seed {items[seed]} = map origin", flush=True)
     clouds = {}
 
     def cloud(k):                             # depth clouds, cached (ICP touches each frame a few times)
@@ -380,6 +491,25 @@ def main():
                 clouds.clear()
             clouds[k] = depth_cloud(ds, args.root, *items[k], args.icp_stride, args.label_max_depth)
         return clouds[k]
+
+    if args.realign or args.from_map:         # the map of an earlier run: est = inverse of its old alignment x its poses
+        src = Path(args.from_map) if args.from_map else out
+        old = json.load(open(src / "map.json"))
+        A_old = np.asarray(old["map_to_polaris"])
+        for n in args.scan_runs:
+            for f in json.load(open(src / f"poses_{n}.json"))["frames"]:
+                est[n][f["row"]] = np.linalg.inv(A_old) @ np.asarray(f["T_world_cam_pred"])
+        if args.realign:
+            write_outputs(args, out, items, est, gt, old["history"], "re-aligned", None, mapping_args=old["args"])
+            return
+        run_graph(est, items, cloud, args, src / "graph_edges.npz")
+        write_outputs(args, out, items, est, gt, old["history"], f"pose graph (from {src.name})", None, mapping_args=old["args"])
+        return
+    pos = {it: k for k, it in enumerate(items)}
+    seed_run = args.seed_run or args.scan_runs[0]
+    seed = pos[(seed_run, args.seed_row)] if args.seed_row is not None else next(k for k, (n, _) in enumerate(items) if n == seed_run)
+    est[items[seed][0]][items[seed][1]] = np.eye(4)
+    print(f"{len(items)} room-scan frames from {', '.join(args.scan_runs)}; seed {items[seed]} = map origin", flush=True)
 
     n_seed = int(round(args.seed_seconds * 30 / args.every))
     seed_icp = icp_extend(est, items, seed, 1, n_seed, cloud, args) + icp_extend(est, items, seed, -1, n_seed, cloud, args)
@@ -481,6 +611,10 @@ def main():
             C[:3, :3], C[:3, 3] = R[j], dt[j]
             est[items[k][0]][items[k][1]] = T @ C
         log("refined", loss, t0, 0)
+
+    if args.graph:
+        run_graph(est, items, cloud, args, None)
+        log("pose graph", loss, t0, 0)
 
     write_outputs(args, out, items, est, gt, history, None, net)
 

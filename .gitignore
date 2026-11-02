@@ -5,6 +5,7 @@ data/
 *.pt
 runs/**/saved_model/
 runs/**/poses/
+runs/**/graph_edges.npz
 
 __pycache__/
 .vscode/

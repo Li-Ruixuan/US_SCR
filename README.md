@@ -81,7 +81,7 @@ The earlier v1 recipe: `--head small --label-max-depth 3000 --keep-depth-edges`.
 
 ## 4b. Map without a tracker (`scr_map.py`)
 
-The room-scan poses that label the training frames come from Polaris. `scr_map.py` builds them without a tracker (ACE0-style, with depth): one seed frame defines the map and the 2 s around it join by frame-to-frame depth ICP (geometry only); then rounds of training the network on the mapped frames, localising their neighbours with it, and extending the map edges by depth ICP grow the map; a final pass re-localises every frame with the network, and a joint refinement corrects the poses. Each round's log line says how many frames the network and the ICP added. Polaris is used only to evaluate the map (after one rigid alignment) and to express the poses in its frame, so the sweeps can be evaluated as before:
+The room-scan poses that label the training frames come from Polaris. `scr_map.py` builds them without a tracker (ACE0-style, with depth): one seed frame defines the map and the 2 s around it join by frame-to-frame depth ICP (geometry only); then rounds of training the network on the mapped frames, localising their neighbours with it, and extending the map edges by depth ICP grow the map; a final pass re-localises every frame with the network; a pose graph then ties nearby frames together (depth ICP between frames 1–30 apart, the network's poses as loose priors; `--no-graph` skips it; the joint refinement `--refine-steps` is off). Each round's log line says how many frames the network and the ICP added. Polaris is used only to evaluate the map (after one rigid alignment) and to express the poses in its frame, so the sweeps can be evaluated as before:
 
 ```bash
 python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/map-3XX
@@ -89,7 +89,7 @@ python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 
 python scr_anchor.py track --ckpt runs/v2map-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-v2map-3XX
 ```
 
-`--realign` re-aligns a map already in `--out` (no mapping; e.g. after the 3 Nov fix of the alignment, which now uses the points 1 m in front of each camera, not the camera positions). Outputs of `scr_map.py`: `map_report.md` (map growth per round, and the map error against Polaris: position, rotation, 1 s relative motion), `map.json`, `poses_<scan>.json` (labels for `--label-poses`), `map.pt` (the mapping network, map frame).
+`--from <map folder>` runs only the pose graph on an existing map and writes the result to `--out` (the ICP edges are cached in `<map folder>/graph_edges.npz`, so a second run with other `--graph-prior-mm` takes minutes). `--realign` re-aligns a map already in `--out` (no mapping; e.g. after the 3 Nov fix of the alignment, which now uses the points 1 m in front of each camera, not the camera positions). Outputs of `scr_map.py`: `map_report.md` (map growth per round, and the map error against Polaris: position, rotation, 1 s relative motion), `map.json`, `poses_<scan>.json` (labels for `--label-poses`), `map.pt` (the mapping network, map frame).
 
 Coverage analysis of an evaluation:
 
