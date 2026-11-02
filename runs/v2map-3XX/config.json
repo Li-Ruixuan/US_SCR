@@ -51,9 +51,9 @@
     "eval_runs": null
   },
   "centre": [
-    -18.10894876647504,
-    -94.50710009554874,
-    -964.3127446835281
+    -18.51341677084804,
+    -87.45415706316197,
+    -969.0884135905154
   ],
   "image_size": [
     360,
@@ -68,17 +68,17 @@
     "room-301": {
       "source": "scr-map (map-3XX)",
       "frames": 1569,
-      "camera_err_mm_median": 9.326860009636313,
-      "camera_err_mm_p90": 17.66386437101333,
-      "rot_err_deg_median": 17.404024161016473
+      "camera_err_mm_median": 15.829706486925318,
+      "camera_err_mm_p90": 25.76558578821958,
+      "rot_err_deg_median": 1.0456018198594104
     },
     "room-302": {
       "source": "scr-map (map-3XX)",
       "frames": 1787,
-      "camera_err_mm_median": 8.303405893436064,
-      "camera_err_mm_p90": 16.09846956851526,
-      "rot_err_deg_median": 17.548202795745638
+      "camera_err_mm_median": 14.881138275350962,
+      "camera_err_mm_p90": 20.007722212376716,
+      "rot_err_deg_median": 0.868047486833057
     }
   },
-  "git": "7cac83e"
+  "git": "4bfdd94"
 }
