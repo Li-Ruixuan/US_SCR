@@ -12,17 +12,17 @@ Status 3 Nov 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and
 
 | | question | answer so far | evidence |
 |---|---|---|---|
-| RQ1 | Can a probe-mounted RGB-D camera and one learned model track freehand US with no tracker at any stage? | **Yes on 3XX:** 3.60 mm at the US image, shape 2.86 mm, every frame mapped and tracked | Table F; 4XX and a from-scratch reproduction running |
-| RQ2 | What does removing the tracker cost? | about 2×: 3.60 / 2.86 vs 1.85 / 1.57 with Polaris labels. The network reproduces its labels, so the map is the bottleneck, not the network | Table F |
+| RQ1 | Can a probe-mounted RGB-D camera and one learned model track freehand US with no tracker at any stage? | **Yes:** 3XX 2.34 mm at the US image, shape 1.72 mm (strict protocol 2.94); 4XX shape 2.69 mm, best of all systems; every frame mapped and tracked. 2XX validation is the exception (8.06 mm, poor map) | Results without a tracker, below |
+| RQ2 | What does removing the tracker cost? | 3XX about 0.5 mm (2.34 / 1.72 vs 1.85 / 1.57 with Polaris labels); 4XX nothing in shape (2.69 vs 3.17) but 1.4 mm in absolute placement (7.92 vs 6.48). The network reproduces its labels, so the map is the bottleneck, not the network | below |
 | RQ3 | Learned room coordinates vs the alternatives? | vs pose regression 8× better on anchors (strong); vs a classical SIFT pipeline on the same Polaris-posed map: better where the scan covers the sweeps, worse where not, shape better everywhere | Tables A–D |
-| RQ4 | What decides the accuracy? | room-scan coverage of the sweep viewpoints; for maps without a tracker also the map's slow bending (pose graph) and the camera calibration | Table C, F |
+| RQ4 | What decides the accuracy? | room-scan coverage of the sweep viewpoints; for maps without a tracker also the map's slow bending (pose graph, loop closures) and the probe calibration | Table C, F |
 | RQ5 | Do the US images help? | no (10 tests, Li et al. reproduced) | summary 6 |
 
 **Claims.** The main claim is the tracker-free system; the earlier claims (summary 1.1, all with Polaris-posed maps) now describe its tracking part.
 
 | | claim | evidence | strength | state with it |
 |---|---|---|---|---|
-| **C0** | **No tracker at any stage:** a 1–2 min room scan, one SCR network that labels itself, then every frame tracked | 3XX: 3.60 / 2.86 mm (Polaris labels 1.85 / 1.57; classical with a Polaris-posed map 3.11 / 2.47) | moderate, one session | camera calibration still fitted with Polaris once; 4XX and the reproduction pending; ~2× the Polaris-label error |
+| **C0** | **No tracker at any stage:** a 1–2 min room scan, one SCR network that labels itself, then every frame tracked | 3XX 2.34 / 1.72 mm (Polaris labels 1.85 / 1.57; classical with a Polaris-posed map 3.11 / 2.47); strict 2.94 (Polaris labels 2.98, classical 3.0); 4XX shape 2.69, best of all systems on every block | strong for shape, moderate for absolute | probe calibration fitted with Polaris once; 4XX absolute 7.92 vs 6.48 / 4.76; 2XX validation map failed (8.06 vs 3.35); one seed so far |
 | C1 | One network on every frame replaces odometry + anchors | all 7 splits (Polaris maps) | strong | |
 | C2 | Room coordinates + geometric solver beat pose regression | anchors 8× more accurate on 3XX and 4XX | strong | |
 | C3 | Room-scan coverage decides the accuracy | covered 4.1 vs uncovered 13.4 mm; real views 4XX A 5.6 → 2.0 | strong | |
@@ -33,7 +33,24 @@ Status 3 Nov 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and
 
 **Not claimed:** one network trained end to end (one SCR network + exact geometry: Kabsch, ICP, pose graph; deliberate, pose regression failed); as accurate as Polaris labels; better than classical in new sessions with short scans; generalisation to new rooms (trained per room by design); a fully Polaris-free workflow (the calibration).
 
-**Gap in the evidence.** Every classical comparison uses a Polaris-posed map: the classical system's keyframe poses come from Polaris (`baselines/anchoring.py`). Only classical odometry is tracker-free (shape 6.23 vs our 2.86). A reviewer will ask "why not RGB-D SLAM?": the missing baseline is an off-the-shelf RGB-D SLAM (e.g. ORB-SLAM3 RGB-D) on the room scan + sweeps, scored after the same one alignment per session. A cheap internal step: the classical anchors on our own tracker-free map (same map, network vs SIFT).
+**Gap in the evidence.** Every classical comparison uses a Polaris-posed map: the classical system's keyframe poses come from Polaris (`baselines/anchoring.py`). Only classical odometry is tracker-free (shape 6.23 vs our 1.72). A reviewer will ask "why not RGB-D SLAM?": the missing baseline is an off-the-shelf RGB-D SLAM (e.g. ORB-SLAM3 RGB-D) on the room scan + sweeps, scored after the same one alignment per session. A cheap internal step: the classical anchors on our own tracker-free map (same map, network vs SIFT).
+
+**Results without a tracker (3 Nov; `runs/repro/`, `runs/map-*`, `runs/track-v2map-*`).** Parity: the cleaned code reproduces the old numbers exactly (`runs/parity/`: 1.85 / 1.57; classical 3.11 / 2.47).
+
+| split | map: scene pts / camera / 1 s motion (mm) | US absolute (jitter) | shape | Polaris labels | classical |
+|---|---|---|---|---|---|
+| 3XX (repro, loops) | 2.6 / 2.0 / 1.5 | **2.34** (0.90) | **1.72** | 1.85 / 1.57 | 3.11 / 2.47 |
+| 3XX same rows as classical | | 2.35 | 1.73 | | 3.11 / 2.47 |
+| 3XX real time (1 s window, 0.25 s delay) / causal (0.25 s) | | 2.34 (0.90) / 2.42 (1.13) | | 1.86 / 1.95 | |
+| 3XX strict (room-301 only, own calibration) | 2.6 / 2.2 / 1.9 | **2.94** (1.17) | | 2.98 (1.18) | 3.0 |
+| 2XX validation (3XX calibration) | 6.7 / 8.3 / 3.6 (p90 31.2) | 8.06 (2.57) | | 3.35 (1.20) | 4.2 |
+| 4XX A / B / C / D / E (own scans, 3XX calibration) | 3.1–3.9 / 3.0–4.8 / 1.4–2.4 | 5.04 / 6.55 / 9.40 / 11.54 / 7.07, mean **7.92** | 2.94 / 2.40 / 2.05 / 3.10 / 2.98, mean **2.69** | 6.48 / 3.17 | 4.76 / 3.34 |
+
+- Loop closures: on the same 3XX map, scene points 4.5 → 2.6 mm, camera 5.2 → 2.0 mm, rotation 0.55° → 0.19° (`runs/repro/map-3XX-noloops`). Adopted (default).
+- Probe calibration 31.7 mm, 1.51° (3XX); per scan 32.8 / 31.0 mm, 1.52° / 1.57° (each valid on the other scan); strict room-301 33.0 mm, 1.51°; 4XX scans 30–34 mm but 1.9–2.05°. No camera–Polaris timing offset (best +3 to +9 ms everywhere).
+- 3D pages, 3XX (`runs/repro/volume3d/index.html`): mean pixel error over the compounded volumes 2.5 (no tracker) vs 3.2 (classical) vs 10.1 (odometry only); per sweep 3.0 / 2.5 / 2.5 / 1.9 / 2.8.
+- 2XX validation fails: round 1 places 48 % of the frames, round 2 makes the map worse (camera 18.6 → 22.1 mm), the per-scan calibrations disagree (0.93° vs 1.89°) and the 1 s motion has a 31 mm p90, so some frames were joined wrongly and the pose graph did not fix them. 2XX has the longest scans (3 min, 5,366 frames). To investigate before the paper.
+- Not run yet: seeds 1 and 2; 4XX with pooled scans; 3D pages for 4XX (`runs/volume3d-trackerfree/`); RGB-D SLAM baseline; C/D placement analysis.
 
 **How the tests are organised (paper and webpage).** Main result: the tracker-free system (Table F). Every other test is one of:
 - *Ablations of the mapping* (3XX, no tracker): frame-by-frame map → + pose graph → + camera calibration; prior 10 / 30 mm; joint refinement; loop closures; the oracle map (Polaris) as the upper bound.
@@ -171,3 +188,17 @@ git pull --rebase && git add -A && git commit -m "Tracker-free: real time, 3D pa
  
 
 
+git pull --rebase
+export DATA=/data2/u0137815/rgbd-us/data
+L1="classical anchors + classical odometry"; L2="classical odometry only"
+
+python tools/volume_pages.py --test-root $DATA/test_4XXA --track runs/track-v2map-4XXA --track-label "no tracker (ours)" --anchoring runs/sys-classical-r-4XXA/anchor_eval_classical-odometry-odo-classical-vo-test_4XXA-recover3-startanchor-test_4XXA.json --extra classical-vo-test_4XXA --labels "$L1" "$L2" --out runs/volume3d-trackerfree/4XXA
+python tools/volume_pages.py --test-root $DATA/test_4XXB --track runs/track-v2map-4XXB --track-label "no tracker (ours)" --anchoring runs/sys-classical-r-4XXB/anchor_eval_classical-odometry-odo-classical-vo-test_4XXB-recover3-startanchor-test_4XXB.json --extra classical-vo-test_4XXB --labels "$L1" "$L2" --out runs/volume3d-trackerfree/4XXB
+python tools/volume_pages.py --test-root $DATA/test_4XXC --track runs/track-v2map-4XXC --track-label "no tracker (ours)" --anchoring runs/sys-classical-r-4XXC/anchor_eval_classical-odometry-odo-classical-vo-test_4XXC-recover3-startanchor-test_4XXC.json --extra classical-vo-test_4XXC --labels "$L1" "$L2" --out runs/volume3d-trackerfree/4XXC
+python tools/volume_pages.py --test-root $DATA/test_4XXD --track runs/track-v2map-4XXD --track-label "no tracker (ours)" --anchoring runs/sys-classical-r-4XXD/anchor_eval_classical-odometry-odo-classical-vo-test_4XXD-recover3-startanchor-test_4XXD.json --extra classical-vo-test_4XXD --labels "$L1" "$L2" --out runs/volume3d-trackerfree/4XXD
+python tools/volume_pages.py --test-root $DATA/test_4XXE --track runs/track-v2map-4XXE --track-label "no tracker (ours)" --anchoring runs/sys-classical-r-4XXE/anchor_eval_classical-odometry-odo-classical-vo-test_4XXE-recover3-startanchor-test_4XXE.json --extra classical-vo-test_4XXE --labels "$L1" "$L2" --out runs/volume3d-trackerfree/4XXE
+python tools/volume_pages.py --test-root $DATA/train_3XX --runs run-315 run-316 run-317 --track runs/track-v2map-3XX-room301 --track-label "no tracker (ours), strict" --out runs/volume3d-trackerfree/3XX-strict
+
+python tools/us_analysis.py shape --json runs/volume3d-trackerfree/4XX*/poses/*.json --out runs/shape-trackerfree-4XX-samerows.md
+
+git pull --rebase && git add -A && git commit -m "3D pages without a tracker: 4XX and strict" && git push
