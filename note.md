@@ -164,12 +164,6 @@ python tools/us_analysis.py shape --json runs/track-v2map-pool-4XX*/poses/*.json
 
 
  
-
-
-
-
-
- 
  
 # 4. seeds 1 and 2 (3XX)
 python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --seed 1 --out runs/repro/map-3XX-seed1
@@ -186,19 +180,10 @@ git pull --rebase && git add -A && git commit -m "Tracker-free: real time, 3D pa
 
 
  
-
-
-git pull --rebase
-export DATA=/data2/u0137815/rgbd-us/data
-L1="classical anchors + classical odometry"; L2="classical odometry only"
-
-python tools/volume_pages.py --test-root $DATA/test_4XXA --track runs/track-v2map-4XXA --track-label "no tracker (ours)" --anchoring runs/sys-classical-r-4XXA/anchor_eval_classical-odometry-odo-classical-vo-test_4XXA-recover3-startanchor-test_4XXA.json --extra classical-vo-test_4XXA --labels "$L1" "$L2" --out runs/volume3d-trackerfree/4XXA
-python tools/volume_pages.py --test-root $DATA/test_4XXB --track runs/track-v2map-4XXB --track-label "no tracker (ours)" --anchoring runs/sys-classical-r-4XXB/anchor_eval_classical-odometry-odo-classical-vo-test_4XXB-recover3-startanchor-test_4XXB.json --extra classical-vo-test_4XXB --labels "$L1" "$L2" --out runs/volume3d-trackerfree/4XXB
-python tools/volume_pages.py --test-root $DATA/test_4XXC --track runs/track-v2map-4XXC --track-label "no tracker (ours)" --anchoring runs/sys-classical-r-4XXC/anchor_eval_classical-odometry-odo-classical-vo-test_4XXC-recover3-startanchor-test_4XXC.json --extra classical-vo-test_4XXC --labels "$L1" "$L2" --out runs/volume3d-trackerfree/4XXC
-python tools/volume_pages.py --test-root $DATA/test_4XXD --track runs/track-v2map-4XXD --track-label "no tracker (ours)" --anchoring runs/sys-classical-r-4XXD/anchor_eval_classical-odometry-odo-classical-vo-test_4XXD-recover3-startanchor-test_4XXD.json --extra classical-vo-test_4XXD --labels "$L1" "$L2" --out runs/volume3d-trackerfree/4XXD
+ anchor_eval_classical-odometry-odo-classical-vo-test_4XXD-recover3-startanchor-test_4XXD.json --extra classical-vo-test_4XXD --labels "$L1" "$L2" --out runs/volume3d-trackerfree/4XXD
 python tools/volume_pages.py --test-root $DATA/test_4XXE --track runs/track-v2map-4XXE --track-label "no tracker (ours)" --anchoring runs/sys-classical-r-4XXE/anchor_eval_classical-odometry-odo-classical-vo-test_4XXE-recover3-startanchor-test_4XXE.json --extra classical-vo-test_4XXE --labels "$L1" "$L2" --out runs/volume3d-trackerfree/4XXE
 python tools/volume_pages.py --test-root $DATA/train_3XX --runs run-315 run-316 run-317 --track runs/track-v2map-3XX-room301 --track-label "no tracker (ours), strict" --out runs/volume3d-trackerfree/3XX-strict
 
 python tools/us_analysis.py shape --json runs/volume3d-trackerfree/4XX*/poses/*.json --out runs/shape-trackerfree-4XX-samerows.md
 
-git pull --rebase && git add -A && git commit -m "3D pages without a tracker: 4XX and strict" && git push
+git add . && git commit -m "3D pages without a tracker: 4XX and strict" && git push
