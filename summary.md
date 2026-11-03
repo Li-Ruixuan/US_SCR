@@ -187,9 +187,10 @@ Six tables cover every test: A every system at the US image, B single-image pose
 | map + pose graph (depth ICP edges, network priors 10 mm) | 6.9 | 11.6 | 3.4 | 12.49 | 4.74 | 7.75 | 0.46 / 1.24 | 1.14 |
 | map + pose graph, priors 30 mm (map only, not trained) | 7.3 | 12.2 | 3.4 | – | – | – | – | – |
 | map + pose graph + camera calibration from the room scan | **4.9** | **4.8** | **1.8** | **3.60** | **2.86** | 0.74 | 0.39 / 0.78 | 1.01 |
-| classical system (needs no labels) | – | – | – | 3.11 | 2.47 | 0.64 | 0.29 / 0.62 | – |
-| classical odometry only | – | – | – | 9.43 | 6.23 | 3.20 | 0.28 / 0.54 | – |
+| classical system (its room-scan keyframes posed by Polaris) | – | – | – | 3.11 | 2.47 | 0.64 | 0.29 / 0.62 | – |
+| classical odometry only (no map; segment start from Polaris) | – | – | – | 9.43 | 6.23 | 3.20 | 0.28 / 0.54 | – |
 
+- Only the map rows use no tracker at any stage. The classical system needs no training labels, but its room-scan keyframes are posed by Polaris (`baselines/anchoring.py`), so it is a tracker-mapped reference, not a tracker-free one; classical odometry only starts each segment at the Polaris pose (its shape, 6.23, is tracker-free). A tracker-free classical baseline (an RGB-D SLAM map) is still missing.
 - The network reproduces its labels: the same network gives 1.85 mm with Polaris labels and 12.5–13.3 mm with map labels. More training cannot help; the map decides.
 - The pose graph ties neighbouring room-scan frames together: the map's 1 s motion error halves (7.2 → 3.4 mm) and the volume shape improves from 8.54 to 4.74 mm (per sweep 1.9–4.4, run-317 9.8): better than odometry alone (6.23), still 2–3× Polaris labels (1.57) and classical (2.47).
 - What is left of the absolute error is one fixed offset in the camera frame, the same in every sweep (9.6 mm, 0.4°; spread 1–2 mm over sweeps; in room coordinates it varies more): the signature of a hand–eye mismatch between Polaris and the camera, not of the map. Removing it (estimated on the other sweeps) brings the difference to the Polaris-labelled track from 8.4–12.2 to 2.2–4.3 mm (run-317 7.9). Proxy only: compared with the Polaris-labelled track, not yet with Polaris.

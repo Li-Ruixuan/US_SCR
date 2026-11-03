@@ -10,7 +10,7 @@ Given `{I_t_rgb, D_t, I_t_US}`, output `T_t ∈ SE(3)` in a room-fixed frame est
 
 **The goal is not a more accurate tracking system.** Sub-millimetre freehand US tracking already exists (optical ~0.5 mm, MLRecon 0.88 mm); beating it is neither likely nor interesting. The goal is a *useful* pose estimate with nothing outside the probe. Accuracy is a threshold to clear, not the axis of competition: miss it and the result is useless, clear it and the infrastructure argument becomes available.
 
-**Where it stands** (3XX, error at the US image, mm; `summary.md` Table F): without any tracker (room scan mapped by the network itself) 3.60, volume shape 2.86; with Polaris labels for the room scan 1.85 / 1.57; classical system (SIFT anchors + SIFT odometry) 3.11 / 2.47.
+**Where it stands** (3XX, error at the US image, mm; `summary.md` Table F): without any tracker (room scan mapped by the network itself) 3.60, volume shape 2.86; with Polaris labels for the room scan 1.85 / 1.57; classical system (SIFT anchors + SIFT odometry; its room-scan keyframes posed by Polaris) 3.11 / 2.47.
 
 ## Repository layout
 

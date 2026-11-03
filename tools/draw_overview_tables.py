@@ -209,10 +209,13 @@ TABLES = [
                ["map + pose graph, priors 30 mm (map only, not trained)", "7.3", "12.2", "3.4", "–", "–", "–", "–", "–"],
                ["map + pose graph + camera calibration from the room scan", "*4.9", "*4.8", "*1.8", "*3.60", "*2.86",
                 "0.74", "0.39 / 0.78", "1.01"],
-               ["classical system (needs no labels)", "–", "–", "–", "3.11", "2.47", "0.64", "0.29 / 0.62", "–"],
-               ["classical odometry only", "–", "–", "–", "9.43", "6.23", "3.20", "0.28 / 0.54", "–"]],
+               ["classical system (keyframes posed by Polaris)", "–", "–", "–", "3.11", "2.47", "0.64", "0.29 / 0.62", "–"],
+               ["classical odometry only (segment start from Polaris)", "–", "–", "–", "9.43", "6.23", "3.20", "0.28 / 0.54", "–"]],
          shade={0: OURS, 4: OURS, 5: CLASSICAL}, left=1,
-         notes=["The network reproduces its labels: the same network gives 1.85 mm with Polaris labels and 12.5–13.3 mm "
+         notes=["Only the map rows use no tracker at any stage. The classical system needs no training labels, but its "
+                "room-scan keyframes are posed by Polaris: a tracker-mapped reference. A tracker-free classical baseline "
+                "(an RGB-D SLAM map) is still missing.",
+                "The network reproduces its labels: the same network gives 1.85 mm with Polaris labels and 12.5–13.3 mm "
                 "with map labels. More training cannot help; the map decides.",
                 "The pose graph ties neighbouring room-scan frames together: the map's 1 s motion error halves (7.2 → 3.4) "
                 "and the volume shape improves from 8.54 to 4.74 (per sweep 1.9–4.4, run-317 9.8): better than odometry "

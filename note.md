@@ -14,7 +14,7 @@ Status 3 Nov 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and
 |---|---|---|---|
 | RQ1 | Can a probe-mounted RGB-D camera and one learned model track freehand US with no tracker at any stage? | **Yes on 3XX:** 3.60 mm at the US image, shape 2.86 mm, every frame mapped and tracked | Table F; 4XX and a from-scratch reproduction running |
 | RQ2 | What does removing the tracker cost? | about 2×: 3.60 / 2.86 vs 1.85 / 1.57 with Polaris labels. The network reproduces its labels, so the map is the bottleneck, not the network | Table F |
-| RQ3 | Learned room coordinates vs the alternatives? | vs pose regression 3–6× better (strong); vs a classical SIFT pipeline on the same Polaris-posed map: better where the scan covers the sweeps, worse where not, shape better everywhere | Tables A–D |
+| RQ3 | Learned room coordinates vs the alternatives? | vs pose regression 8× better on anchors (strong); vs a classical SIFT pipeline on the same Polaris-posed map: better where the scan covers the sweeps, worse where not, shape better everywhere | Tables A–D |
 | RQ4 | What decides the accuracy? | room-scan coverage of the sweep viewpoints; for maps without a tracker also the map's slow bending (pose graph) and the camera calibration | Table C, F |
 | RQ5 | Do the US images help? | no (10 tests, Li et al. reproduced) | summary 6 |
 
@@ -24,7 +24,7 @@ Status 3 Nov 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and
 |---|---|---|---|---|
 | **C0** | **No tracker at any stage:** a 1–2 min room scan, one SCR network that labels itself, then every frame tracked | 3XX: 3.60 / 2.86 mm (Polaris labels 1.85 / 1.57; classical with a Polaris-posed map 3.11 / 2.47) | moderate, one session | camera calibration still fitted with Polaris once; 4XX and the reproduction pending; ~2× the Polaris-label error |
 | C1 | One network on every frame replaces odometry + anchors | all 7 splits (Polaris maps) | strong | |
-| C2 | Room coordinates + geometric solver beat pose regression | 3–6× on every split | strong | |
+| C2 | Room coordinates + geometric solver beat pose regression | anchors 8× more accurate on 3XX and 4XX | strong | |
 | C3 | Room-scan coverage decides the accuracy | covered 4.1 vs uncovered 13.4 mm; real views 4XX A 5.6 → 2.0 | strong | |
 | C4 | SCR uses all room scans of the day despite moved objects; feature matching cannot | 4XX B–E 6.82 → 5.53 vs 4.90 → 13.93 | strong | pooling decided on test blocks |
 | C5 | Smoother tracking and better volume shape than classical | every split | strong / moderate | shape metric introduced after the 4XX gap |
@@ -34,6 +34,14 @@ Status 3 Nov 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and
 **Not claimed:** one network trained end to end (one SCR network + exact geometry: Kabsch, ICP, pose graph; deliberate, pose regression failed); as accurate as Polaris labels; better than classical in new sessions with short scans; generalisation to new rooms (trained per room by design); a fully Polaris-free workflow (the calibration).
 
 **Gap in the evidence.** Every classical comparison uses a Polaris-posed map: the classical system's keyframe poses come from Polaris (`baselines/anchoring.py`). Only classical odometry is tracker-free (shape 6.23 vs our 2.86). A reviewer will ask "why not RGB-D SLAM?": the missing baseline is an off-the-shelf RGB-D SLAM (e.g. ORB-SLAM3 RGB-D) on the room scan + sweeps, scored after the same one alignment per session. A cheap internal step: the classical anchors on our own tracker-free map (same map, network vs SIFT).
+
+**How the tests are organised (paper and webpage).** Main result: the tracker-free system (Table F). Every other test is one of:
+- *Ablations of the mapping* (3XX, no tracker): frame-by-frame map → + pose graph → + camera calibration; prior 10 / 30 mm; joint refinement; loop closures; the oracle map (Polaris) as the upper bound.
+- *Ablations of the tracking*, run with the oracle map so that only the tracker changes: training length, head and labels, pooled scans, scan length, augmentation, frozen encoder, rendered views; PnP vs Kabsch, inlier gate, refined fit, multi-frame anchors, confidence weighting; smoothing, real time, added odometry (SIFT, learned).
+- *Comparisons with other methods*: pose regression (anchor network, RPRNet), classical SIFT system (Polaris-posed map), hybrid SCR + SIFT odometry, Li et al. (US only); missing: RGB-D SLAM.
+- *Analyses*: coverage, where the error sits (shape vs placement), strict protocol, outdated maps, the ultrasound images (U1–U3, fusion).
+
+**Role of Polaris in the recordings and the paper.** Recorded with every frame as the reference standard: ground truth for every error, one alignment per session for the absolute error, the one-off probe calibration, the oracle map of the ablations, and the map of the classical baseline. Never an input of the system.
 
 **Metrics for a tracker-free system.** Absolute error after one rigid alignment per session (the map's frame is arbitrary; never per sweep), volume shape after a rigid fit per sweep, relative motion between nearby frames, jitter. Shape and relative motion need no alignment and are the fairest headline numbers.
 
