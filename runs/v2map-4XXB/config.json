@@ -1,0 +1,85 @@
+{
+  "args": {
+    "cmd": "train",
+    "root": "/data2/u0137815/rgbd-us/data/test_4XXB",
+    "scan_runs": [
+      "room-403",
+      "room-404"
+    ],
+    "out": "runs/v2map-4XXB",
+    "map": "/data2/u0137815/US_SCR/runs/map-4XXB",
+    "label_poses": [
+      "runs/map-4XXB/poses_room-403.json",
+      "runs/map-4XXB/poses_room-404.json"
+    ],
+    "head": "big",
+    "label_max_depth": 2000.0,
+    "drop_depth_edges": true,
+    "freeze_encoder": false,
+    "render_views": 0.0,
+    "render_shift": 150.0,
+    "render_rot": 20.0,
+    "render_voxel": 5.0,
+    "render_every": 4,
+    "render_min_valid": 0.5,
+    "render_source": "cloud",
+    "render_frames": 3,
+    "confidence": false,
+    "scan_seconds": 0.0,
+    "aug_scale": [
+      1.0,
+      1.0
+    ],
+    "aug_rot": 0.0,
+    "epochs": 120,
+    "flat": 0.6,
+    "batch_size": 8,
+    "lr": 0.001,
+    "lr_encoder": 0.0001,
+    "image_size": [
+      360,
+      640
+    ],
+    "hand_eye": "/data2/u0137815/US_SCR/T_marker_cam.npy",
+    "workers": 12,
+    "seed": 0,
+    "check_every": 6,
+    "check_frames": 120,
+    "max_frames": 0,
+    "px": 10.0,
+    "min_inliers": 30,
+    "eval_root": null,
+    "eval_runs": null
+  },
+  "centre": [
+    121.4767430577661,
+    -61.20798659662254,
+    -932.2247885623835
+  ],
+  "image_size": [
+    360,
+    640
+  ],
+  "head": "big",
+  "confidence": false,
+  "n_frames": 2381,
+  "n_rendered": 0,
+  "steps": 35640,
+  "estimated_labels": {
+    "room-403": {
+      "source": "scr-map (map-4XXB)",
+      "frames": 1200,
+      "camera_err_mm_median": 29.87791781637823,
+      "camera_err_mm_p90": 31.08146831348724,
+      "rot_err_deg_median": 1.6731137608461175
+    },
+    "room-404": {
+      "source": "scr-map (map-4XXB)",
+      "frames": 1181,
+      "camera_err_mm_median": 30.382357119117284,
+      "camera_err_mm_p90": 33.12129418586928,
+      "rot_err_deg_median": 1.596738781095437
+    }
+  },
+  "git": "ebd87b2"
+}

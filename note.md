@@ -129,56 +129,10 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
-git pull
-export DATA=/data2/u0137815/rgbd-us/data ODO=/data2/u0137815/rgbd-us/runs
-
-python scr_anchor.py track --ckpt runs/v2-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/parity/track-3XX
-
-python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/train_3XX --scan-runs room-301 room-302 --test-root $DATA/train_3XX --odometry-source classical-vo-train_3XX --odometry $ODO/rpr-rgb-gap8-12XX-gru8 --pairs $ODO/anchor-pairs/pairs_3XX.json --pgo --start anchor --out runs/parity/sys-classical-r-3XX
-
-python tools/volume_pages.py --test-root $DATA/train_3XX --track runs/parity/track-3XX --anchoring runs/parity/sys-classical-r-3XX/anchor_eval_classical-odometry-odo-classical-vo-train_3XX-recover3-startanchor-train_3XX.json --extra classical-vo-train_3XX --labels "classical anchors + classical odometry" "classical odometry only" --out runs/parity/volume3d/3XX
-
-python tools/us_analysis.py shape --json runs/parity/volume3d/3XX/poses/*.json --out runs/parity/shape-3XX.md
-Expected: track gives 1.85 at 2 s smoothing, the classical system gives the same table as runs/sys-classical-r-3XX, and the shape file gives 1.85 / 1.57, 3.11 / 2.47 and 9.43 / 6.23.
-
-Then the reproduction from scratch:
 
 
-python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/repro/map-3XX
 
-python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --from runs/repro/map-3XX --loop-k 0 --out runs/repro/map-3XX-noloops
 
-python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --map runs/repro/map-3XX --out runs/repro/v2map-3XX
-
-python scr_anchor.py track --ckpt runs/repro/v2map-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/repro/track-v2map-3XX
-
-python tools/us_analysis.py shape --json runs/repro/track-v2map-3XX/poses/*.json --out runs/repro/shape-3XX.md
-
-python tools/volume_pages.py --test-root $DATA/train_3XX --track runs/repro/track-v2map-3XX --out runs/repro/pages/3XX
-
-git add -A && git commit -m "Parity check and from-scratch reproduction of the map without a tracker (3XX)" && git push
  
 
 
-
-
-
-export DATA=/data2/u0137815/rgbd-us/data
-
-python scr_map.py --root $DATA/test_4XXA --scan-runs room-401 room-402 --cam-calib-from runs/repro/map-3XX/map.json --out runs/map-4XXA
-python scr_map.py --root $DATA/test_4XXB --scan-runs room-403 room-404 --cam-calib-from runs/repro/map-3XX/map.json --out runs/map-4XXB
-python scr_map.py --root $DATA/test_4XXC --scan-runs room-405 room-406 --cam-calib-from runs/repro/map-3XX/map.json --out runs/map-4XXC
-
-python scr_anchor.py train --root $DATA/test_4XXA --scan-runs room-401 room-402 --map runs/map-4XXA --out runs/v2map-4XXA
-python scr_anchor.py train --root $DATA/test_4XXB --scan-runs room-403 room-404 --map runs/map-4XXB --out runs/v2map-4XXB
-python scr_anchor.py train --root $DATA/test_4XXC --scan-runs room-405 room-406 --map runs/map-4XXC --out runs/v2map-4XXC
-
-python scr_anchor.py track --ckpt runs/v2map-4XXA/best.pt --test-root $DATA/test_4XXA --every 2 --out runs/track-v2map-4XXA
-python scr_anchor.py track --ckpt runs/v2map-4XXB/best.pt --test-root $DATA/test_4XXB --every 2 --out runs/track-v2map-4XXB
-python scr_anchor.py track --ckpt runs/v2map-4XXC/best.pt --test-root $DATA/test_4XXC --every 2 --out runs/track-v2map-4XXC
-python scr_anchor.py track --ckpt runs/v2map-4XXC/best.pt --test-root $DATA/test_4XXD --every 2 --out runs/track-v2map-4XXD
-python scr_anchor.py track --ckpt runs/v2map-4XXC/best.pt --test-root $DATA/test_4XXE --every 2 --out runs/track-v2map-4XXE
-
-python tools/us_analysis.py shape --json runs/track-v2map-4XX*/poses/*.json --out runs/shape-v2map-4XX.md
-
-git add -A && git commit -m "Map without a tracker on 4XX (own scans, 3XX camera calibration)" && git push
