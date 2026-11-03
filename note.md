@@ -2,15 +2,42 @@
 
 Status 3 Nov 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and commands: `README.md`. Source project: `rgbd-us` (`note_RPR.md` there). The earlier, longer version of these notes (status tables, experiment log) is in git commit 870a144.
 
-## 1. Goal and current system
+## 1. Objective, questions, claims (updated 3 Nov 2026)
 
-A probe-mounted RGB-D camera (RealSense D435i) looks at the room; the pose of every US frame must come from it alone, ~2 mm at the US image (~16 cm from the camera; 1° ≈ 1.6 mm). Polaris (marker on the probe) is ground truth only.
+**Objective.** The pose of every freehand US frame from a probe-mounted RGB-D camera (RealSense D435i) alone, **with no tracker at any stage**: none during the exam and none to prepare the room. A 1–2 min room scan becomes a room model by one SCR network that makes its own training labels (`scr_map.py`); during the exam the same kind of network gives the camera pose of every frame (`scr_anchor.py track`). Accuracy is a threshold, not the competition: good enough for 3D reconstruction (a few mm at the US image, ~16 cm from the camera, 1° ≈ 1.6 mm; volume shape ~2–3 mm). Sub-millimetre optical tracking exists; the point is a useful pose with nothing outside the probe and no prepared room.
 
-**Current system:** one SCR network (EfficientNet-B0 + big 1×1 head, trained per room on its room scan) on every frame → Kabsch RANSAC on the measured depth → temporal smoothing (`scr_anchor.py track`). It replaced the hybrid "SCR anchors every 1 s + SIFT odometry + pose graph" (`baselines/anchoring_kabsch.py`), which is no better (`summary.md` 3.1).
+**What still uses Polaris.** (1) The camera calibration, one camera-frame transform per probe, now fitted on a room scan (3XX); like the US calibration it is measured once per probe, in deployment with a phantom. (2) The evaluation: ground truth, and one rigid alignment per session to put the map in the Polaris frame. (3) Row selection in the code (rows with a marker pose), an engineering shortcut. Nothing per room and nothing per exam.
 
-**Without a tracker (3 Nov):** the room-scan poses that label the training come from the network itself (`scr_map.py`: seed by depth ICP, rounds of train / localise / extend, final pass, pose graph with depth-ICP edges and loop closures, camera calibration). 3XX: 3.60 mm at the US image, shape 2.86 (Polaris labels 1.85 / 1.57, classical 3.11 / 2.47), accepted as good enough (`summary.md` Table F). Polaris enters only the camera calibration (one camera-frame transform per probe, fitted on the room scan) and the evaluation.
+**Research questions and current answers**
 
-**Code layout (cleaned 3 Nov):** root = the system (`scr_map.py`, `scr_anchor.py`, `scr.py`, `dataloader.py`, `geometry.py`); `tools/` = evaluation and figures; `baselines/` = classical / hybrid systems and the RPR stack; `studies/` = not adopted (`scr_render.py`, `li_baseline.py`). README sections 4–7: the pipeline, the benchmark, the baselines, reproduction.
+| | question | answer so far | evidence |
+|---|---|---|---|
+| RQ1 | Can a probe-mounted RGB-D camera and one learned model track freehand US with no tracker at any stage? | **Yes on 3XX:** 3.60 mm at the US image, shape 2.86 mm, every frame mapped and tracked | Table F; 4XX and a from-scratch reproduction running |
+| RQ2 | What does removing the tracker cost? | about 2×: 3.60 / 2.86 vs 1.85 / 1.57 with Polaris labels. The network reproduces its labels, so the map is the bottleneck, not the network | Table F |
+| RQ3 | Learned room coordinates vs the alternatives? | vs pose regression 3–6× better (strong); vs a classical SIFT pipeline on the same Polaris-posed map: better where the scan covers the sweeps, worse where not, shape better everywhere | Tables A–D |
+| RQ4 | What decides the accuracy? | room-scan coverage of the sweep viewpoints; for maps without a tracker also the map's slow bending (pose graph) and the camera calibration | Table C, F |
+| RQ5 | Do the US images help? | no (10 tests, Li et al. reproduced) | summary 6 |
+
+**Claims.** The main claim is the tracker-free system; the earlier claims (summary 1.1, all with Polaris-posed maps) now describe its tracking part.
+
+| | claim | evidence | strength | state with it |
+|---|---|---|---|---|
+| **C0** | **No tracker at any stage:** a 1–2 min room scan, one SCR network that labels itself, then every frame tracked | 3XX: 3.60 / 2.86 mm (Polaris labels 1.85 / 1.57; classical with a Polaris-posed map 3.11 / 2.47) | moderate, one session | camera calibration still fitted with Polaris once; 4XX and the reproduction pending; ~2× the Polaris-label error |
+| C1 | One network on every frame replaces odometry + anchors | all 7 splits (Polaris maps) | strong | |
+| C2 | Room coordinates + geometric solver beat pose regression | 3–6× on every split | strong | |
+| C3 | Room-scan coverage decides the accuracy | covered 4.1 vs uncovered 13.4 mm; real views 4XX A 5.6 → 2.0 | strong | |
+| C4 | SCR uses all room scans of the day despite moved objects; feature matching cannot | 4XX B–E 6.82 → 5.53 vs 4.90 → 13.93 | strong | pooling decided on test blocks |
+| C5 | Smoother tracking and better volume shape than classical | every split | strong / moderate | shape metric introduced after the 4XX gap |
+| C6 | The US images add nothing | 10 tests | strong (this setup) | |
+| C7 | Real time | 0.25 s delay = offline | moderate | replayed, not live |
+
+**Not claimed:** one network trained end to end (one SCR network + exact geometry: Kabsch, ICP, pose graph; deliberate, pose regression failed); as accurate as Polaris labels; better than classical in new sessions with short scans; generalisation to new rooms (trained per room by design); a fully Polaris-free workflow (the calibration).
+
+**Gap in the evidence.** Every classical comparison uses a Polaris-posed map: the classical system's keyframe poses come from Polaris (`baselines/anchoring.py`). Only classical odometry is tracker-free (shape 6.23 vs our 2.86). A reviewer will ask "why not RGB-D SLAM?": the missing baseline is an off-the-shelf RGB-D SLAM (e.g. ORB-SLAM3 RGB-D) on the room scan + sweeps, scored after the same one alignment per session. A cheap internal step: the classical anchors on our own tracker-free map (same map, network vs SIFT).
+
+**Metrics for a tracker-free system.** Absolute error after one rigid alignment per session (the map's frame is arbitrary; never per sweep), volume shape after a rigid fit per sweep, relative motion between nearby frames, jitter. Shape and relative motion need no alignment and are the fairest headline numbers.
+
+**Status.** Tracking system: one SCR network (EfficientNet-B0 + big 1×1 head) on every frame → Kabsch RANSAC on the measured depth → temporal smoothing. It replaced the hybrid "SCR anchors every 1 s + SIFT odometry + pose graph" (`baselines/anchoring_kabsch.py`), which is no better (`summary.md` 3.1). Mapping without a tracker: seed by depth ICP, rounds of train / localise / extend, final pass, pose graph (depth-ICP edges, loop closures, network priors), camera calibration. Code layout (cleaned 3 Nov): root = the system (`scr_map.py`, `scr_anchor.py`, `scr.py`, `dataloader.py`, `geometry.py`); `tools/` = evaluation and figures; `baselines/` = classical / hybrid systems and the RPR stack; `studies/` = not adopted. README sections 4–7: the pipeline, the benchmark, the baselines, reproduction.
 
 ## 2. Workflow
 
