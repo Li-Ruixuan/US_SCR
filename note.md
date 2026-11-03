@@ -133,12 +133,56 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
+Suggested next steps:
+
+Update everything with these numbers: Table F, summary, note, webpage and paper. I can do it now; these are doc changes only.
+4XX with the pooled scans of the day (phase 2): it helped the oracle (6.48 → 5.45). Here it also tests whether mapping survives the room rearrangements. Commands:
+
+python scr_map.py --root $DATA/train_4XX --scan-runs room-401 room-402 room-403 room-404 --cam-calib-from runs/repro/map-3XX/map.json --out runs/map-pool-4XXB
+python scr_map.py --root $DATA/train_4XX --scan-runs room-401 room-402 room-403 room-404 room-405 room-406 --cam-calib-from runs/repro/map-3XX/map.json --out runs/map-pool-4XXC
+python scr_anchor.py train --root $DATA/train_4XX --scan-runs room-401 room-402 room-403 room-404 --map runs/map-pool-4XXB --out runs/v2map-pool-4XXB
+python scr_anchor.py train --root $DATA/train_4XX --scan-runs room-401 room-402 room-403 room-404 room-405 room-406 --map runs/map-pool-4XXC --out runs/v2map-pool-4XXC
+python scr_anchor.py track --ckpt runs/v2map-pool-4XXB/best.pt --test-root $DATA/test_4XXB --every 2 --out runs/track-v2map-pool-4XXB
+python scr_anchor.py track --ckpt runs/v2map-pool-4XXC/best.pt --test-root $DATA/test_4XXC --every 2 --out runs/track-v2map-pool-4XXC
+python scr_anchor.py track --ckpt runs/v2map-pool-4XXC/best.pt --test-root $DATA/test_4XXD --every 2 --out runs/track-v2map-pool-4XXD
+python scr_anchor.py track --ckpt runs/v2map-pool-4XXC/best.pt --test-root $DATA/test_4XXE --every 2 --out runs/track-v2map-pool-4XXE
+python tools/us_analysis.py shape --json runs/track-v2map-pool-4XX*/poses/*.json --out runs/shape-v2map-pool-4XX.md
+git pull --rebase && git add -A && git commit -m "Map without a tracker
 
 
 
 
+git pull --rebase
+export DATA=/data2/u0137815/rgbd-us/data
 
+# 1. real time + 3D pages (minutes)
+python scr_anchor.py track --ckpt runs/repro/v2map-3XX/best.pt --test-root $DATA/train_3XX --every 2 --lags 0.25 0 --out runs/repro/track-v2map-3XX
+python tools/volume_pages.py --test-root $DATA/train_3XX --track runs/repro/track-v2map-3XX --out runs/repro/pages/3XX
+python tools/volume_pages.py --test-root $DATA/train_3XX --track runs/repro/track-v2map-3XX --anchoring runs/sys-classical-r-3XX/anchor_eval_classical-odometry-odo-classical-vo-train_3XX-recover3-startanchor-train_3XX.json --extra classical-vo-train_3XX --labels "classical anchors + classical odometry" "classical odometry only" --out runs/repro/volume3d/3XX
+python tools/us_analysis.py shape --json runs/repro/volume3d/3XX/poses/*.json --out runs/repro/shape-3XX-samerows.md
 
+# 2. strict protocol (room-301 only)
+python scr_map.py --root $DATA/train_3XX --scan-runs room-301 --out runs/map-3XX-room301
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 --map runs/map-3XX-room301 --out runs/v2map-3XX-room301
+python scr_anchor.py track --ckpt runs/v2map-3XX-room301/best.pt --test-root $DATA/train_3XX --test-runs run-315 run-316 run-317 --every 2 --out runs/track-v2map-3XX-room301
+
+# 3. 2XX validation
+python scr_map.py --root $DATA/train_2XX --scan-runs room-201 room-202 --cam-calib-from runs/repro/map-3XX/map.json --out runs/map-2XX
+python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --map runs/map-2XX --out runs/v2map-2XX
+python scr_anchor.py track --ckpt runs/v2map-2XX/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --every 2 --out runs/track-v2map-2XX
+
+# 4. seeds 1 and 2 (3XX)
+python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --seed 1 --out runs/repro/map-3XX-seed1
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --map runs/repro/map-3XX-seed1 --seed 1 --out runs/repro/v2map-3XX-seed1
+python scr_anchor.py track --ckpt runs/repro/v2map-3XX-seed1/best.pt --test-root $DATA/train_3XX --every 2 --out runs/repro/track-v2map-3XX-seed1
+python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --seed 2 --out runs/repro/map-3XX-seed2
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --map runs/repro/map-3XX-seed2 --seed 2 --out runs/repro/v2map-3XX-seed2
+python scr_anchor.py track --ckpt runs/repro/v2map-3XX-seed2/best.pt --test-root $DATA/train_3XX --every 2 --out runs/repro/track-v2map-3XX-seed2
+
+# shape of everything above (one table)
+python tools/us_analysis.py shape --json runs/track-v2map-3XX-room301/poses/*.json runs/track-v2map-2XX/poses/*.json runs/repro/track-v2map-3XX-seed*/poses/*.json --out runs/shape-v2map-extra.md
+
+git pull --rebase && git add -A && git commit -m "Tracker-free: real time, 3D pages, strict protocol, 2XX validation, seeds" && git push
 
 
  
