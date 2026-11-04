@@ -10,14 +10,14 @@ Given `{I_t_rgb, D_t, I_t_US}`, output `T_t ∈ SE(3)` in a room-fixed frame est
 
 **The goal is not a more accurate tracking system.** Sub-millimetre freehand US tracking already exists (optical ~0.5 mm, MLRecon 0.88 mm); beating it is neither likely nor interesting. The goal is a *useful* pose estimate with nothing outside the probe. Accuracy is a threshold to clear, not the axis of competition: miss it and the result is useless, clear it and the infrastructure argument becomes available.
 
-**Where it stands** (3XX, error at the US image, mm; `summary.md` Table F): without any tracker (room scan mapped by the network itself) 3.60, volume shape 2.86; with Polaris labels for the room scan 1.85 / 1.57; classical system (SIFT anchors + SIFT odometry; its room-scan keyframes posed by Polaris) 3.11 / 2.47.
+**Where it stands** (error at the US image, mm; `summary.md` Tables F, G): without any tracker (room scan mapped by the network itself) 3XX **2.34**, volume shape **1.72** (three seeds 2.22–2.34); with Polaris labels for the room scan (oracle map) 1.85 / 1.57; classical system (SIFT anchors + SIFT odometry; its room-scan keyframes posed by Polaris) 3.11 / 2.47. New session (4XX, camera calibration from 3XX): shape 2.69 (best of all systems), absolute 7.92.
 
 ## Repository layout
 
 | folder | what | files |
 |---|---|---|
 | `.` | **the system** | `scr_map.py` (map the room scan without a tracker), `scr_anchor.py` (`train`, `track`, `eval`), `scr.py` (network, labels), `dataloader.py`, `geometry.py`; `T_marker_cam.npy`, `calib_matrix.csv` (calibrations) |
-| `tools/` | evaluation and figures | `us_analysis.py shape` (volume shape metric), `volume_pages.py` + `volume_3d.py` (interactive 3D pages), `coverage_error.py`, `draw_scr_figures.py`, `draw_overview_tables.py`; the figures and `tables/` |
+| `tools/` | evaluation and figures | `us_analysis.py shape` (volume shape metric), `volume_pages.py` + `volume_3d.py` (interactive 3D pages), `volume_figure.py` (static volume figures), `slam_baseline.py` (RGB-D SLAM baseline: export, evaluate), `coverage_error.py`, `draw_scr_figures.py`, `draw_overview_tables.py`; the figures and `tables/` |
 | `baselines/` | the systems we compare with | `anchoring.py` (classical SIFT anchors + odometry + pose graph; RPR anchor network), `anchoring_kabsch.py` (hybrid: SCR anchors in it), `anchor_classical.py`, `anchor_saliency.py`, and the RPR odometry stack `eval.py`, `poses.py`, `trajectory.py`, `model.py`, `loss.py` |
 | `studies/` | studies not adopted | `scr_render.py` (rendered training views, `train --render-views`), `li_baseline.py` (Li et al., TBME 2024) |
 | `runs/` | results behind every number in `summary.md` | checkpoints (`*.pt`) are not in git |
@@ -97,6 +97,10 @@ python tools/volume_pages.py --test-root $DATA/train_3XX --track runs/track-v2ma
 - *new session, same probe:* `--cam-calib-from runs/map-3XX/map.json` reuses that map's camera calibration instead of fitting one, so the new session's Polaris only aligns the map for the evaluation (how 4XX is tested).
 - `--from <map folder> --out <new folder>` runs the pose graph again on an existing map (its network poses; ICP edges cached in `graph_edges.npz`, `graph_loops.npz`), e.g. with `--loop-k 0` or another `--graph-prior-mm`: minutes. `--realign` re-aligns a map's poses (no mapping).
 
+**Without a tracker on a new session with the same probe** (4XX): add `--cam-calib-from runs/map-3XX/map.json` to step 1; steps 2–5 are unchanged.
+
+**Ablations of step 1** (3XX, `summary.md` Table F): `--loop-k 0` (no loop closures), `--no-cam-calib` (no camera calibration), `--no-graph` (no pose graph); with `--from runs/map-3XX --out <new folder>` they reuse the existing map (minutes), then train and track as in steps 2–3.
+
 **3. `track`** writes `scr_track.md` (error at the US image: raw and smoothed over 0.25–2 s; the system uses 2 s), `scr_track.json`, `poses.npz` (raw poses; a second run only re-smooths), and `poses/fold0_<sweep>_scr-track.json` (the system's poses per sweep, camera and US image, predicted and Polaris), which steps 4 and 5 read. `--lags 0.25` adds real-time smoothing.
 
 ## 5. The benchmark with Polaris labels
@@ -136,6 +140,21 @@ python tools/volume_pages.py --test-root $DATA/train_3XX --track runs/track-3XX 
   --extra classical-vo-train_3XX --labels "classical anchors + classical odometry" "classical odometry only" --out runs/volume3d/3XX
 python tools/us_analysis.py shape --json runs/volume3d/3XX/poses/*.json --out runs/shape-3XX.md
 ```
+
+**Classical anchors on our own tracker-free map:** add `--map runs/repro/map-3XX` to the classical command: the keyframes are posed by that map (times its camera calibration) instead of Polaris.
+
+**RGB-D SLAM baseline (ORB-SLAM3).** Build once (Ubuntu; needs Eigen3, OpenCV >= 4, Boost, Pangolin; see the ORB-SLAM3 README):
+
+```bash
+git clone https://github.com/stevenlovegrove/Pangolin.git ~/Pangolin && cd ~/Pangolin && ./scripts/install_prerequisites.sh recommended
+cmake -B build && cmake --build build -j8 && sudo cmake --install build
+git clone https://github.com/UZ-SLAMLab/ORB_SLAM3.git ~/ORB_SLAM3 && cd ~/ORB_SLAM3
+sed -i 's/ORB_SLAM3::System::RGBD,true/ORB_SLAM3::System::RGBD,false/' Examples/RGB-D/rgbd_tum.cc   # no viewer (headless)
+sed -i 's/find_package(OpenCV 4.4)/find_package(OpenCV 4)/; s/-std=c++11/-std=c++14/g; s/CXX11/CXX14/g' CMakeLists.txt
+./build.sh
+```
+
+Then per session: `tools/slam_baseline.py export` (room scans, then sweeps, as one RGB-D sequence), `rgbd_tum`, `tools/slam_baseline.py evaluate` (one alignment + camera calibration on the room scan, as our maps; `--cam-calib-from` for 4XX); commands in `note.md` 2. Frames ORB-SLAM3 loses have no pose and are counted.
 
 Options of `anchoring.py evaluate`: `--start anchor` (no ground-truth pose at the start of a segment), `--gate-recover 3` (accept anchors again after a wrong one was accepted), `--scr-frames M` (one SCR anchor from M chain frames). Its other commands: `coverage`, `simulate`, `pairs` (the RPR anchor network itself is trained in rgbd-us).
 

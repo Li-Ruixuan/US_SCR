@@ -466,6 +466,23 @@ def start_pose(net, a, base_map, key, T_key, q, mean, std, device, max_keys=200,
     return mean_pose(A[best]), int(best.sum())
 
 
+def tracker_free_keyframes(map_dir, key):
+    """The keyframes' poses from a scr_map.py map (poses_<scan>.json, already aligned to Polaris for the
+    evaluation) times its camera calibration X, so that keyframe pose @ relative pose = camera pose, as with
+    Polaris. Keyframes the map did not place are dropped. -> (key, T_key)."""
+    m = Path(map_dir)
+    X = json.load(open(m / "map.json")).get("cam_calib")
+    X = np.eye(4) if X is None else np.asarray(X, float)
+    pose = {}
+    for n in {n for n, _ in key}:
+        for f in json.load(open(m / f"poses_{n}.json"))["frames"]:
+            pose[(n, int(f["row"]))] = np.asarray(f["T_world_cam_pred"], float)
+    kept = [(n, int(r)) for n, r in key if (n, int(r)) in pose and np.isfinite(pose[(n, int(r))]).all()]
+    print(f"keyframes posed by the map {m} (no tracker): {len(kept)} of {len(key)}; camera calibration "
+          f"{np.linalg.norm(X[:3, 3]):.1f} mm")
+    return kept, np.stack([pose[k] @ X for k in kept])
+
+
 def smooth_pgo(T_odo, el, anchors, sig_t, q_t, sig_r_deg, q_r_deg, fix_start=True):
     """Offline joint smoothing of one segment (a linearised pose graph).
     Unknowns: a world-frame position correction d_i (mm) and rotation correction phi_i
@@ -554,7 +571,8 @@ def evaluate_anchors(args):
            + (f"-pgo{args.pgo_sigma:g}mm{args.pgo_sigma_deg:g}deg" if args.pgo and (args.pgo_sigma, args.pgo_sigma_deg) != (11.0, 1.0) else "")
            + (f"-recover{args.gate_recover}" if args.gate_recover else "")
            + (f"-scrframes{args.scr_frames}" if args.scr_frames > 1 else "")
-           + ("-startanchor" if args.start == "anchor" else "") + (f"-{test}" if test else "") + ("" if own_map else f"-map-{'+'.join(map_scans)}"))
+           + ("-startanchor" if args.start == "anchor" else "") + (f"-trackerfree-{Path(args.map).name}" if args.map else "")
+           + (f"-{test}" if test else "") + ("" if own_map else f"-map-{'+'.join(map_scans)}"))
     rows_out, starts, per_sweep = [], [], {}
     for ck_path in (args.ckpts if args.anchor == "network" else [None]):
         if classical or scr_mode:           # no anchor network: data settings as the anchor network's
@@ -580,6 +598,8 @@ def evaluate_anchors(args):
         key = ([tuple(k) for k in P["keyframes"]] if own_map
                else map_keyframes(base_map, args.keyframe_every, map_scans))
         T_key = np.stack([base_map.runs[n]["T_world_cam"][r] for n, r in key])
+        if args.map:                        # keyframes posed by a map without a tracker (US_SCR scr_map.py), not Polaris
+            key, T_key = tracker_free_keyframes(args.map, key)
         net = None
         if scr_mode:                        # scene coordinates + PnP-RANSAC (scr.py)
             from scr import load_scr, localize
@@ -929,6 +949,8 @@ def main():
     e.add_argument("--test-root", default=None,
                    help="evaluate on the sweeps of this folder (needs odometry eval.py --test-root first)")
     e.add_argument("--test-runs", nargs="+", default=None, help="with --test-root: only these (default: every run-*)")
+    e.add_argument("--map", default=None, help="scr_map.py folder: keyframe poses from this map without a tracker "
+                   "(times its camera calibration) instead of Polaris")
     e.add_argument("--map-root", default=None, help="folder of the room scans used as the map (default: --root)")
     e.add_argument("--map-scans", nargs="+", default=None, help="room scans used as the map (default: --scan-runs)")
     e.add_argument("--keyframe-every", type=int, default=5, help="map keyframes when --map-* differs from the pairs")

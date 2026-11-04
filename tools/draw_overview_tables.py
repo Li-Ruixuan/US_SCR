@@ -184,8 +184,11 @@ TABLES = [
                ["map", "+ pose graph over the room scan (depth ICP edges + network priors)", "3XX US / shape",
                 "13.26 / 8.54 → 12.49 / 4.74", "adopted"],
                ["map", "pose-graph prior 10 / 30 mm", "3XX map scene points", "6.9 / 7.3", "default kept"],
-               ["map", "+ camera calibration from the room scan (applied when tracking)", "3XX US / shape",
-                "12.49 / 4.74 → 3.60 / 2.86", "adopted"],
+               ["map", "+ camera calibration from the room scan (applied when tracking)", "3XX US / shape (with loops)",
+                "11.49 / 4.08 → 2.34 / 1.72", "adopted"],
+               ["map", "+ loop closures in the pose graph", "3XX US / shape", "5.77 / 3.18 → 2.34 / 1.72", "adopted"],
+               ["map", "pooled scans of the day (no tracker)", "4XX B–E US", "8.64 → 10.85", "no (each block's scans)"],
+               ["map", "3XX camera calibration reused in a new session", "4XX US / shape", "7.92 / 2.69", "placement open"],
                ["US", "U1 in-plane registration (ECC)", "2XX, 10 rows", "1.91 vs 1.55 for zero motion", "no"],
                ["US", "U2 speckle decorrelation → distance", "all", "0.27–0.43, magnitude only", "no"],
                ["US", "U3 per-patch speckle vs camera", "3XX, 4 rows", "0.78 vs camera 0.19", "no"],
@@ -194,42 +197,56 @@ TABLES = [
                 "no"]],
          group=0, verdict=4, left=4,
          notes=["Adopted: longer training, Kabsch on depth, big head + clean labels, 2 s smoothing, pooled same-day "
-                "room scans; real time with a 0.25 s delay; for maps without a tracker, the pose graph. Everything else is "
+                "room scans; real time with a 0.25 s delay; for maps without a tracker, the pose graph with loop closures and the camera calibration. Everything else is "
                 "neutral or worse; odometry and every US-image method were dropped."]),
-    dict(name="table_F", title="F. Map without a tracker (3XX): training labels from a map the network builds itself "
-                               "(Polaris for evaluation only; mm)",
+    dict(name="table_F", title="F. Without a tracker: the system and its ablations (3XX; one component removed per row; mm)",
          cols=["training labels from", "map: scene points at 1 m", "map: camera position", "map: 1 s motion",
                "US: absolute", "US: shape (after a rigid fit of each sweep)", "placement (absolute − shape)",
                "out-of-plane over 8 / 30 rows", "step over 8 rows"],
-         widths=[2.7, 0.95, 0.95, 0.85, 0.85, 1.3, 1.15, 1.2, 0.8],
-         rows=[["Polaris (reference)", "–", "–", "–", "*1.85", "*1.57", "0.28", "0.37 / 0.62", "*0.93"],
-               ["map, each frame localised on its own", "9.0", "15.3", "7.2", "13.26", "8.54", "4.72", "0.46 / 1.14", "1.39"],
-               ["map + pose graph (depth ICP edges, network priors 10 mm)", "6.9", "11.6", "3.4", "12.49", "4.74",
-                "7.75", "0.46 / 1.24", "1.14"],
-               ["map + pose graph, priors 30 mm (map only, not trained)", "7.3", "12.2", "3.4", "–", "–", "–", "–", "–"],
-               ["map + pose graph + camera calibration from the room scan", "*4.9", "*4.8", "*1.8", "*3.60", "*2.86",
-                "0.74", "0.39 / 0.78", "1.01"],
+         widths=[2.9, 0.95, 0.95, 0.85, 0.95, 1.3, 1.15, 1.2, 0.8],
+         rows=[["map: seed + rounds + pose graph with loop closures + camera calibration (the system)", "*2.6", "*2.0",
+                "*1.5", "*2.34", "*1.72", "0.62", "0.37 / 0.62", "*0.90"],
+               ["the same, seeds 1 / 2", "2.7 / 2.7", "2.0 / 1.9", "1.5 / 1.4", "2.22 / 2.25", "1.75 / 1.70", "", "", ""],
+               ["− loop closures", "4.5", "5.2", "1.5", "5.77", "3.18", "2.59", "0.40 / 0.70", "1.05"],
+               ["− camera calibration", "6.4", "10.4", "3.4", "11.49", "4.08", "7.41", "0.48 / 1.18", "1.06"],
+               ["− loop closures − camera calibration (earlier code)", "6.9", "11.6", "3.4", "12.49", "4.74", "7.75",
+                "0.46 / 1.24", "1.14"],
+               ["− pose graph − camera calibration: each frame localised on its own (earlier code)", "9.0", "15.3", "7.2",
+                "13.26", "8.54", "4.72", "0.46 / 1.14", "1.39"],
+               ["pose graph, priors 30 instead of 10 mm (map only)", "7.3", "12.2", "3.4", "–", "–", "–", "–", "–"],
+               ["Polaris (oracle map, upper bound)", "–", "–", "–", "1.85", "1.57", "0.28", "0.37 / 0.62", "0.93"],
                ["classical system (keyframes posed by Polaris)", "–", "–", "–", "3.11", "2.47", "0.64", "0.29 / 0.62", "–"],
                ["classical odometry only (segment start from Polaris)", "–", "–", "–", "9.43", "6.23", "3.20", "0.28 / 0.54", "–"]],
-         shade={0: OURS, 4: OURS, 5: CLASSICAL}, left=1,
+         shade={0: OURS, 1: OURS, 8: CLASSICAL}, left=1,
          notes=["Only the map rows use no tracker at any stage. The classical system needs no training labels, but its "
                 "room-scan keyframes are posed by Polaris: a tracker-mapped reference. A tracker-free classical baseline "
                 "(an RGB-D SLAM map) is still missing.",
-                "The network reproduces its labels: the same network gives 1.85 mm with Polaris labels and 12.5–13.3 mm "
-                "with map labels. More training cannot help; the map decides.",
-                "The pose graph ties neighbouring room-scan frames together: the map's 1 s motion error halves (7.2 → 3.4) "
-                "and the volume shape improves from 8.54 to 4.74 (per sweep 1.9–4.4, run-317 9.8): better than odometry "
-                "alone (6.23), still 2–3× Polaris labels (1.57) and classical (2.47).",
-                "What is left of the absolute error is one fixed offset in the camera frame, the same in every sweep "
-                "(9.6 mm, 0.4°; spread 1–2 mm over sweeps): the signature of a hand–eye mismatch between Polaris and the "
-                "camera, not of the map. Removing it (estimated on the other sweeps) brings the difference to the "
-                "Polaris-labelled track from 8.4–12.2 to 2.2–4.3 mm (run-317 7.9; proxy, not yet against Polaris).",
-                "A looser prior (30 mm) gives the same 1 s motion (3.4): the remaining local error sits in the ICP edges "
-                "(or the hand–eye of the evaluation), not in the priors.",
-                "Camera calibration fitted on the room scan (one camera-frame transform with the alignment; applied when "
-                "tracking, not in the labels): US error 12.49 → 3.60, shape 4.74 → 2.86 (per sweep 2.5–5.3), close to "
-                "classical (3.11 / 2.47). The fit was not converged (10 alternating steps; 27.8 mm, 1.77°): now solved "
-                "jointly by least squares; the reproduction from scratch (runs/repro/) uses it."]),
+                "The network reproduces its labels, so the map decides the result.",
+                "Every component is needed: the pose graph ties neighbouring frames (1 s motion 7.2 → 3.4, shape 8.54 → 4.74); "
+                "the camera calibration removes a fixed camera-frame offset (hand–eye mismatch, 31.7 mm, 1.51°): 11.49 → 2.34; "
+                "the loop closures remove the slow bending of the map (camera 5.2 → 2.0 mm, rotation 0.55 → 0.19°): 5.77 → 2.34.",
+                "The final system is 0.5 mm behind the oracle map and ahead of the Polaris-mapped classical system; "
+                "seed spread 2.22–2.34 (Polaris labels 1.85–2.12)."]),
+    dict(name="table_G", title="G. Without a tracker on every split (US image, mm; 2 s smoothing; map = scene points at 1 m / "
+                               "camera position / 1 s motion)",
+         cols=["split", "camera calibration", "map", "absolute (step 8 rows)", "shape", "Polaris labels: absolute / shape",
+               "classical: absolute / shape"],
+         widths=[2.6, 1.4, 1.7, 1.3, 0.8, 1.5, 1.5],
+         rows=[["3XX", "own room scan", "2.6 / 2.0 / 1.5", "*2.34 (0.90)", "*1.72", "1.85 / 1.57", "3.11 / 2.47"],
+               ["3XX strict (map room-301 only)", "room-301", "2.6 / 2.2 / 1.9", "*2.94 (1.17)", "2.18", "2.98 / 2.26", "3.0 / 2.59"],
+               ["2XX validation", "3XX", "6.7 / 8.3 / 3.6", "8.06 (2.57)", "6.93", "3.35 / 3.04", "4.2 / 3.98"],
+               ["4XX A", "3XX", "3.9 / 4.8 / 2.4", "5.04", "2.94", "5.14 / 2.92", "4.2 / 3.10"],
+               ["4XX B", "3XX", "3.1 / 3.0 / 1.4", "6.55", "2.40", "5.77 / 2.66", "3.4 / 2.47"],
+               ["4XX C", "3XX", "3.5 / 3.4 / 1.7", "9.40", "2.05", "5.63 / 2.96", "4.9 / 3.36"],
+               ["4XX D (C's map)", "3XX", "C's", "11.54", "3.10", "9.63 / 3.16", "6.3 / 3.61"],
+               ["4XX E (C's map)", "3XX", "C's", "7.07", "2.98", "6.25 / 4.16", "5.0 / 4.15"],
+               ["4XX mean", "", "", "7.92", "*2.69", "6.48 / 3.17", "4.76 / 3.34"]],
+         shade={0: OURS, 8: OURS}, left=1,
+         notes=["4XX: maps as good as 3XX's and the best shape of all systems, but weak placement (C, D); 4XX calibrations differ "
+                "from 3XX's in rotation (1.9–2.05° vs 1.51°): calibration transfer or map placement, still to test.",
+                "Pooled scans of the day are worse without a tracker (B–E 8.64 → 10.85): each block's own scans.",
+                "2XX: some frames joined wrongly in round 2; the pose graph did not fix them.",
+                "Real time (0.25 s delay) equals the offline result on every block; fully causal adds ≤ 0.2 mm and some jitter."]),
 ]
 
 

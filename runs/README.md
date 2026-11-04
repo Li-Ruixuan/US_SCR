@@ -2,7 +2,7 @@
 
 Code moved on 3 Nov 2026: `anchoring.py`, `eval.py`, `poses.py`, `trajectory.py`, `model.py`, `loss.py`, `tools/anchoring_kabsch.py`, `tools/anchor_classical.py`, `tools/anchor_saliency.py` → `baselines/`; `scr_render.py`, `tools/li_baseline.py` → `studies/`. Commands recorded in older folders use the old paths.
 
-Every folder backs a number in `../summary.md` (section in the last column). Checkpoints (`best.pt`, `saved_model/`) are on the training PC only. Unless noted: anchors = camera position error against Polaris, mean of per-sweep medians / pooled p90 (mm), rotation median, one frame per second; system = median error at the US image (mm), step-to-step error over 8 rows in brackets.
+Section 0 is the target system (no tracker); sections 1–5 are the benchmark with Polaris-built maps (oracle map) and the studies behind the design. Every folder backs a number in `../summary.md` (section in the last column). Checkpoints (`best.pt`, `saved_model/`) are on the training PC only. Unless noted: anchors = camera position error against Polaris, mean of per-sweep medians / pooled p90 (mm), rotation median, one frame per second; system = median error at the US image (mm), step-to-step error over 8 rows in brackets.
 
 ## How to read the files
 
@@ -16,6 +16,22 @@ Every folder backs a number in `../summary.md` (section in the last column). Che
 | `volume3d/index.html`, `volume3d/<split>/<run>.html` | 3D pages (open in a browser): true poses vs the single network, the classical system and odometry only; the index lists every sweep with its mean pixel error |
 | `us-*`, `us-speckle-*`, `shape-final.*` | `tools/us_analysis.py inplane / speckle / shape` |
 | `li-repro-M2`, `li-transfer/*` | `studies/li_baseline.py repro / transfer` |
+
+## 0. The system without a tracker (summary Tables F, G)
+
+| run | content | US image: absolute / shape (mm) |
+|---|---|---|
+| `repro/map-3XX` → `repro/v2map-3XX` → `repro/track-v2map-3XX` | **the system on 3XX**, from scratch with the cleaned code (map, train, track); `repro/shape-3XX.md`, `repro/shape-3XX-samerows.md`; 3D pages `repro/volume3d/` | **2.34 / 1.72** |
+| `repro/*-seed1`, `repro/*-seed2` | seeds 1, 2 (mapping and training) | 2.22 / 1.75, 2.25 / 1.70 |
+| `repro/map-3XX-noloops` → `…-noloops` | ablation: no loop closures (`--from repro/map-3XX --loop-k 0`) | 5.77 / 3.18 |
+| `repro/map-3XX-nocalib` → `…-nocalib` | ablation: no camera calibration (`--realign --no-cam-calib`); `repro/shape-3XX-ablations.md` | 11.49 / 4.08 |
+| `map-3XX` → `v2map-3XX` → `track-v2map-3XX`; `map-3XX-graph`, `-graph30` → `v2graph-3XX` → `track-v2graph-3XX` | earlier code (2 Nov), no calibration: each frame on its own; + pose graph (priors 10 / 30 mm); `shape-map-3XX.md`, `shape-graph-3XX.md` | 13.26 / 8.54; 12.49 / 4.74 |
+| `map-3XX-room301` → `v2map-3XX-room301` → `track-v2map-3XX-room301` | strict protocol (map room-301 only, run-315…317) | 2.94 / 2.18 |
+| `map-2XX` → `v2map-2XX` → `track-v2map-2XX` | 2XX validation, 3XX calibration (map failed) | 8.06 / 6.93 |
+| `map-4XXA`, `-4XXB`, `-4XXC` → `v2map-4XX*` → `track-v2map-4XXA` … `-4XXE` | 4XX, each block's own scans, 3XX calibration (`--cam-calib-from repro/map-3XX/map.json`); tracks also real time (`--lags 0.25 0`); `shape-v2map-4XX.md`, `shape-trackerfree-4XX-samerows.md`; 3D pages `volume3d-trackerfree/` | mean 7.92 / 2.69 |
+| `map-pool-4XXB`, `-4XXC` → `v2map-pool-4XX*` → `track-v2map-pool-4XXB` … `-4XXE` | 4XX pooled scans of the day (worse); `shape-v2map-pool-4XX.md` | 8.08–14.00 |
+| `shape-v2map-extra.md` | shape of 2XX, strict, seeds | |
+| `parity/` | the cleaned code reproduces the old numbers (`track-3XX`, `sys-classical-r-3XX`, `shape-3XX.md`) | 1.85 / 1.57; classical 3.11 / 2.47 |
 
 ## 1. Final system: one network on every frame (summary 3.1)
 
@@ -86,4 +102,4 @@ Every folder backs a number in `../summary.md` (section in the last column). Che
 | `li-repro-M2` | Li et al. reproduced on their data | 21.4 ± 11.2 vs 22.8 ± 17.5 mm published |
 | `li-transfer/zeroshot-*`, `ft-*`, `scratch-*` | Li et al. on our sweeps (zero-shot; axis mapping as-is chosen on 2XX) | zero-shot 129, fine-tuned 75–125, scratch 49–56 = zero motion |
 
-Removed runs (superseded or intermediate) are in git: commits 1648fcf (v1 true-start systems, old 3D pages), 52d7892 (intermediate training runs, v1 / no-recovery systems, augmentation), 870a144 (v1 SCR-only runs `sys-scronly-*`), 50ef6f5 (hybrid-system 3D pages `volume3d-final`); their numbers are in the earlier summary (commit 870a144).
+Removed runs (superseded or intermediate) are in git: commits 1648fcf (v1 true-start systems, old 3D pages), 52d7892 (intermediate training runs, v1 / no-recovery systems, augmentation), 870a144 (v1 SCR-only runs `sys-scronly-*`), 50ef6f5 (hybrid-system 3D pages `volume3d-final`); their numbers are in the earlier summary (commit 870a144). Removed 4 Nov 2026 (commit after 08cce80): `map-3XX-calib`, `v2calib-3XX`, `track-v2calib-3XX`, `shape-calib-3XX.*` (unconverged calibration fit, 3.60 / 2.86, superseded by `repro/`), the intermediate 3D pages `volume3d-map`, `-graph`, `-calib`, `repro/pages`, and `parity/volume3d`.

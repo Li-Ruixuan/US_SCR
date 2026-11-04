@@ -1,6 +1,6 @@
 # US_SCR: working notes
 
-Status 3 Nov 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and commands: `README.md`. Source project: `rgbd-us` (`note_RPR.md` there). The earlier, longer version of these notes (status tables, experiment log) is in git commit 870a144.
+Status 4 Nov 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and commands: `README.md`. Source project: `rgbd-us` (`note_RPR.md` there). The earlier, longer version of these notes (status tables, experiment log) is in git commit 870a144.
 
 ## 1. Objective, questions, claims (updated 3 Nov 2026)
 
@@ -15,7 +15,7 @@ Status 3 Nov 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and
 | RQ1 | Can a probe-mounted RGB-D camera and one learned model track freehand US with no tracker at any stage? | **Yes:** 3XX 2.34 mm at the US image, shape 1.72 mm (strict protocol 2.94); 4XX shape 2.69 mm, best of all systems; every frame mapped and tracked. 2XX validation is the exception (8.06 mm, poor map) | Results without a tracker, below |
 | RQ2 | What does removing the tracker cost? | 3XX about 0.5 mm (2.34 / 1.72 vs 1.85 / 1.57 with Polaris labels); 4XX nothing in shape (2.69 vs 3.17) but 1.4 mm in absolute placement (7.92 vs 6.48). The network reproduces its labels, so the map is the bottleneck, not the network | below |
 | RQ3 | Learned room coordinates vs the alternatives? | vs pose regression 8× better on anchors (strong); vs a classical SIFT pipeline on the same Polaris-posed map: better where the scan covers the sweeps, worse where not, shape better everywhere | Tables A–D |
-| RQ4 | What decides the accuracy? | room-scan coverage of the sweep viewpoints; for maps without a tracker also the map's slow bending (pose graph, loop closures) and the probe calibration | Table C, F |
+| RQ4 | What decides the accuracy? | room-scan coverage of the sweep viewpoints; without a tracker the map: each mapping component is needed (without loop closures 5.77 mm, without the camera calibration 11.49, without both and the graph 13.26, vs 2.34) | Tables C, F |
 | RQ5 | Do the US images help? | no (10 tests, Li et al. reproduced) | summary 6 |
 
 **Claims.** The main claim is the tracker-free system; the earlier claims (summary 1.1, all with Polaris-posed maps) now describe its tracking part.
@@ -31,7 +31,19 @@ Status 3 Nov 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and
 | C6 | The US images add nothing | 10 tests | strong (this setup) | |
 | C7 | Real time | 0.25 s delay = offline | moderate | replayed, not live |
 
-**Not claimed:** one network trained end to end (one SCR network + exact geometry: Kabsch, ICP, pose graph; deliberate, pose regression failed); as accurate as Polaris labels; better than classical in new sessions with short scans; generalisation to new rooms (trained per room by design); a fully Polaris-free workflow (the calibration).
+**Not claimed:** one network trained end to end (one SCR network + exact geometry: Kabsch, ICP, pose graph; deliberate, pose regression failed; see "End to end?" below); as accurate as Polaris labels; better than classical in new sessions with short scans; generalisation to new rooms (trained per room by design); a fully Polaris-free workflow (the calibration).
+
+**End to end? (4 Nov)** The steps after the network, and whether each could become part of it:
+
+| step | what it does | into the network? | verdict |
+|---|---|---|---|
+| Kabsch RANSAC + inlier gate | pose from the predicted room coordinates and the measured depth | **yes:** Kabsch is differentiable (SVD); RANSAC becomes differentiable with soft hypothesis selection (DSAC, DSAC* end-to-end stage, which includes RGB-D Kabsch). Fine-tune the network with a pose loss through it | the only one worth trying; expected gain small (the network already reproduces its labels; the map is the bottleneck); keeps the solver, so it is "end-to-end trained", not "one network" |
+| temporal smoothing | 2 s window (0.25 s delay in real time) | possible: a recurrent / Kalman layer over the poses (KFNet, CVPR 2020) | little to gain (jitter 0.90 vs Polaris labels 0.93), risk of lag; no |
+| camera calibration X | one fixed camera-frame transform per probe | as 6 learnable parameters only with a reference (Polaris or a phantom) in the loss: it is not observable from the camera alone | stays a calibration, like the US calibration |
+| mapping (seed, rounds, ICP, pose graph, loops) | makes the training labels | joint training of network + poses (ACE0's pose refinement) | tried: made the map worse (8.4 → 8.9 mm); a learned bundle adjustment would still need geometry; no |
+| whole pipeline as one feed-forward model | images → poses with no per-room training (DUSt3R / MASt3R / VGGT-type) | a different method: generic, cm-level, no per-room map | a comparison at most, not our system |
+
+Position for the paper: like DSAC*, ACE and ACE0, the system is a hybrid on purpose: the network learns the room (the hard, appearance part); exact geometry does what is known exactly (rigid fit on measured depth, ICP, pose graph). End-to-end pose regression was tested and is 3–8× worse (claim C2). An end-to-end fine-tune through a differentiable Kabsch is an optional ablation (task 6 in section 2).
 
 **Gap in the evidence.** Every classical comparison uses a Polaris-posed map: the classical system's keyframe poses come from Polaris (`baselines/anchoring.py`). Only classical odometry is tracker-free (shape 6.23 vs our 1.72). A reviewer will ask "why not RGB-D SLAM?": the missing baseline is an off-the-shelf RGB-D SLAM (e.g. ORB-SLAM3 RGB-D) on the room scan + sweeps, scored after the same one alignment per session. A cheap internal step: the classical anchors on our own tracker-free map (same map, network vs SIFT).
 
@@ -40,12 +52,15 @@ Status 3 Nov 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and
 | split | map: scene pts / camera / 1 s motion (mm) | US absolute (jitter) | shape | Polaris labels | classical |
 |---|---|---|---|---|---|
 | 3XX (repro, loops) | 2.6 / 2.0 / 1.5 | **2.34** (0.90) | **1.72** | 1.85 / 1.57 | 3.11 / 2.47 |
+| 3XX ablation: − loop closures (`repro/*-noloops`) | 4.5 / 5.2 / 1.5 | 5.77 (1.05) | 3.18 | | |
+| 3XX ablation: − camera calibration (`repro/*-nocalib`) | 6.4 / 10.4 / 3.4 | 11.49 (1.06) | 4.08 | | |
 | 3XX seeds 1 / 2 | 2.7 / 2.0 / 1.5; 2.7 / 1.9 / 1.4 | 2.22 / 2.25 (seeds 0–2 mean **2.27**) | 1.75 / 1.70 (mean **1.72**) | seeds 1.85–2.12 | |
 | 3XX same rows as classical | | 2.35 | 1.73 | | 3.11 / 2.47 |
 | 3XX real time (1 s window, 0.25 s delay) / causal (0.25 s) | | 2.34 (0.90) / 2.42 (1.13) | | 1.86 / 1.95 | |
 | 3XX strict (room-301 only, own calibration) | 2.6 / 2.2 / 1.9 | **2.94** (1.17) | 2.18 | 2.98 (1.18) | 3.0 |
 | 2XX validation (3XX calibration) | 6.7 / 8.3 / 3.6 (p90 31.2) | 8.06 (2.57) | 6.93 | 3.35 (1.20) | 4.2 |
 | 4XX A / B / C / D / E (own scans, 3XX calibration) | 3.1–3.9 / 3.0–4.8 / 1.4–2.4 | 5.04 / 6.55 / 9.40 / 11.54 / 7.07, mean **7.92** | 2.94 / 2.40 / 2.05 / 3.10 / 2.98, mean **2.69** | 6.48 / 3.17 | 4.76 / 3.34 |
+| 4XX real time (1 s window, 0.25 s delay / causal) | | 5.01 / 6.54 / 9.41 / 11.61 / 7.05 = offline; causal ≤ +0.2, step +0.3–0.4 | | | |
 | 4XX same rows as classical | | 4.99 / 6.55 / 9.41 / 11.59 / 7.09, mean 7.93 | 2.99 / 2.41 / 2.12 / 3.09 / 3.05, mean **2.73** | | 4.22 / 3.38 / 4.85 / 6.32 / 4.99 (4.75); shape 3.10 / 2.47 / 3.36 / 3.61 / 4.15 (3.34) |
 | 4XX pooled scans of the day, B / C / D / E | 4.0–4.3 / 5.7–5.9 / 1.9 | 8.08 / 10.69 / 14.00 / 10.62 | 2.53 / 2.21 / 3.98 / 3.15 | pooled 3.76 / 3.98 / 8.46 / 5.92 | |
 
@@ -57,7 +72,9 @@ Status 3 Nov 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and
 - 4XX on the same rows as classical (`runs/shape-trackerfree-4XX-samerows.md`): shape better than classical on every block (2.73 vs 3.34), out-of-plane over 1 s equal or better (0.53–0.83 vs 0.63–1.02); absolute behind (7.93 vs 4.75).
 - 4XX pooled scans without a tracker (`runs/map-pool-4XX*`, `runs/track-v2map-pool-4XX*`): worse on every block in absolute and shape; the pooled maps are worse (camera 5.7–5.9 vs 3.0–4.8 mm) because the scans of a room whose objects moved between blocks must be joined into one map. With Polaris labels pooling helped (each scan's labels are right on their own). Verdict: without a tracker, each block's own scans.
 - 3D pages complete (`runs/volume3d-trackerfree/index.html`): pixel error over the compounded volumes 4XX A 5.7 / B 6.4 / C 9.9 / D 12.2 / E 7.5 (classical 4.4 / 3.7 / 5.3 / 7.2 / 5.2; it follows the absolute error), strict 3.3.
-- Still open (needs code or writing): why the 2XX map failed; 4XX C/D placement (calibration vs map); static volume figures (also after the rigid fit); RGB-D SLAM baseline; classical anchors on our own map; Table F / summary.md; paper.
+- Clean ablations (4 Nov, same map code, one component removed): without loop closures 5.77 / 3.18 (map camera 5.2 mm, rotation 0.55°); without the camera calibration 11.49 / 4.08 (map camera 10.4 mm, 1 s motion 3.4 mm). The calibration also matters for the shape: a camera-frame rotation error moves the US image differently as the probe turns. Every component is needed (summary Table F).
+- 4XX real time: 0.25 s delay = offline on every block; causal: median ≤ +0.2 mm, step over 8 rows +0.3–0.4 mm.
+- `summary.md` Tables F (ablations) and G (every split) and `tools/tables/table_F.png`, `table_G.png` hold the final numbers. Open tasks: section 2.
 
 **How the tests are organised (paper and webpage).** Main result: the tracker-free system (Table F). Every other test is one of:
 - *Ablations of the mapping* (3XX, no tracker): frame-by-frame map → + pose graph → + camera calibration; prior 10 / 30 mm; joint refinement; loop closures; the oracle map (Polaris) as the upper bound.
@@ -97,7 +114,66 @@ python scr_anchor.py track --ckpt runs/v2map-3XX/best.pt --test-root $DATA/train
 python tools/us_analysis.py shape --json runs/track-v2map-3XX/poses/*.json --out runs/track-v2map-3XX/shape.md
 ```
 
-The map without a tracker is the target approach (3 Nov). Open: reproduce Table F from scratch with the cleaned code (`runs/repro/`); loop closures (new default) vs none as the ablation; then 4XX with the 3XX camera calibration fixed (`scr_map.py --cam-calib-from runs/repro/map-3XX/map.json`): first each block's own scans (A: 401/402, B: 403/404, C: 405/406 for C, D, E; Polaris-label references 5.14, 5.77, 5.63, 9.63, 6.25 mm), then the pooled scans of the day.
+The map without a tracker is the target approach (3 Nov). Done by 4 Nov: reproduction from scratch, three seeds, loop closures and camera calibration ablations, strict, 2XX, 4XX (own and pooled scans, real time), 3D pages.
+
+**Still to run or build (4 Nov)**
+
+| # | task | type | status |
+|---|---|---|---|
+| 1 | 4XX C / D placement: camera calibration refitted on 4XX's scans (diagnostic: uses 4XX Polaris), retrain, track | analysis | commands below |
+| 2 | RGB-D SLAM baseline (ORB-SLAM3 RGB-D) on room scans + sweeps, same alignment + calibration on the room scan | comparison (the reviewer question) | `tools/slam_baseline.py` (export / evaluate); build ORB-SLAM3 once |
+| 3 | classical anchors on our own tracker-free map (same map, network vs SIFT) | comparison | `baselines/anchoring.py evaluate --map <map folder>` |
+| 4 | why the 2XX map fails: each scan alone, stricter joining, own calibration (2XX is validation: settings may be chosen on it) | analysis | commands below |
+| 5 | static 3D volume figures (true, tracker-free, after the rigid fit, overlays; also classical) | figure | `tools/volume_figure.py` |
+| 6 | end-to-end fine-tune through a differentiable Kabsch (DSAC*-style) | ablation, optional | not written |
+| 7 | session with ~1 min room scans along the exam viewpoints; live run; RGB-only variant | data, future | recording / hardware |
+
+```bash
+export DATA=/data2/u0137815/rgbd-us/data ODO=/data2/u0137815/rgbd-us/runs
+
+# --- task 1: 4XX C / D with a calibration fitted on 4XX (diagnostic) ---
+python scr_map.py --root $DATA/test_4XXC --scan-runs room-405 room-406 --from runs/map-4XXC --realign --out runs/map-4XXC-owncalib
+python scr_anchor.py train --root $DATA/test_4XXC --scan-runs room-405 room-406 --map runs/map-4XXC-owncalib --out runs/v2map-4XXC-owncalib
+python scr_anchor.py track --ckpt runs/v2map-4XXC-owncalib/best.pt --test-root $DATA/test_4XXC --every 2 --out runs/track-v2map-4XXC-owncalib
+python scr_anchor.py track --ckpt runs/v2map-4XXC-owncalib/best.pt --test-root $DATA/test_4XXD --every 2 --out runs/track-v2map-4XXD-owncalib
+python tools/us_analysis.py shape --json runs/track-v2map-4XXC-owncalib/poses/*.json runs/track-v2map-4XXD-owncalib/poses/*.json --out runs/shape-4XX-owncalib.md
+
+# --- task 5: static volume figures (from the 3D-page exports on the training PC) ---
+python tools/volume_figure.py --json runs/repro/volume3d/3XX/poses/fold0_run-316_scr-track.json runs/repro/volume3d/3XX/poses/fold0_run-316_anchored-pgo-classical-*.json --labels "no tracker (ours)" "classical" --rigid-fit --out runs/figures/volume_3XX_run-316.png
+python tools/volume_figure.py --json runs/repro/volume3d/3XX/poses/fold0_run-313_scr-track.json runs/repro/volume3d/3XX/poses/fold0_run-313_anchored-pgo-classical-*.json --labels "no tracker (ours)" "classical" --rigid-fit --out runs/figures/volume_3XX_run-313.png
+python tools/volume_figure.py --json runs/volume3d-trackerfree/4XXA/poses/fold0_run-406_scr-track.json runs/volume3d-trackerfree/4XXA/poses/fold0_run-406_anchored-pgo-classical-*.json --labels "no tracker (ours)" "classical" --rigid-fit --out runs/figures/volume_4XXA_run-406.png
+python tools/volume_figure.py --json runs/volume3d-trackerfree/4XXC/poses/fold0_run-414_scr-track.json runs/volume3d-trackerfree/4XXC/poses/fold0_run-414_anchored-pgo-classical-*.json --labels "no tracker (ours)" "classical" --rigid-fit --out runs/figures/volume_4XXC_run-414.png
+python tools/volume_figure.py --json runs/volume3d-trackerfree/4XXD/poses/fold0_run-420_scr-track.json runs/volume3d-trackerfree/4XXD/poses/fold0_run-420_anchored-pgo-classical-*.json --labels "no tracker (ours)" "classical" --rigid-fit --out runs/figures/volume_4XXD_run-420.png
+
+# --- task 3: classical anchors on our own tracker-free map (keyframes from the map x its calibration) ---
+python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/train_3XX --scan-runs room-301 room-302 --test-root $DATA/train_3XX --odometry-source classical-vo-train_3XX --odometry $ODO/rpr-rgb-gap8-12XX-gru8 --pairs $ODO/anchor-pairs/pairs_3XX.json --pgo --start anchor --map runs/repro/map-3XX --out runs/sys-classical-trackerfree-3XX
+python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/test_4XXA --scan-runs room-401 room-402 --test-root $DATA/test_4XXA --odometry-source classical-vo-test_4XXA --odometry $ODO/rpr-rgb-gap8-123XX-gru8 --pairs $ODO/anchor-pairs/pairs_4XXA.json --pgo --start anchor --map runs/map-4XXA --out runs/sys-classical-trackerfree-4XXA
+python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/test_4XXB --scan-runs room-403 room-404 --test-root $DATA/test_4XXB --odometry-source classical-vo-test_4XXB --odometry $ODO/rpr-rgb-gap8-123XX-gru8 --pairs $ODO/anchor-pairs/pairs_4XXB.json --pgo --start anchor --map runs/map-4XXB --out runs/sys-classical-trackerfree-4XXB
+python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/test_4XXC --scan-runs room-405 room-406 --test-root $DATA/test_4XXC --odometry-source classical-vo-test_4XXC --odometry $ODO/rpr-rgb-gap8-123XX-gru8 --pairs $ODO/anchor-pairs/pairs_4XXC.json --pgo --start anchor --map runs/map-4XXC --out runs/sys-classical-trackerfree-4XXC
+python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/test_4XXD --scan-runs room-405 room-406 --test-root $DATA/test_4XXD --odometry-source classical-vo-test_4XXD --odometry $ODO/rpr-rgb-gap8-123XX-gru8 --pairs $ODO/anchor-pairs/pairs_4XXD.json --pgo --start anchor --map runs/map-4XXC --out runs/sys-classical-trackerfree-4XXD
+python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/test_4XXE --scan-runs room-405 room-406 --test-root $DATA/test_4XXE --odometry-source classical-vo-test_4XXE --odometry $ODO/rpr-rgb-gap8-123XX-gru8 --pairs $ODO/anchor-pairs/pairs_4XXE.json --pgo --start anchor --map runs/map-4XXC --out runs/sys-classical-trackerfree-4XXE
+# shape on the same rows as ours (3XX; the same for each 4XX block with its track folder)
+python tools/volume_pages.py --test-root $DATA/train_3XX --track runs/repro/track-v2map-3XX --anchoring runs/sys-classical-trackerfree-3XX/anchor_eval_*.json --labels "classical anchors on our map" --out runs/volume3d-classical-ourmap/3XX
+python tools/us_analysis.py shape --json runs/volume3d-classical-ourmap/*/poses/*.json --out runs/shape-classical-ourmap.md
+
+# --- task 4: why the 2XX map fails (compare the map_report.md tables: round 1, 1 s motion p90) ---
+python scr_map.py --root $DATA/train_2XX --scan-runs room-201 --cam-calib-from runs/repro/map-3XX/map.json --out runs/map-2XX-room201
+python scr_map.py --root $DATA/train_2XX --scan-runs room-202 --cam-calib-from runs/repro/map-3XX/map.json --out runs/map-2XX-room202
+python scr_map.py --root $DATA/train_2XX --scan-runs room-201 room-202 --cam-calib-from runs/repro/map-3XX/map.json --gate 120 --gate-far 800 --max-speed 300 --max-turn 60 --out runs/map-2XX-strictjoin
+python scr_map.py --root $DATA/train_2XX --scan-runs room-201 room-202 --from runs/map-2XX --realign --out runs/map-2XX-owncalib
+# then train + track the best map on the validation sweeps, e.g.
+python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --map runs/map-2XX-strictjoin --out runs/v2map-2XX-strictjoin
+python scr_anchor.py track --ckpt runs/v2map-2XX-strictjoin/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --every 2 --out runs/track-v2map-2XX-strictjoin
+
+# --- task 2: ORB-SLAM3 RGB-D (build once: README 6), per session ---
+export ORB=$HOME/ORB_SLAM3
+python tools/slam_baseline.py export --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/slam-3XX/seq
+cd runs/slam-3XX && $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt && cd ../..
+python tools/slam_baseline.py evaluate --root $DATA/train_3XX --scan-runs room-301 room-302 --seq runs/slam-3XX/seq --traj runs/slam-3XX/CameraTrajectory.txt --out runs/slam-3XX
+python tools/us_analysis.py shape --json runs/slam-3XX/poses/*.json --out runs/slam-3XX/shape.md
+# 4XX: the same with --root $DATA/test_4XXA ... E, their scans (D, E: room-405 room-406), and in evaluate
+#      --cam-calib-from runs/repro/map-3XX/map.json (as our 4XX maps)
+```
 
 ## 3. Data
 
@@ -147,19 +223,94 @@ scene_coords = (T_wc @ X)[:3].T                                       # room coo
 
 Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based methods (Sattler et al., CVPR 2019); learned systems that work are hybrids of learned correspondences and geometric solvers. Learned inlier weights + weighted Kabsch: Deep Global Registration (Choy et al., CVPR 2020). Recon2Servo (arXiv 2610.06010): training pairs rendered from a reconstruction, a frozen foundation encoder with LoRA; the rendering idea is our open task for coverage. US-only: Li et al. (TBME 2024), reproduced and negative on our data (`summary.md` 6).
 
+**Our system vs ACE0** (Brachmann et al., ECCV 2024, [arXiv 2404.14351](https://arxiv.org/abs/2404.14351)). Borrowed: the self-mapping loop (start from one image, train, place more, repeat). Not checked in the paper: ACE0's exact inlier threshold and whether its code can use sensor depth.
+
+| | ACE0 | ours |
+|---|---|---|
+| input | RGB image collection (may be unordered), no poses, intrinsics refined | RGB-D **video** (30 Hz), known intrinsics, measured depth |
+| scale | from a monocular depth estimate at the start | metric, from the depth sensor |
+| start | one seed image, identity pose | one frame + its ±2 s neighbours joined by depth ICP (one image alone: median 43 inliers on the next views) |
+| training signal | reprojection error (2D) | direct 3D labels from depth + pose; 3D distance loss |
+| network | ACE: frozen encoder + small MLP head, minutes per round | EfficientNet-B0 fine-tuned, stride 8 + 16, residual 1×1 head (3.0 M) |
+| placing a frame | PnP-RANSAC, inlier threshold | Kabsch RANSAC on depth; ≥ 60 inliers + plausible motion vs a time neighbour; ≥ 400 far from the map |
+| growing the map | relocalisation only | relocalisation + depth-ICP extension of the map edges |
+| pose refinement | pose-refinement MLP trained jointly with the network | final pass + pose graph (ICP edges 1–30 frames apart, loop closures, network priors); joint refinement tried: worse (8.4 → 8.9 mm) |
+| after mapping | the mapping network and its poses are the result | the poses label a final network trained from scratch (120 epochs) that tracks |
+| calibration | camera intrinsics | probe camera calibration X (camera → probe), once per probe |
+| evaluation | vs COLMAP, novel view synthesis | mm at the US image against an optical tracker; map error per stage; shape |
+| use | poses for reconstruction | a tracking system: every frame, gate, smoothing, real time, US image pose |
+
+**Similar work (4 Nov; abstracts only, to read in full)**
+- ACE-SLAM (Alzugaray, Taher, Davison, arXiv 2512.14032, Dec 2025): RGB-D SLAM with a scene coordinate network as the map, mapping and tracking in real time; relocalisation and loop closure from the network. **The closest system**; ours: per-room training from a room scan, pose graph, probe calibration, mm evaluation.
+- Cavallari et al. (CVPR 2017 arXiv 1702.02779; 3DV 2019 arXiv 1906.08744): scene coordinate models adapted to a new scene online, RGB-D, poses from an RGB-D SLAM, no offline training.
+- Sun, Gilbertson, Anthony (MICCAI 2014, "Probe localization for freehand 3D ultrasound by tracking skin features"): camera on the probe, no tracker, skin-feature visual SLAM, scale from a sticker; ~0.91 mm, 0.55° per 10 mm of travel. **The key medical prior work.**
+- Outside-in markerless probe tracking with a fixed RGB-D camera: MLRecon (arXiv 2603.00990, FoundationPose + SAM 2); Aliani et al. (EMBC 2025, D435 + FoundationPose).
+- Literature-chat prompt for a full search: given in the session of 4 Nov (groups: SCR without poses, RGB-D SLAM, inside-out probe tracking, outside-in, sensorless US, SCR in medicine).
 
 
 
 
 
 
- 
 
 
 
 
 
-  
+Every waiting task can now be run except two: task 6 (end-to-end fine-tuning), which I haven't written, and task 7, which needs a new recording or the hardware. Tasks 3, 4 and 5 needed new code, which I wrote; task 2 also needs ORB-SLAM3 built once on your training PC.
 
- 
+None of it has run on real data yet. The figure script was tested only on a made-up sweep. The SLAM and classical-on-our-map code was only checked for syntax, so the first real run may show a bug — send me the error if so. The order below is quickest first.
 
+The same commands are in note.md section 2, and the ORB-SLAM3 build steps are in README.md section 6.
+
+
+export DATA=/data2/u0137815/rgbd-us/data ODO=/data2/u0137815/rgbd-us/runs
+Task 5 – static 3D volume figures. A few minutes each. They read the 3D-page exports already on your PC. Each figure shows the true volume, ours, ours after the rigid fit, classical, and the overlays, from three views:
+
+
+python tools/volume_figure.py --json runs/repro/volume3d/3XX/poses/fold0_run-316_scr-track.json runs/repro/volume3d/3XX/poses/fold0_run-316_anchored-pgo-classical-*.json --labels "no tracker (ours)" "classical" --rigid-fit --out runs/figures/volume_3XX_run-316.png
+python tools/volume_figure.py --json runs/repro/volume3d/3XX/poses/fold0_run-313_scr-track.json runs/repro/volume3d/3XX/poses/fold0_run-313_anchored-pgo-classical-*.json --labels "no tracker (ours)" "classical" --rigid-fit --out runs/figures/volume_3XX_run-313.png
+python tools/volume_figure.py --json runs/volume3d-trackerfree/4XXA/poses/fold0_run-406_scr-track.json runs/volume3d-trackerfree/4XXA/poses/fold0_run-406_anchored-pgo-classical-*.json --labels "no tracker (ours)" "classical" --rigid-fit --out runs/figures/volume_4XXA_run-406.png
+python tools/volume_figure.py --json runs/volume3d-trackerfree/4XXC/poses/fold0_run-414_scr-track.json runs/volume3d-trackerfree/4XXC/poses/fold0_run-414_anchored-pgo-classical-*.json --labels "no tracker (ours)" "classical" --rigid-fit --out runs/figures/volume_4XXC_run-414.png
+python tools/volume_figure.py --json runs/volume3d-trackerfree/4XXD/poses/fold0_run-420_scr-track.json runs/volume3d-trackerfree/4XXD/poses/fold0_run-420_anchored-pgo-classical-*.json --labels "no tracker (ours)" "classical" --rigid-fit --out runs/figures/volume_4XXD_run-420.png
+I picked a good case (3XX run-316), a typical 3XX sweep (run-313), a 4XX sweep where we beat classical (A run-406), and the weak placement cases (C run-414, D run-420).
+
+Task 3 – classical anchors on our own tracker-free map. The new --map option takes the keyframe poses from our map instead of Polaris; without it, the results are unchanged.
+
+
+python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/train_3XX --scan-runs room-301 room-302 --test-root $DATA/train_3XX --odometry-source classical-vo-train_3XX --odometry $ODO/rpr-rgb-gap8-12XX-gru8 --pairs $ODO/anchor-pairs/pairs_3XX.json --pgo --start anchor --map runs/repro/map-3XX --out runs/sys-classical-trackerfree-3XX
+python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/test_4XXA --scan-runs room-401 room-402 --test-root $DATA/test_4XXA --odometry-source classical-vo-test_4XXA --odometry $ODO/rpr-rgb-gap8-123XX-gru8 --pairs $ODO/anchor-pairs/pairs_4XXA.json --pgo --start anchor --map runs/map-4XXA --out runs/sys-classical-trackerfree-4XXA
+python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/test_4XXB --scan-runs room-403 room-404 --test-root $DATA/test_4XXB --odometry-source classical-vo-test_4XXB --odometry $ODO/rpr-rgb-gap8-123XX-gru8 --pairs $ODO/anchor-pairs/pairs_4XXB.json --pgo --start anchor --map runs/map-4XXB --out runs/sys-classical-trackerfree-4XXB
+python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/test_4XXC --scan-runs room-405 room-406 --test-root $DATA/test_4XXC --odometry-source classical-vo-test_4XXC --odometry $ODO/rpr-rgb-gap8-123XX-gru8 --pairs $ODO/anchor-pairs/pairs_4XXC.json --pgo --start anchor --map runs/map-4XXC --out runs/sys-classical-trackerfree-4XXC
+python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/test_4XXD --scan-runs room-405 room-406 --test-root $DATA/test_4XXD --odometry-source classical-vo-test_4XXD --odometry $ODO/rpr-rgb-gap8-123XX-gru8 --pairs $ODO/anchor-pairs/pairs_4XXD.json --pgo --start anchor --map runs/map-4XXC --out runs/sys-classical-trackerfree-4XXD
+python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/test_4XXE --scan-runs room-405 room-406 --test-root $DATA/test_4XXE --odometry-source classical-vo-test_4XXE --odometry $ODO/rpr-rgb-gap8-123XX-gru8 --pairs $ODO/anchor-pairs/pairs_4XXE.json --pgo --start anchor --map runs/map-4XXC --out runs/sys-classical-trackerfree-4XXE
+python tools/volume_pages.py --test-root $DATA/train_3XX --track runs/repro/track-v2map-3XX --anchoring runs/sys-classical-trackerfree-3XX/anchor_eval_*.json --labels "classical anchors on our map" --out runs/volume3d-classical-ourmap/3XX
+python tools/us_analysis.py shape --json runs/volume3d-classical-ourmap/*/poses/*.json --out runs/shape-classical-ourmap.md
+Task 1 – 4XX C/D placement. About 1 h. If C/D drop towards 5.6 / 9.6, the 3XX calibration doesn't carry over to 4XX; if they don't, the map's placement is the cause.
+
+
+python scr_map.py --root $DATA/test_4XXC --scan-runs room-405 room-406 --from runs/map-4XXC --realign --out runs/map-4XXC-owncalib
+python scr_anchor.py train --root $DATA/test_4XXC --scan-runs room-405 room-406 --map runs/map-4XXC-owncalib --out runs/v2map-4XXC-owncalib
+python scr_anchor.py track --ckpt runs/v2map-4XXC-owncalib/best.pt --test-root $DATA/test_4XXC --every 2 --out runs/track-v2map-4XXC-owncalib
+python scr_anchor.py track --ckpt runs/v2map-4XXC-owncalib/best.pt --test-root $DATA/test_4XXD --every 2 --out runs/track-v2map-4XXD-owncalib
+python tools/us_analysis.py shape --json runs/track-v2map-4XXC-owncalib/poses/*.json runs/track-v2map-4XXD-owncalib/poses/*.json --out runs/shape-4XX-owncalib.md
+Task 4 – why the 2XX map fails. The map is already bad after round 1 (1 s motion 12.7 mm, 3XX had 9.3). These four maps test four suspects: one bad scan, wrong joins, or the calibration. 2XX is the validation set, so you may choose mapping settings on it.
+
+
+python scr_map.py --root $DATA/train_2XX --scan-runs room-201 --cam-calib-from runs/repro/map-3XX/map.json --out runs/map-2XX-room201
+python scr_map.py --root $DATA/train_2XX --scan-runs room-202 --cam-calib-from runs/repro/map-3XX/map.json --out runs/map-2XX-room202
+python scr_map.py --root $DATA/train_2XX --scan-runs room-201 room-202 --cam-calib-from runs/repro/map-3XX/map.json --gate 120 --gate-far 800 --max-speed 300 --max-turn 60 --out runs/map-2XX-strictjoin
+python scr_map.py --root $DATA/train_2XX --scan-runs room-201 room-202 --from runs/map-2XX --realign --out runs/map-2XX-owncalib
+If one of them gives a map close to 3XX's (scene points about 3 mm), train and track it. Example for strictjoin:
+
+
+python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --map runs/map-2XX-strictjoin --out runs/v2map-2XX-strictjoin
+python scr_anchor.py track --ckpt runs/v2map-2XX-strictjoin/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --every 2 --out runs/track-v2map-2XX-strictjoin
+Task 2 – ORB-SLAM3 baseline. First build ORB-SLAM3 using the steps in README section 6. They include two patches: one turns off the viewer for a headless PC, one fixes compatibility with newer OpenCV/C++. The build may need sudo or some fixing on your PC. Then for 3XX:
+
+
+export ORB=$HOME/ORB_SLAM3
+python tools/slam_baseline.py export --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/slam-3XX/seq
+cd runs/slam-3XX && $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt && cd ../..
+python tools/slam_baseline.py evaluate --root $DATA/train_3XX --scan-runs room-301 room-302 --seq runs/slam-3XX/seq --traj runs/slam-3XX/CameraTrajectory.txt --out runs/slam-3XX
+python tools/us_analysis.py shape --json runs/slam-3XX/poses/*.json --out runs/slam-3XX/shape.md
