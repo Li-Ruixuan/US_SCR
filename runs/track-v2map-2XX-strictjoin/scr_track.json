@@ -1,0 +1,107 @@
+{
+ "args": {
+  "cmd": "track",
+  "ckpt": "runs/v2map-2XX-strictjoin/best.pt",
+  "test_root": "/data2/u0137815/rgbd-us/data/train_2XX",
+  "test_runs": [
+   "run-205",
+   "run-211"
+  ],
+  "every": 2,
+  "gate": 400,
+  "windows": [
+   0.25,
+   0.5,
+   1.0,
+   2.0
+  ],
+  "lags": [],
+  "weighted": false,
+  "calib": "/data2/u0137815/US_SCR/calib_matrix.csv",
+  "cam_calib": "/data2/u0137815/US_SCR/runs/map-2XX-strictjoin/map.json",
+  "export_window": 2.0,
+  "out": "runs/track-v2map-2XX-strictjoin"
+ },
+ "per_sweep": {
+  "raw": {
+   "run-205": {
+    "us_median": 14.290660650033653,
+    "us_p90": 28.13224344460714,
+    "coverage_pct": 100.0,
+    "step_row": 3.2515145047459395,
+    "step_8rows": 4.986103070989414
+   },
+   "run-211": {
+    "us_median": 4.938679522300614,
+    "us_p90": 7.393338421616322,
+    "coverage_pct": 100.0,
+    "step_row": 1.8966333226583818,
+    "step_8rows": 2.2492880073436363
+   }
+  },
+  "smoothed 0.25 s": {
+   "run-205": {
+    "us_median": 14.231631701962732,
+    "us_p90": 28.282121033929045,
+    "coverage_pct": 100.0,
+    "step_row": 1.5251889598254944,
+    "step_8rows": 4.185848062176115
+   },
+   "run-211": {
+    "us_median": 4.944701754565709,
+    "us_p90": 7.04786262705401,
+    "coverage_pct": 100.0,
+    "step_row": 0.7835789186812835,
+    "step_8rows": 1.6093484982610433
+   }
+  },
+  "smoothed 0.5 s": {
+   "run-205": {
+    "us_median": 14.190310899257065,
+    "us_p90": 28.356243239217026,
+    "coverage_pct": 100.0,
+    "step_row": 1.4877631563712164,
+    "step_8rows": 4.242247210838504
+   },
+   "run-211": {
+    "us_median": 4.886756459738038,
+    "us_p90": 7.048176415783356,
+    "coverage_pct": 100.0,
+    "step_row": 0.768963820469293,
+    "step_8rows": 1.6752528264542161
+   }
+  },
+  "smoothed 1 s": {
+   "run-205": {
+    "us_median": 14.1604030094839,
+    "us_p90": 28.068644034240194,
+    "coverage_pct": 100.0,
+    "step_row": 1.0520842283771663,
+    "step_8rows": 3.8029619755166935
+   },
+   "run-211": {
+    "us_median": 4.8709565245178235,
+    "us_p90": 7.022226222591261,
+    "coverage_pct": 100.0,
+    "step_row": 0.42019245238514175,
+    "step_8rows": 1.2742586899261452
+   }
+  },
+  "smoothed 2 s": {
+   "run-205": {
+    "us_median": 14.170527519140734,
+    "us_p90": 28.060418074541573,
+    "coverage_pct": 100.0,
+    "step_row": 0.9228933677611679,
+    "step_8rows": 3.410625136256382
+   },
+   "run-211": {
+    "us_median": 4.815913859751234,
+    "us_p90": 6.840134411935446,
+    "coverage_pct": 100.0,
+    "step_row": 0.31833734950313197,
+    "step_8rows": 0.9557968156474478
+   }
+  }
+ }
+}
