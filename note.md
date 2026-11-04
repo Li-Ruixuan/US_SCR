@@ -153,33 +153,9 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
-
-
  
 
-git pull --rebase
-export DATA=/data2/u0137815/rgbd-us/data
 
-# 1. without loop closures: train + track on the no-loops map
-python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --map runs/repro/map-3XX-noloops --out runs/repro/v2map-3XX-noloops
-python scr_anchor.py track --ckpt runs/repro/v2map-3XX-noloops/best.pt --test-root $DATA/train_3XX --every 2 --out runs/repro/track-v2map-3XX-noloops
-
-# 2. without the probe calibration: same final map, aligned without it, train + track
-python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --from runs/repro/map-3XX --realign --no-cam-calib --out runs/repro/map-3XX-nocalib
-python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --map runs/repro/map-3XX-nocalib --out runs/repro/v2map-3XX-nocalib
-python scr_anchor.py track --ckpt runs/repro/v2map-3XX-nocalib/best.pt --test-root $DATA/train_3XX --every 2 --out runs/repro/track-v2map-3XX-nocalib
-
-# shape of 1 and 2
-python tools/us_analysis.py shape --json runs/repro/track-v2map-3XX-noloops/poses/*.json runs/repro/track-v2map-3XX-nocalib/poses/*.json --out runs/repro/shape-3XX-ablations.md
-
-# 3. real time on 4XX (cached poses, minutes)
-python scr_anchor.py track --ckpt runs/v2map-4XXA/best.pt --test-root $DATA/test_4XXA --every 2 --lags 0.25 0 --out runs/track-v2map-4XXA
-python scr_anchor.py track --ckpt runs/v2map-4XXB/best.pt --test-root $DATA/test_4XXB --every 2 --lags 0.25 0 --out runs/track-v2map-4XXB
-python scr_anchor.py track --ckpt runs/v2map-4XXC/best.pt --test-root $DATA/test_4XXC --every 2 --lags 0.25 0 --out runs/track-v2map-4XXC
-python scr_anchor.py track --ckpt runs/v2map-4XXC/best.pt --test-root $DATA/test_4XXD --every 2 --lags 0.25 0 --out runs/track-v2map-4XXD
-python scr_anchor.py track --ckpt runs/v2map-4XXC/best.pt --test-root $DATA/test_4XXE --every 2 --lags 0.25 0 --out runs/track-v2map-4XXE
-
-git pull --rebase && git add -A && git commit -m "Clean ablations (no loops, no calibration) and real time on 4XX" && git push
 
 
 

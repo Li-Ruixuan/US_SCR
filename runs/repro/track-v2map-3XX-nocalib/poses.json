@@ -1,0 +1,1 @@
+{"ckpt": "runs/repro/v2map-3XX-nocalib/best.pt", "every": 2, "gate": 400, "weighted": false, "cam_calib": [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]}

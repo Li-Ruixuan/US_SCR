@@ -1,0 +1,340 @@
+{
+ "args": {
+  "root": "/data2/u0137815/rgbd-us/data/train_3XX",
+  "scan_runs": [
+   "room-301",
+   "room-302"
+  ],
+  "out": "runs/repro/map-3XX",
+  "every": 1,
+  "seed_run": null,
+  "seed_row": null,
+  "seed_seconds": 2.0,
+  "seed_steps": 2000,
+  "icp_extend": 90,
+  "icp_stride": 4,
+  "icp_dist": 10.0,
+  "icp_fitness": 0.5,
+  "icp_rmse": 6.0,
+  "round_steps": 1500,
+  "max_rounds": 40,
+  "reach": 150,
+  "probe_every": 30,
+  "min_growth": 0.005,
+  "gate": 60,
+  "gate_far": 400,
+  "max_speed": 500.0,
+  "max_turn": 90.0,
+  "final_pass": true,
+  "refine_steps": 0,
+  "realign": false,
+  "cam_calib": true,
+  "cam_calib_from": null,
+  "graph": true,
+  "from_map": null,
+  "graph_offsets": [
+   1,
+   5,
+   15,
+   30
+  ],
+  "graph_edge_mm": 1.0,
+  "graph_prior_mm": 10.0,
+  "graph_check": 50.0,
+  "graph_iters": 300,
+  "loop_k": 3,
+  "loop_every": 3,
+  "loop_gap": 2.0,
+  "loop_radius": 150.0,
+  "refine_lr": 0.0001,
+  "batch_size": 8,
+  "lr": 0.001,
+  "lr_encoder": 0.0001,
+  "label_max_depth": 2000.0,
+  "hand_eye": "/data2/u0137815/US_SCR/T_marker_cam.npy",
+  "workers": 8,
+  "seed": 0,
+  "max_frames": 0
+ },
+ "history": [
+  {
+   "stage": "round 1",
+   "loss_mm": 73.85671643726528,
+   "added": 3037,
+   "s": 412,
+   "mapped": 3098,
+   "frames": 3356,
+   "mapped_pct": 92.31227651966627,
+   "view_mm_median": 9.491936737738387,
+   "view_mm_p90": 27.789205193024735,
+   "pos_mm_median": 11.315324515830696,
+   "pos_mm_p90": 30.477338422626737,
+   "rot_deg_median": 1.0068646691912315,
+   "rel1s_mm_median": 9.268956190678743,
+   "rel1s_mm_p90": 31.396085363254393,
+   "calib_mm": 46.611297236353664,
+   "calib_deg": 1.7341776894100724
+  },
+  {
+   "stage": "round 2",
+   "loss_mm": 44.1212709757189,
+   "added": 258,
+   "s": 527,
+   "mapped": 3356,
+   "frames": 3356,
+   "mapped_pct": 100.0,
+   "view_mm_median": 9.78106341629545,
+   "view_mm_p90": 26.21505856128719,
+   "pos_mm_median": 10.996757331920293,
+   "pos_mm_p90": 30.087363038965297,
+   "rot_deg_median": 1.0522080511593348,
+   "rel1s_mm_median": 9.588612433539701,
+   "rel1s_mm_p90": 30.44700360820637,
+   "calib_mm": 44.344562158030456,
+   "calib_deg": 1.7806964362843831
+  },
+  {
+   "stage": "final pass",
+   "loss_mm": 44.1212709757189,
+   "added": 3343,
+   "s": 780,
+   "mapped": 3356,
+   "frames": 3356,
+   "mapped_pct": 100.0,
+   "view_mm_median": 6.731434823636654,
+   "view_mm_p90": 12.666097691545204,
+   "pos_mm_median": 9.50855813845875,
+   "pos_mm_p90": 18.245714086518475,
+   "rot_deg_median": 0.8929268815853391,
+   "rel1s_mm_median": 5.7741687688718795,
+   "rel1s_mm_p90": 16.87309722990389,
+   "calib_mm": 42.490049085142736,
+   "calib_deg": 2.3291951564573923
+  },
+  {
+   "stage": "pose graph",
+   "loss_mm": 44.1212709757189,
+   "added": 0,
+   "s": 2185,
+   "mapped": 3356,
+   "frames": 3356,
+   "mapped_pct": 100.0,
+   "view_mm_median": 2.6369860675736847,
+   "view_mm_p90": 5.378042399859409,
+   "pos_mm_median": 1.962970650948695,
+   "pos_mm_p90": 4.075483428017632,
+   "rot_deg_median": 0.1867788671511827,
+   "rel1s_mm_median": 1.4778583248734916,
+   "rel1s_mm_p90": 3.7397579395396177,
+   "calib_mm": 31.712823683746656,
+   "calib_deg": 1.5087518624907226
+  },
+  {
+   "stage": "re-aligned",
+   "added": null,
+   "loss_mm": null,
+   "mapped": 3356,
+   "frames": 3356,
+   "mapped_pct": 100.0,
+   "view_mm_median": 6.415564048999238,
+   "view_mm_p90": 12.148293393819444,
+   "pos_mm_median": 10.427000655080434,
+   "pos_mm_p90": 13.200608612572672,
+   "rot_deg_median": 0.6331574124049514,
+   "rel1s_mm_median": 3.382055443669266,
+   "rel1s_mm_p90": 8.411669968270274
+  }
+ ],
+ "final": {
+  "mapped": 3356,
+  "frames": 3356,
+  "mapped_pct": 100.0,
+  "view_mm_median": 6.415564048999238,
+  "view_mm_p90": 12.148293393819444,
+  "pos_mm_median": 10.427000655080434,
+  "pos_mm_p90": 13.200608612572672,
+  "rot_deg_median": 0.6331574124049514,
+  "rel1s_mm_median": 3.382055443669266,
+  "rel1s_mm_p90": 8.411669968270274
+ },
+ "map_to_polaris": [
+  [
+   -0.12811157397897388,
+   0.9901988116667589,
+   0.055621380658597355,
+   -44.19012550010528
+  ],
+  [
+   0.6659223105655766,
+   0.1274462190723355,
+   -0.7350543772641381,
+   -61.76442241938378
+  ],
+  [
+   -0.7349387055419206,
+   -0.057129454906422655,
+   -0.6757228163074422,
+   -944.100281853606
+  ],
+  [
+   0.0,
+   0.0,
+   0.0,
+   1.0
+  ]
+ ],
+ "cam_calib": [
+  [
+   1.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  [
+   0.0,
+   1.0,
+   0.0,
+   0.0
+  ],
+  [
+   0.0,
+   0.0,
+   1.0,
+   0.0
+  ],
+  [
+   0.0,
+   0.0,
+   0.0,
+   1.0
+  ]
+ ],
+ "rerun_args": {
+  "root": "/data2/u0137815/rgbd-us/data/train_3XX",
+  "scan_runs": [
+   "room-301",
+   "room-302"
+  ],
+  "out": "runs/repro/map-3XX-nocalib",
+  "every": 1,
+  "seed_run": null,
+  "seed_row": null,
+  "seed_seconds": 2.0,
+  "seed_steps": 2000,
+  "icp_extend": 90,
+  "icp_stride": 4,
+  "icp_dist": 10.0,
+  "icp_fitness": 0.5,
+  "icp_rmse": 6.0,
+  "round_steps": 1500,
+  "max_rounds": 40,
+  "reach": 150,
+  "probe_every": 30,
+  "min_growth": 0.005,
+  "gate": 60,
+  "gate_far": 400,
+  "max_speed": 500.0,
+  "max_turn": 90.0,
+  "final_pass": true,
+  "refine_steps": 0,
+  "realign": true,
+  "cam_calib": false,
+  "cam_calib_from": null,
+  "graph": true,
+  "from_map": "runs/repro/map-3XX",
+  "graph_offsets": [
+   1,
+   5,
+   15,
+   30
+  ],
+  "graph_edge_mm": 1.0,
+  "graph_prior_mm": 10.0,
+  "graph_check": 50.0,
+  "graph_iters": 300,
+  "loop_k": 3,
+  "loop_every": 3,
+  "loop_gap": 2.0,
+  "loop_radius": 150.0,
+  "refine_lr": 0.0001,
+  "batch_size": 8,
+  "lr": 0.001,
+  "lr_encoder": 0.0001,
+  "label_max_depth": 2000.0,
+  "hand_eye": "/data2/u0137815/US_SCR/T_marker_cam.npy",
+  "workers": 8,
+  "seed": 0,
+  "max_frames": 0
+ },
+ "checks": {
+  "calib_per_scan": [],
+  "timing": [
+   [
+    -200.0,
+    24.76182334990154,
+    1.7406054983299504
+   ],
+   [
+    -166.66666666666669,
+    21.31323641400313,
+    1.5142231606986463
+   ],
+   [
+    -133.33333333333334,
+    17.861813158114586,
+    1.288729491147325
+   ],
+   [
+    -100.0,
+    14.6954179467952,
+    1.087574173527757
+   ],
+   [
+    -66.66666666666667,
+    11.386398254978012,
+    0.8913842934098384
+   ],
+   [
+    -33.333333333333336,
+    8.362456038680573,
+    0.7281965757139885
+   ],
+   [
+    0.0,
+    6.419822917686387,
+    0.6321303477229219
+   ],
+   [
+    33.333333333333336,
+    6.921896593401557,
+    0.6454275993352128
+   ],
+   [
+    66.66666666666667,
+    9.28466878139577,
+    0.7472061565789903
+   ],
+   [
+    100.0,
+    11.929084470858664,
+    0.898912802163675
+   ],
+   [
+    133.33333333333334,
+    15.110058627830057,
+    1.0841383992018634
+   ],
+   [
+    166.66666666666669,
+    18.442221570967057,
+    1.2874828070900368
+   ],
+   [
+    200.0,
+    22.013556331262777,
+    1.498640405518322
+   ]
+  ],
+  "timing_best_ms": 9.82094217609279
+ }
+}
