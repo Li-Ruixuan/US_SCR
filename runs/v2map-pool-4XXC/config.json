@@ -1,0 +1,121 @@
+{
+  "args": {
+    "cmd": "train",
+    "root": "/data2/u0137815/rgbd-us/data/train_4XX",
+    "scan_runs": [
+      "room-401",
+      "room-402",
+      "room-403",
+      "room-404",
+      "room-405",
+      "room-406"
+    ],
+    "out": "runs/v2map-pool-4XXC",
+    "map": "/data2/u0137815/US_SCR/runs/map-pool-4XXC",
+    "label_poses": [
+      "runs/map-pool-4XXC/poses_room-401.json",
+      "runs/map-pool-4XXC/poses_room-402.json",
+      "runs/map-pool-4XXC/poses_room-403.json",
+      "runs/map-pool-4XXC/poses_room-404.json",
+      "runs/map-pool-4XXC/poses_room-405.json",
+      "runs/map-pool-4XXC/poses_room-406.json"
+    ],
+    "head": "big",
+    "label_max_depth": 2000.0,
+    "drop_depth_edges": true,
+    "freeze_encoder": false,
+    "render_views": 0.0,
+    "render_shift": 150.0,
+    "render_rot": 20.0,
+    "render_voxel": 5.0,
+    "render_every": 4,
+    "render_min_valid": 0.5,
+    "render_source": "cloud",
+    "render_frames": 3,
+    "confidence": false,
+    "scan_seconds": 0.0,
+    "aug_scale": [
+      1.0,
+      1.0
+    ],
+    "aug_rot": 0.0,
+    "epochs": 120,
+    "flat": 0.6,
+    "batch_size": 8,
+    "lr": 0.001,
+    "lr_encoder": 0.0001,
+    "image_size": [
+      360,
+      640
+    ],
+    "hand_eye": "/data2/u0137815/US_SCR/T_marker_cam.npy",
+    "workers": 12,
+    "seed": 0,
+    "check_every": 6,
+    "check_frames": 120,
+    "max_frames": 0,
+    "px": 10.0,
+    "min_inliers": 30,
+    "eval_root": null,
+    "eval_runs": null
+  },
+  "centre": [
+    79.9981589320279,
+    -87.71646649344919,
+    -941.0585987133658
+  ],
+  "image_size": [
+    360,
+    640
+  ],
+  "head": "big",
+  "confidence": false,
+  "n_frames": 8671,
+  "n_rendered": 0,
+  "steps": 129960,
+  "estimated_labels": {
+    "room-401": {
+      "source": "scr-map (map-pool-4XXC)",
+      "frames": 2695,
+      "camera_err_mm_median": 32.69755994439352,
+      "camera_err_mm_p90": 35.117317883320524,
+      "rot_err_deg_median": 1.612289383521416
+    },
+    "room-402": {
+      "source": "scr-map (map-pool-4XXC)",
+      "frames": 1198,
+      "camera_err_mm_median": 33.61611103801087,
+      "camera_err_mm_p90": 36.18720822184233,
+      "rot_err_deg_median": 1.5549054953127177
+    },
+    "room-403": {
+      "source": "scr-map (map-pool-4XXC)",
+      "frames": 1200,
+      "camera_err_mm_median": 30.60662149912383,
+      "camera_err_mm_p90": 31.871989012119183,
+      "rot_err_deg_median": 1.6510252577056397
+    },
+    "room-404": {
+      "source": "scr-map (map-pool-4XXC)",
+      "frames": 1181,
+      "camera_err_mm_median": 30.43275401807852,
+      "camera_err_mm_p90": 33.54545151668538,
+      "rot_err_deg_median": 1.564527230387954
+    },
+    "room-405": {
+      "source": "scr-map (map-pool-4XXC)",
+      "frames": 1198,
+      "camera_err_mm_median": 26.517614650359896,
+      "camera_err_mm_p90": 28.183542224949633,
+      "rot_err_deg_median": 1.8299696758046164
+    },
+    "room-406": {
+      "source": "scr-map (map-pool-4XXC)",
+      "frames": 1199,
+      "camera_err_mm_median": 26.24301170400146,
+      "camera_err_mm_p90": 27.58690992187959,
+      "rot_err_deg_median": 1.877911437864557
+    }
+  },
+  "git": "4f0d4f0"
+}
