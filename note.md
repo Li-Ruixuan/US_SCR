@@ -128,52 +128,6 @@ The map without a tracker is the target approach (3 Nov). Done by 4 Nov: reprodu
 | 6 | end-to-end fine-tune through a differentiable Kabsch (DSAC*-style) | ablation, optional | not written |
 | 7 | session with ~1 min room scans along the exam viewpoints; live run; RGB-only variant | data, future | recording / hardware |
 
-```bash
-export DATA=/data2/u0137815/rgbd-us/data ODO=/data2/u0137815/rgbd-us/runs
-
-# --- task 1: 4XX C / D with a calibration fitted on 4XX (diagnostic) ---
-python scr_map.py --root $DATA/test_4XXC --scan-runs room-405 room-406 --from runs/map-4XXC --realign --out runs/map-4XXC-owncalib
-python scr_anchor.py train --root $DATA/test_4XXC --scan-runs room-405 room-406 --map runs/map-4XXC-owncalib --out runs/v2map-4XXC-owncalib
-python scr_anchor.py track --ckpt runs/v2map-4XXC-owncalib/best.pt --test-root $DATA/test_4XXC --every 2 --out runs/track-v2map-4XXC-owncalib
-python scr_anchor.py track --ckpt runs/v2map-4XXC-owncalib/best.pt --test-root $DATA/test_4XXD --every 2 --out runs/track-v2map-4XXD-owncalib
-python tools/us_analysis.py shape --json runs/track-v2map-4XXC-owncalib/poses/*.json runs/track-v2map-4XXD-owncalib/poses/*.json --out runs/shape-4XX-owncalib.md
-
-# --- task 5: static volume figures (from the 3D-page exports on the training PC) ---
-python tools/volume_figure.py --json runs/repro/volume3d/3XX/poses/fold0_run-316_scr-track.json runs/repro/volume3d/3XX/poses/fold0_run-316_anchored-pgo-classical-*.json --labels "no tracker (ours)" "classical" --rigid-fit --out runs/figures/volume_3XX_run-316.png
-python tools/volume_figure.py --json runs/repro/volume3d/3XX/poses/fold0_run-313_scr-track.json runs/repro/volume3d/3XX/poses/fold0_run-313_anchored-pgo-classical-*.json --labels "no tracker (ours)" "classical" --rigid-fit --out runs/figures/volume_3XX_run-313.png
-python tools/volume_figure.py --json runs/volume3d-trackerfree/4XXA/poses/fold0_run-406_scr-track.json runs/volume3d-trackerfree/4XXA/poses/fold0_run-406_anchored-pgo-classical-*.json --labels "no tracker (ours)" "classical" --rigid-fit --out runs/figures/volume_4XXA_run-406.png
-python tools/volume_figure.py --json runs/volume3d-trackerfree/4XXC/poses/fold0_run-414_scr-track.json runs/volume3d-trackerfree/4XXC/poses/fold0_run-414_anchored-pgo-classical-*.json --labels "no tracker (ours)" "classical" --rigid-fit --out runs/figures/volume_4XXC_run-414.png
-python tools/volume_figure.py --json runs/volume3d-trackerfree/4XXD/poses/fold0_run-420_scr-track.json runs/volume3d-trackerfree/4XXD/poses/fold0_run-420_anchored-pgo-classical-*.json --labels "no tracker (ours)" "classical" --rigid-fit --out runs/figures/volume_4XXD_run-420.png
-
-# --- task 3: classical anchors on our own tracker-free map (keyframes from the map x its calibration) ---
-python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/train_3XX --scan-runs room-301 room-302 --test-root $DATA/train_3XX --odometry-source classical-vo-train_3XX --odometry $ODO/rpr-rgb-gap8-12XX-gru8 --pairs $ODO/anchor-pairs/pairs_3XX.json --pgo --start anchor --map runs/repro/map-3XX --out runs/sys-classical-trackerfree-3XX
-python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/test_4XXA --scan-runs room-401 room-402 --test-root $DATA/test_4XXA --odometry-source classical-vo-test_4XXA --odometry $ODO/rpr-rgb-gap8-123XX-gru8 --pairs $ODO/anchor-pairs/pairs_4XXA.json --pgo --start anchor --map runs/map-4XXA --out runs/sys-classical-trackerfree-4XXA
-python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/test_4XXB --scan-runs room-403 room-404 --test-root $DATA/test_4XXB --odometry-source classical-vo-test_4XXB --odometry $ODO/rpr-rgb-gap8-123XX-gru8 --pairs $ODO/anchor-pairs/pairs_4XXB.json --pgo --start anchor --map runs/map-4XXB --out runs/sys-classical-trackerfree-4XXB
-python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/test_4XXC --scan-runs room-405 room-406 --test-root $DATA/test_4XXC --odometry-source classical-vo-test_4XXC --odometry $ODO/rpr-rgb-gap8-123XX-gru8 --pairs $ODO/anchor-pairs/pairs_4XXC.json --pgo --start anchor --map runs/map-4XXC --out runs/sys-classical-trackerfree-4XXC
-python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/test_4XXD --scan-runs room-405 room-406 --test-root $DATA/test_4XXD --odometry-source classical-vo-test_4XXD --odometry $ODO/rpr-rgb-gap8-123XX-gru8 --pairs $ODO/anchor-pairs/pairs_4XXD.json --pgo --start anchor --map runs/map-4XXC --out runs/sys-classical-trackerfree-4XXD
-python baselines/anchoring.py evaluate --anchor classical --gate-recover 3 --root $DATA/test_4XXE --scan-runs room-405 room-406 --test-root $DATA/test_4XXE --odometry-source classical-vo-test_4XXE --odometry $ODO/rpr-rgb-gap8-123XX-gru8 --pairs $ODO/anchor-pairs/pairs_4XXE.json --pgo --start anchor --map runs/map-4XXC --out runs/sys-classical-trackerfree-4XXE
-# shape on the same rows as ours (3XX; the same for each 4XX block with its track folder)
-python tools/volume_pages.py --test-root $DATA/train_3XX --track runs/repro/track-v2map-3XX --anchoring runs/sys-classical-trackerfree-3XX/anchor_eval_*.json --labels "classical anchors on our map" --out runs/volume3d-classical-ourmap/3XX
-python tools/us_analysis.py shape --json runs/volume3d-classical-ourmap/*/poses/*.json --out runs/shape-classical-ourmap.md
-
-# --- task 4: why the 2XX map fails (compare the map_report.md tables: round 1, 1 s motion p90) ---
-python scr_map.py --root $DATA/train_2XX --scan-runs room-201 --cam-calib-from runs/repro/map-3XX/map.json --out runs/map-2XX-room201
-python scr_map.py --root $DATA/train_2XX --scan-runs room-202 --cam-calib-from runs/repro/map-3XX/map.json --out runs/map-2XX-room202
-python scr_map.py --root $DATA/train_2XX --scan-runs room-201 room-202 --cam-calib-from runs/repro/map-3XX/map.json --gate 120 --gate-far 800 --max-speed 300 --max-turn 60 --out runs/map-2XX-strictjoin
-python scr_map.py --root $DATA/train_2XX --scan-runs room-201 room-202 --from runs/map-2XX --realign --out runs/map-2XX-owncalib
-# then train + track the best map on the validation sweeps, e.g.
-python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --map runs/map-2XX-strictjoin --out runs/v2map-2XX-strictjoin
-python scr_anchor.py track --ckpt runs/v2map-2XX-strictjoin/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --every 2 --out runs/track-v2map-2XX-strictjoin
-
-# --- task 2: ORB-SLAM3 RGB-D (build once: README 6), per session ---
-export ORB=$HOME/ORB_SLAM3
-python tools/slam_baseline.py export --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/slam-3XX/seq
-cd runs/slam-3XX && $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt && cd ../..
-python tools/slam_baseline.py evaluate --root $DATA/train_3XX --scan-runs room-301 room-302 --seq runs/slam-3XX/seq --traj runs/slam-3XX/CameraTrajectory.txt --out runs/slam-3XX
-python tools/us_analysis.py shape --json runs/slam-3XX/poses/*.json --out runs/slam-3XX/shape.md
-# 4XX: the same with --root $DATA/test_4XXA ... E, their scans (D, E: room-405 room-406), and in evaluate
-#      --cam-calib-from runs/repro/map-3XX/map.json (as our 4XX maps)
-```
 
 ## 3. Data
 
