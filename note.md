@@ -22,7 +22,7 @@ Status 3 Nov 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and
 
 | | claim | evidence | strength | state with it |
 |---|---|---|---|---|
-| **C0** | **No tracker at any stage:** a 1–2 min room scan, one SCR network that labels itself, then every frame tracked | 3XX 2.34 / 1.72 mm (Polaris labels 1.85 / 1.57; classical with a Polaris-posed map 3.11 / 2.47); strict 2.94 (Polaris labels 2.98, classical 3.0); 4XX shape 2.69, best of all systems on every block | strong for shape, moderate for absolute | probe calibration fitted with Polaris once; 4XX absolute 7.92 vs 6.48 / 4.76; 2XX validation map failed (8.06 vs 3.35); one seed so far |
+| **C0** | **No tracker at any stage:** a 1–2 min room scan, one SCR network that labels itself, then every frame tracked | 3XX 2.34 / 1.72 mm (Polaris labels 1.85 / 1.57; classical with a Polaris-posed map 3.11 / 2.47); strict 2.94 (Polaris labels 2.98, classical 3.0); 4XX shape 2.69, best of all systems on every block | strong for shape, moderate for absolute | probe calibration fitted with Polaris once; 4XX absolute 7.92 vs 6.48 / 4.76; 2XX validation map failed (8.06 vs 3.35); three seeds 2.22–2.34 |
 | C1 | One network on every frame replaces odometry + anchors | all 7 splits (Polaris maps) | strong | |
 | C2 | Room coordinates + geometric solver beat pose regression | anchors 8× more accurate on 3XX and 4XX | strong | |
 | C3 | Room-scan coverage decides the accuracy | covered 4.1 vs uncovered 13.4 mm; real views 4XX A 5.6 → 2.0 | strong | |
@@ -40,17 +40,24 @@ Status 3 Nov 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and
 | split | map: scene pts / camera / 1 s motion (mm) | US absolute (jitter) | shape | Polaris labels | classical |
 |---|---|---|---|---|---|
 | 3XX (repro, loops) | 2.6 / 2.0 / 1.5 | **2.34** (0.90) | **1.72** | 1.85 / 1.57 | 3.11 / 2.47 |
+| 3XX seeds 1 / 2 | 2.7 / 2.0 / 1.5; 2.7 / 1.9 / 1.4 | 2.22 / 2.25 (seeds 0–2 mean **2.27**) | 1.75 / 1.70 (mean **1.72**) | seeds 1.85–2.12 | |
 | 3XX same rows as classical | | 2.35 | 1.73 | | 3.11 / 2.47 |
 | 3XX real time (1 s window, 0.25 s delay) / causal (0.25 s) | | 2.34 (0.90) / 2.42 (1.13) | | 1.86 / 1.95 | |
-| 3XX strict (room-301 only, own calibration) | 2.6 / 2.2 / 1.9 | **2.94** (1.17) | | 2.98 (1.18) | 3.0 |
-| 2XX validation (3XX calibration) | 6.7 / 8.3 / 3.6 (p90 31.2) | 8.06 (2.57) | | 3.35 (1.20) | 4.2 |
+| 3XX strict (room-301 only, own calibration) | 2.6 / 2.2 / 1.9 | **2.94** (1.17) | 2.18 | 2.98 (1.18) | 3.0 |
+| 2XX validation (3XX calibration) | 6.7 / 8.3 / 3.6 (p90 31.2) | 8.06 (2.57) | 6.93 | 3.35 (1.20) | 4.2 |
 | 4XX A / B / C / D / E (own scans, 3XX calibration) | 3.1–3.9 / 3.0–4.8 / 1.4–2.4 | 5.04 / 6.55 / 9.40 / 11.54 / 7.07, mean **7.92** | 2.94 / 2.40 / 2.05 / 3.10 / 2.98, mean **2.69** | 6.48 / 3.17 | 4.76 / 3.34 |
+| 4XX same rows as classical | | 4.99 / 6.55 / 9.41 / 11.59 / 7.09, mean 7.93 | 2.99 / 2.41 / 2.12 / 3.09 / 3.05, mean **2.73** | | 4.22 / 3.38 / 4.85 / 6.32 / 4.99 (4.75); shape 3.10 / 2.47 / 3.36 / 3.61 / 4.15 (3.34) |
+| 4XX pooled scans of the day, B / C / D / E | 4.0–4.3 / 5.7–5.9 / 1.9 | 8.08 / 10.69 / 14.00 / 10.62 | 2.53 / 2.21 / 3.98 / 3.15 | pooled 3.76 / 3.98 / 8.46 / 5.92 | |
 
 - Loop closures: on the same 3XX map, scene points 4.5 → 2.6 mm, camera 5.2 → 2.0 mm, rotation 0.55° → 0.19° (`runs/repro/map-3XX-noloops`). Adopted (default).
 - Probe calibration 31.7 mm, 1.51° (3XX); per scan 32.8 / 31.0 mm, 1.52° / 1.57° (each valid on the other scan); strict room-301 33.0 mm, 1.51°; 4XX scans 30–34 mm but 1.9–2.05°. No camera–Polaris timing offset (best +3 to +9 ms everywhere).
 - 3D pages, 3XX (`runs/repro/volume3d/index.html`): mean pixel error over the compounded volumes 2.5 (no tracker) vs 3.2 (classical) vs 10.1 (odometry only); per sweep 3.0 / 2.5 / 2.5 / 1.9 / 2.8.
 - 2XX validation fails: round 1 places 48 % of the frames, round 2 makes the map worse (camera 18.6 → 22.1 mm), the per-scan calibrations disagree (0.93° vs 1.89°) and the 1 s motion has a 31 mm p90, so some frames were joined wrongly and the pose graph did not fix them. 2XX has the longest scans (3 min, 5,366 frames). To investigate before the paper.
-- Not run yet: seeds 1 and 2; 4XX with pooled scans; 3D pages for 4XX (`runs/volume3d-trackerfree/`); RGB-D SLAM baseline; C/D placement analysis.
+- Seeds (`runs/repro/*-seed1/2`): 2.34 / 2.22 / 2.25 mm, shape 1.72 / 1.75 / 1.70, calibration 31.2–31.7 mm and 1.51–1.52°: spread 0.12 mm, smaller than with Polaris labels (1.85–2.12).
+- 4XX on the same rows as classical (`runs/shape-trackerfree-4XX-samerows.md`): shape better than classical on every block (2.73 vs 3.34), out-of-plane over 1 s equal or better (0.53–0.83 vs 0.63–1.02); absolute behind (7.93 vs 4.75).
+- 4XX pooled scans without a tracker (`runs/map-pool-4XX*`, `runs/track-v2map-pool-4XX*`): worse on every block in absolute and shape; the pooled maps are worse (camera 5.7–5.9 vs 3.0–4.8 mm) because the scans of a room whose objects moved between blocks must be joined into one map. With Polaris labels pooling helped (each scan's labels are right on their own). Verdict: without a tracker, each block's own scans.
+- 3D pages complete (`runs/volume3d-trackerfree/index.html`): pixel error over the compounded volumes 4XX A 5.7 / B 6.4 / C 9.9 / D 12.2 / E 7.5 (classical 4.4 / 3.7 / 5.3 / 7.2 / 5.2; it follows the absolute error), strict 3.3.
+- Still open (needs code or writing): why the 2XX map failed; 4XX C/D placement (calibration vs map); static volume figures (also after the rigid fit); RGB-D SLAM baseline; classical anchors on our own map; Table F / summary.md; paper.
 
 **How the tests are organised (paper and webpage).** Main result: the tracker-free system (Table F). Every other test is one of:
 - *Ablations of the mapping* (3XX, no tracker): frame-by-frame map → + pose graph → + camera calibration; prior 10 / 30 mm; joint refinement; loop closures; the oracle map (Polaris) as the upper bound.
@@ -150,6 +157,29 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
  
 
+git pull --rebase
+export DATA=/data2/u0137815/rgbd-us/data
+
+# 1. without loop closures: train + track on the no-loops map
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --map runs/repro/map-3XX-noloops --out runs/repro/v2map-3XX-noloops
+python scr_anchor.py track --ckpt runs/repro/v2map-3XX-noloops/best.pt --test-root $DATA/train_3XX --every 2 --out runs/repro/track-v2map-3XX-noloops
+
+# 2. without the probe calibration: same final map, aligned without it, train + track
+python scr_map.py --root $DATA/train_3XX --scan-runs room-301 room-302 --from runs/repro/map-3XX --realign --no-cam-calib --out runs/repro/map-3XX-nocalib
+python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 --map runs/repro/map-3XX-nocalib --out runs/repro/v2map-3XX-nocalib
+python scr_anchor.py track --ckpt runs/repro/v2map-3XX-nocalib/best.pt --test-root $DATA/train_3XX --every 2 --out runs/repro/track-v2map-3XX-nocalib
+
+# shape of 1 and 2
+python tools/us_analysis.py shape --json runs/repro/track-v2map-3XX-noloops/poses/*.json runs/repro/track-v2map-3XX-nocalib/poses/*.json --out runs/repro/shape-3XX-ablations.md
+
+# 3. real time on 4XX (cached poses, minutes)
+python scr_anchor.py track --ckpt runs/v2map-4XXA/best.pt --test-root $DATA/test_4XXA --every 2 --lags 0.25 0 --out runs/track-v2map-4XXA
+python scr_anchor.py track --ckpt runs/v2map-4XXB/best.pt --test-root $DATA/test_4XXB --every 2 --lags 0.25 0 --out runs/track-v2map-4XXB
+python scr_anchor.py track --ckpt runs/v2map-4XXC/best.pt --test-root $DATA/test_4XXC --every 2 --lags 0.25 0 --out runs/track-v2map-4XXC
+python scr_anchor.py track --ckpt runs/v2map-4XXC/best.pt --test-root $DATA/test_4XXD --every 2 --lags 0.25 0 --out runs/track-v2map-4XXD
+python scr_anchor.py track --ckpt runs/v2map-4XXC/best.pt --test-root $DATA/test_4XXE --every 2 --lags 0.25 0 --out runs/track-v2map-4XXE
+
+git pull --rebase && git add -A && git commit -m "Clean ablations (no loops, no calibration) and real time on 4XX" && git push
 
 
 
