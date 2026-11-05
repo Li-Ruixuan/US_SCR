@@ -1,0 +1,76 @@
+{
+  "args": {
+    "cmd": "train",
+    "root": "/data2/u0137815/rgbd-us/data/train_2XX",
+    "scan_runs": [
+      "room-202"
+    ],
+    "out": "runs/v2map-2XX-room202",
+    "map": "/data2/u0137815/US_SCR/runs/map-2XX-room202",
+    "label_poses": [
+      "runs/map-2XX-room202/poses_room-202.json"
+    ],
+    "head": "big",
+    "label_max_depth": 2000.0,
+    "drop_depth_edges": true,
+    "freeze_encoder": false,
+    "render_views": 0.0,
+    "render_shift": 150.0,
+    "render_rot": 20.0,
+    "render_voxel": 5.0,
+    "render_every": 4,
+    "render_min_valid": 0.5,
+    "render_source": "cloud",
+    "render_frames": 3,
+    "confidence": false,
+    "scan_seconds": 0.0,
+    "aug_scale": [
+      1.0,
+      1.0
+    ],
+    "aug_rot": 0.0,
+    "epochs": 120,
+    "flat": 0.6,
+    "batch_size": 8,
+    "lr": 0.001,
+    "lr_encoder": 0.0001,
+    "image_size": [
+      360,
+      640
+    ],
+    "hand_eye": "/data2/u0137815/US_SCR/T_marker_cam.npy",
+    "workers": 12,
+    "seed": 0,
+    "check_every": 6,
+    "check_frames": 120,
+    "max_frames": 0,
+    "px": 10.0,
+    "min_inliers": 30,
+    "eval_root": null,
+    "eval_runs": null
+  },
+  "centre": [
+    68.95726845771797,
+    -37.41294255208585,
+    -949.1185925349097
+  ],
+  "image_size": [
+    360,
+    640
+  ],
+  "head": "big",
+  "confidence": false,
+  "n_frames": 1777,
+  "n_rendered": 0,
+  "steps": 26640,
+  "estimated_labels": {
+    "room-202": {
+      "source": "scr-map (map-2XX-room202)",
+      "frames": 1777,
+      "camera_err_mm_median": 31.294376404185634,
+      "camera_err_mm_p90": 33.365183209056994,
+      "rot_err_deg_median": 1.6734139531619723
+    }
+  },
+  "git": "266086a7"
+}
