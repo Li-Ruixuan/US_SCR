@@ -236,7 +236,7 @@ python3 tools/check_coverage.py --root data/train_5XX --scans room-501 --sweeps 
 | 4XX C | room-405, 406 (40 s each) | run-413…416 | large rearrangement |
 | 4XX D | C's scans | run-418…421, 423, 424 | second subject |
 | 4XX E | C's scans | run-425…428 | occlusion (arm in view) |
-| 5XX (5 Nov) | A: room-501 generic, 502 exam views, 503 after; B: 504, 505; C: 506, 507; E: 508 generic, 509 exam views | A run-501–508, B 509–516, C 517–524 (recorded); D 525–528, E 529–532 (views V1–V4) | same room, many views; B, C large rearrangements; D people moving (C's scans); E empty room; **sweeps on a different phantom, not a forearm** (2.1) |
+| 5XX (5 Nov) | A: room-501 generic (90 s), 502 exam views (90 s), 503 after (60 s); B: 504 generic (90 s), 505 exam views (60 s); C: 506, 507 (90 s each); E: 508 generic (90 s), 509 exam views (60 s) | A run-501–508, B 509–516, C 517–524, D 525–528 (C's scans), E 529–532; views per block V1, V1, V2, V2, V3, V3, V4, V4 (D, E: V1–V4) | same room, many views; B, C large rearrangements; D people moving; E empty room; **sweeps on a different phantom, not a forearm** (2.1); block folders `test_5XXA` … `E` (links, every room scan + the block's sweeps) |
 
 Per run: `frames.csv` (one row per RGB frame, ~30 Hz: `timestamp`; `rgb`, `depth`, `us` paths; `tx, ty, tz` mm and `qx, qy, qz, qw` scalar last = `T_world_marker`, clock offset already applied, **empty = marker lost**; `us_air` = 1 probe not on the skin; `us_repeat` = 1 same US frame as the row before), `rgb/` 1280 × 720, `depth/` aligned to RGB, uint16 mm, 0 = invalid, reliable 100–3000 mm, `camera_info.json` (fx ≈ 919.8, fy ≈ 919.5, cx ≈ 652.9, cy ≈ 373.6, no distortion), `us/` + `us_roi.json` (sweeps), `match_report.json`; ignore `depth_raw/`.
 
@@ -260,6 +260,8 @@ scene_coords = (T_wc @ X)[:3].T                                       # room coo
 ```
 
 **Sensor and labels:** D435i, 50 mm stereo baseline, depth noise ~ distance² (under ~2 % at 2 m), mostly along the ray. Room points re-projected across frames 1 s apart agree within 7.9 mm (median) at 1–1.5 m. The 3.5 mm hand-eye error makes labels view-dependent. Never train on hands/arms, the sleeve (4XX D/E) or the subject.
+
+**5XX raw check (5 Nov, before matching):** all 41 recordings complete (60 / 90 s, RGB 29.4–30.0 Hz), names match the configs. Marker lost: run-530 12.3 s (of 60), room-504 4.3 s, run-509 1.3 s, room-508 1.2 s, run-529 / 532 < 1 s, otherwise none. Not matched yet (no `frames.csv`, depth not aligned): `match_streams.py --apply-sync`, then `tools/check_session.py` (depth usable within 0.1–2 m, marker, clock offset, US).
 
 **Quirks:** `record_config.json` in 3XX carries old run names (run-316 says `run-216`), trust the folder name; in 4XX, run-427 was run-422 and run-428 was run-417.
 
@@ -315,4 +317,37 @@ for p in sorted(glob.glob('data/train_5XX/*/frames.csv')):
     print(f'{n:10s} {len(d):5d} frames {len(d)/30:5.1f} s  marker {d.tx.notna().mean():4.0%}  US {us:4.0%}')
 "
 ```
+2. On the training PC: process, check, make the block folders.
 
+
+export DATA=/data2/u0137815/rgbd-us/data
+
+# a) align the depth to the colour image, sync Polaris, write frames.csv (rgbd-us; takes a while)
+cd /data2/u0137815/rgbd-us
+python tools/match_streams.py data/train_5XX/room-* data/train_5XX/run-* --apply-sync
+
+# b) check every recording (US_SCR)
+cd /data2/u0137815/US_SCR
+python tools/check_session.py --root $DATA/train_5XX --out runs/check-5XX.md
+
+# c) coverage per block: exam-view scan, then general scan (rgbd-us; seconds each)
+cd /data2/u0137815/rgbd-us
+python tools/check_coverage.py --root data/train_5XX --scans room-502 --sweeps run-50{1..8}
+python tools/check_coverage.py --root data/train_5XX --scans room-501 --sweeps run-50{1..8}
+python tools/check_coverage.py --root data/train_5XX --scans room-505 --sweeps run-5{09..16}
+python tools/check_coverage.py --root data/train_5XX --scans room-504 --sweeps run-5{09..16}
+python tools/check_coverage.py --root data/train_5XX --scans room-507 --sweeps run-5{17..28}
+python tools/check_coverage.py --root data/train_5XX --scans room-506 --sweeps run-5{17..28}
+python tools/check_coverage.py --root data/train_5XX --scans room-509 --sweeps run-5{29..32}
+python tools/check_coverage.py --root data/train_5XX --scans room-508 --sweeps run-5{29..32}
+
+# d) block folders, like test_4XXA … E: links to every room scan plus the block's sweeps
+cd $DATA
+mkdir test_5XXA test_5XXB test_5XXC test_5XXD test_5XXE
+for b in A B C D E; do for r in train_5XX/room-*; do ln -s ../$r test_5XX$b/; done; done
+for r in run-50{1..8};  do ln -s ../train_5XX/$r test_5XXA/; done
+for r in run-5{09..16}; do ln -s ../train_5XX/$r test_5XXB/; done
+for r in run-5{17..24}; do ln -s ../train_5XX/$r test_5XXC/; done
+for r in run-5{25..28}; do ln -s ../train_5XX/$r test_5XXD/; done
+for r in run-5{29..32}; do ln -s ../train_5XX/$r test_5XXE/; done
+ls test_5XX*
