@@ -315,3 +315,15 @@ for p in sorted(glob.glob('data/train_5XX/*/frames.csv')):
     print(f'{n:10s} {len(d):5d} frames {len(d)/30:5.1f} s  marker {d.tx.notna().mean():4.0%}  US {us:4.0%}')
 "
 ```
+
+
+  
+export DATA=/data2/u0137815/rgbd-us/data
+# 4XX shape for SIFT on our map
+for B in A B C D E; do python tools/volume_pages.py --test-root $DATA/test_4XX$B --track runs/track-v2map-4XX$B --anchoring runs/sys-classical-trackerfree-4XX$B/anchor_eval_*.json --labels "classical anchors on our map" --out runs/volume3d-classical-ourmap/4XX$B; done
+python tools/us_analysis.py shape --json runs/volume3d-classical-ourmap/*/poses/*.json --out runs/shape-classical-ourmap.md
+# 2XX: track on the clean room-202 map and on the own-calibration map
+python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-202 --map runs/map-2XX-room202 --out runs/v2map-2XX-room202
+python scr_anchor.py track --ckpt runs/v2map-2XX-room202/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --every 2 --out runs/track-v2map-2XX-room202
+python scr_anchor.py train --root $DATA/train_2XX --scan-runs room-201 room-202 --map runs/map-2XX-owncalib --out runs/v2map-2XX-owncalib
+python scr_anchor.py track --ckpt runs/v2map-2XX-owncalib/best.pt --test-root $DATA/train_2XX --test-runs run-205 run-211 --every 2 --out runs/track-v2map-2XX-owncalib
