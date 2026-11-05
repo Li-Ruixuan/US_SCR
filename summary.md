@@ -474,11 +474,11 @@ Done (4 Nov): the reproduction from scratch with the cleaned code, three seeds, 
 
 | # | task | type | needs |
 |---|---|---|---|
-| 1 | 4XX C / D placement: refit the camera calibration on the 4XX scans (diagnostic, uses that session's Polaris), retrain, track | analysis | runs only |
+| 1 | 4XX C / D placement: refit the camera calibration on the 4XX scans (diagnostic, uses that session's Polaris), retrain, track | analysis | **done 5 Nov:** C 9.40 → 7.87, D 11.54 → 9.58 (= oracle 9.63), shape unchanged: the calibration transfer explains 1.5–2.0 mm, the rest of C is the map |
 | 2 | RGB-D SLAM baseline (e.g. ORB-SLAM3 RGB-D) on room scan + sweeps, scored after the same one alignment per session | comparison | ORB-SLAM3 build + `tools/slam_baseline.py` |
-| 3 | classical anchors on our own tracker-free map (same map, network vs SIFT) | comparison | runs only (`anchoring.py --map`) |
-| 4 | why the 2XX map fails (each scan alone, stricter joining, own calibration) | analysis | runs only |
-| 5 | static 3D volume figures for the paper (true vs tracker-free, also after the rigid fit) | figure | runs only (`tools/volume_figure.py`) |
+| 3 | classical anchors on our own tracker-free map (same map, network vs SIFT) | comparison | **done 5 Nov:** 3XX SCR 2.35 / 1.73 vs SIFT 3.65 / 2.66; 4XX SIFT 5.78 vs SCR 7.92 (gap to classical: ~2.1 mm method, ~1.0 mm map); 4XX shape to run |
+| 4 | why the 2XX map fails (each scan alone, stricter joining, own calibration) | analysis | **done 5 Nov:** room-201 carries the bad stretch (1 s motion p90 31 mm alone); room-202 alone is clean; strict joining worse (9.52 vs 8.13) |
+| 5 | static 3D volume figures for the paper (true vs tracker-free, also after the rigid fit) | figure | **done 5 Nov** (`runs/figures/`); re-run after the title fix |
 | 6 | end-to-end fine-tuning through a differentiable Kabsch (DSAC*-style) | ablation, optional | code |
 | 7 | a session with ~1 min room scans along the exam viewpoints; live run on the hardware | data, deployment | recording, hardware |
 

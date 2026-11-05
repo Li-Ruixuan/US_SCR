@@ -160,7 +160,7 @@ def main():
             if j == 0:
                 ax.set_ylabel(lab + (f"\n{err:.1f} mm pixel error" if kind in ("estimate", "fitted") else ""), fontsize=8)
     fig.suptitle(args.title or f"{run}: compounded US volume (slab {args.slab:g} mm, bar 10 mm)", fontsize=10)
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0, 1, 1 - 0.35 / fig.get_figheight()))   # room for the title above the view names
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=200, facecolor="white")
