@@ -1,0 +1,314 @@
+{
+ "args": {
+  "cmd": "track",
+  "ckpt": "runs/v2map-5XXB-generic/best.pt",
+  "test_root": "/data2/u0137815/rgbd-us/data/test_5XXB",
+  "test_runs": null,
+  "every": 2,
+  "gate": 400,
+  "windows": [
+   0.25,
+   0.5,
+   1.0,
+   2.0
+  ],
+  "lags": [],
+  "weighted": false,
+  "calib": "/data2/u0137815/US_SCR/calib_matrix.csv",
+  "cam_calib": "/data2/u0137815/US_SCR/runs/map-5XXB-generic/map.json",
+  "export_window": 2.0,
+  "out": "runs/track-v2map-5XXB-generic"
+ },
+ "per_sweep": {
+  "raw": {
+   "run-509": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-510": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-511": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-512": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-513": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-514": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-515": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-516": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   }
+  },
+  "smoothed 0.25 s": {
+   "run-509": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-510": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-511": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-512": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-513": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-514": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-515": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-516": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   }
+  },
+  "smoothed 0.5 s": {
+   "run-509": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-510": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-511": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-512": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-513": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-514": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-515": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-516": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   }
+  },
+  "smoothed 1 s": {
+   "run-509": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-510": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-511": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-512": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-513": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-514": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-515": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-516": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   }
+  },
+  "smoothed 2 s": {
+   "run-509": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-510": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-511": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-512": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-513": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-514": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-515": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   },
+   "run-516": {
+    "us_median": NaN,
+    "us_p90": NaN,
+    "coverage_pct": 0.0,
+    "step_row": NaN,
+    "step_8rows": NaN
+   }
+  }
+ }
+}
