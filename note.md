@@ -303,51 +303,102 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
  
+ 
+ 
 
+ ap: room-502 (1823 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
 
-**After recording** (training PC)
-```bash
-cd /data2/u0137815/rgbd-us
-python tools/match_streams.py data/train_5XX/* --apply-sync
-python -c "
-import glob, pandas as pd
-for p in sorted(glob.glob('data/train_5XX/*/frames.csv')):
-    d = pd.read_csv(p); n = p.split('/')[-2]
-    us = d['us'].notna().mean() if 'us' in d else 0
-    print(f'{n:10s} {len(d):5d} frames {len(d)/30:5.1f} s  marker {d.tx.notna().mean():4.0%}  US {us:4.0%}')
-"
-```
-2. On the training PC: process, check, make the block folders.
+run-501:  97 % covered, nearest similar view median 14 mm -> GO
+run-502:  92 % covered, nearest similar view median 7 mm -> GO
+run-503:  96 % covered, nearest similar view median 11 mm -> GO
+run-504:  94 % covered, nearest similar view median 7 mm -> GO
+run-505:  89 % covered, nearest similar view median 8 mm -> GO
+run-506: 100 % covered, nearest similar view median 6 mm -> GO
+run-507: 100 % covered, nearest similar view median 6 mm -> GO
+run-508: 100 % covered, nearest similar view median 4 mm -> GO
 
+8/8 sweeps covered.
+map: room-501 (1823 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
 
-export DATA=/data2/u0137815/rgbd-us/data
+run-501:   0 % covered, nearest similar view median 58 mm -> NO-GO; uncovered: 0-60 s
+run-502:   0 % covered, nearest similar view median 76 mm -> NO-GO; uncovered: 0-60 s
+run-503:   0 % covered, nearest similar view median 62 mm -> NO-GO; uncovered: 0-60 s
+run-504:   0 % covered, nearest similar view median 66 mm -> NO-GO; uncovered: 0-60 s
+run-505:   0 % covered, nearest similar view median 68 mm -> NO-GO; uncovered: 0-60 s
+run-506:   0 % covered, nearest similar view median 63 mm -> NO-GO; uncovered: 0-60 s
+run-507:   0 % covered, nearest similar view median 71 mm -> NO-GO; uncovered: 0-60 s
+run-508:   0 % covered, nearest similar view median 63 mm -> NO-GO; uncovered: 0-60 s
 
-# a) align the depth to the colour image, sync Polaris, write frames.csv (rgbd-us; takes a while)
-cd /data2/u0137815/rgbd-us
-python tools/match_streams.py data/train_5XX/room-* data/train_5XX/run-* --apply-sync
+0/8 sweeps covered. For NO-GO sweeps, scan the room again from the probe's positions and heights in the uncovered spans.
+map: room-505 (1217 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
 
-# b) check every recording (US_SCR)
-cd /data2/u0137815/US_SCR
-python tools/check_session.py --root $DATA/train_5XX --out runs/check-5XX.md
+run-509:  95 % covered, nearest similar view median 10 mm -> GO
+run-510:  58 % covered, nearest similar view median 22 mm -> NO-GO; uncovered: 8-31 s, 58-60 s
+run-511:  81 % covered, nearest similar view median 14 mm -> GO
+run-512:  42 % covered, nearest similar view median 19 mm -> NO-GO; uncovered: 0-11 s, 13-23 s, 46-59 s
+run-513:  86 % covered, nearest similar view median 16 mm -> GO
+run-514:  64 % covered, nearest similar view median 20 mm -> NO-GO; uncovered: 1-4 s, 9-12 s, 17-20 s, 21-24 s, 24-27 s, 28-33 s, 35-36 s, 58-60 s
+run-515:  95 % covered, nearest similar view median 16 mm -> GO
+run-516:  79 % covered, nearest similar view median 11 mm -> NO-GO; uncovered: 8-11 s, 13-19 s, 44-47 s
 
-# c) coverage per block: exam-view scan, then general scan (rgbd-us; seconds each)
-cd /data2/u0137815/rgbd-us
-python tools/check_coverage.py --root data/train_5XX --scans room-502 --sweeps run-50{1..8}
-python tools/check_coverage.py --root data/train_5XX --scans room-501 --sweeps run-50{1..8}
-python tools/check_coverage.py --root data/train_5XX --scans room-505 --sweeps run-5{09..16}
-python tools/check_coverage.py --root data/train_5XX --scans room-504 --sweeps run-5{09..16}
-python tools/check_coverage.py --root data/train_5XX --scans room-507 --sweeps run-5{17..28}
-python tools/check_coverage.py --root data/train_5XX --scans room-506 --sweeps run-5{17..28}
-python tools/check_coverage.py --root data/train_5XX --scans room-509 --sweeps run-5{29..32}
-python tools/check_coverage.py --root data/train_5XX --scans room-508 --sweeps run-5{29..32}
+4/8 sweeps covered. For NO-GO sweeps, scan the room again from the probe's positions and heights in the uncovered spans.
+map: room-504 (1719 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
 
-# d) block folders, like test_4XXA … E: links to every room scan plus the block's sweeps
-cd $DATA
-mkdir test_5XXA test_5XXB test_5XXC test_5XXD test_5XXE
-for b in A B C D E; do for r in train_5XX/room-*; do ln -s ../$r test_5XX$b/; done; done
-for r in run-50{1..8};  do ln -s ../train_5XX/$r test_5XXA/; done
-for r in run-5{09..16}; do ln -s ../train_5XX/$r test_5XXB/; done
-for r in run-5{17..24}; do ln -s ../train_5XX/$r test_5XXC/; done
-for r in run-5{25..28}; do ln -s ../train_5XX/$r test_5XXD/; done
-for r in run-5{29..32}; do ln -s ../train_5XX/$r test_5XXE/; done
-ls test_5XX*
+run-509:  97 % covered, nearest similar view median 6 mm -> GO
+run-510:  96 % covered, nearest similar view median 10 mm -> GO
+run-511: 100 % covered, nearest similar view median 8 mm -> GO
+run-512:  81 % covered, nearest similar view median 12 mm -> GO
+run-513:  97 % covered, nearest similar view median 10 mm -> GO
+run-514:  88 % covered, nearest similar view median 8 mm -> GO
+run-515:  96 % covered, nearest similar view median 12 mm -> GO
+run-516:  91 % covered, nearest similar view median 7 mm -> GO
+
+8/8 sweeps covered.
+map: room-507 (1805 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
+
+run-517: 100 % covered, nearest similar view median 9 mm -> GO
+run-518: 100 % covered, nearest similar view median 10 mm -> GO
+run-519:  97 % covered, nearest similar view median 11 mm -> GO
+run-520:  99 % covered, nearest similar view median 15 mm -> GO
+run-521: 100 % covered, nearest similar view median 12 mm -> GO
+run-522:  99 % covered, nearest similar view median 7 mm -> GO
+run-523:  75 % covered, nearest similar view median 13 mm -> NO-GO; uncovered: 0-3 s, 33-35 s, 38-39 s, 41-45 s, 46-49 s, 51-53 s
+run-524:  97 % covered, nearest similar view median 11 mm -> GO
+run-525:  91 % covered, nearest similar view median 8 mm -> GO
+run-526: 100 % covered, nearest similar view median 6 mm -> GO
+run-527: 100 % covered, nearest similar view median 6 mm -> GO
+run-528: 100 % covered, nearest similar view median 7 mm -> GO
+
+11/12 sweeps covered. For NO-GO sweeps, scan the room again from the probe's positions and heights in the uncovered spans.
+map: room-506 (1824 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
+
+run-517:  70 % covered, nearest similar view median 18 mm -> NO-GO; uncovered: 21-32 s, 43-48 s, 56-57 s
+run-518:  70 % covered, nearest similar view median 20 mm -> NO-GO; uncovered: 12-21 s, 24-25 s, 53-60 s
+run-519:  78 % covered, nearest similar view median 16 mm -> NO-GO; uncovered: 2-7 s, 32-34 s, 39-43 s, 49-50 s
+run-520:  65 % covered, nearest similar view median 18 mm -> NO-GO; uncovered: 0-3 s, 12-24 s, 32-35 s, 39-41 s
+run-521:  72 % covered, nearest similar view median 20 mm -> NO-GO; uncovered: 18-25 s, 42-45 s, 53-60 s
+run-522:  94 % covered, nearest similar view median 11 mm -> GO
+run-523:  77 % covered, nearest similar view median 8 mm -> NO-GO; uncovered: 0-5 s, 14-17 s, 26-29 s, 46-49 s
+run-524:  95 % covered, nearest similar view median 8 mm -> GO
+run-525: 100 % covered, nearest similar view median 4 mm -> GO
+run-526: 100 % covered, nearest similar view median 5 mm -> GO
+run-527: 100 % covered, nearest similar view median 5 mm -> GO
+run-528: 100 % covered, nearest similar view median 6 mm -> GO
+
+6/12 sweeps covered. For NO-GO sweeps, scan the room again from the probe's positions and heights in the uncovered spans.
+map: room-509 (1204 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
+
+run-529: 100 % covered, nearest similar view median 8 mm -> GO
+run-530:  98 % covered, nearest similar view median 8 mm -> GO
+run-531:  70 % covered, nearest similar view median 17 mm -> NO-GO; uncovered: 15-19 s, 30-32 s, 48-59 s
+run-532: 100 % covered, nearest similar view median 7 mm -> GO
+
+3/4 sweeps covered. For NO-GO sweeps, scan the room again from the probe's positions and heights in the uncovered spans.
+map: room-508 (1801 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
+
+run-529:  90 % covered, nearest similar view median 8 mm -> GO
+run-530: 100 % covered, nearest similar view median 8 mm -> GO
+run-531:  99 % covered, nearest similar view median 9 mm -> GO
+run-532: 100 % covered, nearest similar view median 8 mm -> GO
+
+4/4 sweeps covered.
