@@ -6,7 +6,8 @@ so the whole system needs no tracker; Polaris is used only to evaluate the map.
   1. seed: one room-scan frame defines the map frame (identity pose); the frames of the next and
      previous --seed-seconds join by frame-to-frame depth ICP (point-to-plane, geometry only: no
      features, no learning). A network trained on one image does not recognise even the next views
-     (3XX: 43 inliers median), so the seed needs several views;
+     (3XX: 43 inliers median), so the seed needs several views. If the seed frame's ICP reaches less than
+     --seed-min-seconds of the scan (e.g. a hand in front of the camera at the start), the seed moves 1 s later;
   2. rounds: train the network on the frames mapped so far (labels: their depth placed with their
      poses), then localise unmapped frames with it (Kabsch RANSAC on the depth). Candidates: unmapped
      frames within --reach rows of a mapped frame of the same run (join with >= --gate inliers, if the
@@ -616,6 +617,9 @@ def main():
     ap.add_argument("--seed-run", default=None, help="run of the seed frame (default: the first scan run)")
     ap.add_argument("--seed-row", type=int, default=None, help="row of the seed frame (default: its first usable row)")
     ap.add_argument("--seed-seconds", type=float, default=2.0, help="seed: frames this far before / after the seed frame, by depth ICP")
+    ap.add_argument("--seed-min-seconds", type=float, default=1.0,
+                    help="a seed frame must reach this much of the scan by depth ICP, else the seed moves 1 s later")
+    ap.add_argument("--seed-tries", type=int, default=20, help="seed frames tried, 1 s apart (the best one if none reaches the minimum)")
     ap.add_argument("--seed-steps", type=int, default=2000, help="training steps on the seed frames")
     ap.add_argument("--icp-extend", type=int, default=90, help="per round, depth ICP extends each map edge by up to this many frames (0 = off)")
     ap.add_argument("--icp-stride", type=int, default=4, help="depth ICP: pixel grid of the point clouds")
@@ -712,12 +716,40 @@ def main():
         return
     pos = {it: k for k, it in enumerate(items)}
     seed_run = args.seed_run or args.scan_runs[0]
-    seed = pos[(seed_run, args.seed_row)] if args.seed_row is not None else next(k for k, (n, _) in enumerate(items) if n == seed_run)
-    est[items[seed][0]][items[seed][1]] = np.eye(4)
-    print(f"{len(items)} room-scan frames from {', '.join(args.scan_runs)}; seed {items[seed]} = map origin", flush=True)
-
+    start = pos[(seed_run, args.seed_row)] if args.seed_row is not None else next(k for k, (n, _) in enumerate(items) if n == seed_run)
     n_seed = int(round(args.seed_seconds * 30 / args.every))
-    seed_icp = icp_extend(est, items, seed, 1, n_seed, cloud, args) + icp_extend(est, items, seed, -1, n_seed, cloud, args)
+    n_min = int(round(args.seed_min_seconds * 30 / args.every))
+    step = max(1, int(round(30 / args.every)))                      # next try: 1 s later in the same scan
+
+    def try_seed(k):
+        est[items[k][0]][items[k][1]] = np.eye(4)
+        return icp_extend(est, items, k, 1, n_seed, cloud, args) + icp_extend(est, items, k, -1, n_seed, cloud, args)
+
+    def undo(k, got):
+        for j in [k] + got:
+            est[items[j][0]][items[j][1]] = np.nan
+
+    # a seed frame whose depth ICP does not reach --seed-min-seconds of neighbours (e.g. a hand or a sleeve in front of
+    # the camera at the start of the scan) cannot start a map: try 1 s later, up to --seed-tries times
+    tried, seed, seed_icp = [], None, []
+    for t in range(max(1, args.seed_tries)):
+        k = start + t * step
+        if k >= len(items) or items[k][0] != seed_run:
+            break
+        got = try_seed(k)
+        tried.append((k, len(got)))
+        if len(got) >= n_min:
+            seed, seed_icp = k, got
+            break
+        undo(k, got)
+    if seed is None:                                                # none reached the minimum: the best one
+        seed = max(tried, key=lambda x: x[1])[0]
+        seed_icp = try_seed(seed)
+    failed = [(j, c) for j, c in tried if j != seed]
+    if failed:
+        print("seed: " + ", ".join(f"{items[j]} {1 + c} frames" for j, c in failed)
+              + f" by depth ICP (< {args.seed_min_seconds:g} s): not used", flush=True)
+    print(f"{len(items)} room-scan frames from {', '.join(args.scan_runs)}; seed {items[seed]} = map origin", flush=True)
     print(f"seed: {1 + len(seed_icp)} frames by depth ICP around the seed (up to {args.seed_seconds:g} s each way)", flush=True)
 
     net = sa.build_net("big").to(device)

@@ -305,90 +305,30 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
+ 
+
+1. On this machine: push the fix.
 
 
+git add scr_map.py
+git commit -m "scr_map: move the seed later when its depth ICP fails (hand in front of the camera)"
+git push
+2. On the training PC: pull, then run the remaining 5XX steps in this order.
 
 
-done -> runs/v2map-5XXB-generic/best.pt
-  run-509: 1787 rows, 1744 usable (43 skipped), 2 segments (1 time jumps, 0 spikes > 5.10 mm)
-  run-510: 1781 rows, 1779 usable (2 skipped), 1 segments (0 time jumps, 0 spikes > 4.37 mm)
-  run-511: 1784 rows, 1775 usable (9 skipped), 1 segments (0 time jumps, 0 spikes > 3.22 mm)
-  run-512: 1786 rows, 1780 usable (6 skipped), 1 segments (0 time jumps, 0 spikes > 4.11 mm)
-  run-513: 1783 rows, 1782 usable (1 skipped), 1 segments (0 time jumps, 0 spikes > 6.06 mm)
-  run-514: 1790 rows, 1779 usable (11 skipped), 1 segments (0 time jumps, 0 spikes > 9.70 mm)
-  run-515: 1788 rows, 1775 usable (13 skipped), 1 segments (0 time jumps, 0 spikes > 5.70 mm)
-  run-516: 1796 rows, 1791 usable (5 skipped), 1 segments (0 time jumps, 0 spikes > 5.89 mm)
-  run-509: 872 frames, 0 % passed the gate                                                                                                                  
-  run-510: 890 frames, 0 % passed the gate                                                                                                                  
-  run-511: 888 frames, 0 % passed the gate                                                                                                                  
-  run-512: 890 frames, 0 % passed the gate                                                                                                                  
-  run-513: 891 frames, 0 % passed the gate                                                                                                                  
-  run-514: 890 frames, 0 % passed the gate                                                                                                                  
-  run-515: 888 frames, 0 % passed the gate                                                                                                                  
-  run-516: 896 frames, 0 % passed the gate                                                                                                                  
-camera calibration from /data2/u0137815/US_SCR/runs/map-5XXB-generic/map.json: 31.7 mm, 1.51 deg
-/data2/u0137815/US_SCR/scr_anchor.py:786: RuntimeWarning: All-NaN slice encountered
-  res[m][sw] = {"us_median": float(np.nanmedian(err)), "us_p90": float(np.nanpercentile(err, 90)),
-/data2/u0137815/conda/envs/free/lib/python3.11/site-packages/numpy/lib/_nanfunctions_impl.py:1396: RuntimeWarning: All-NaN slice encountered
-  return _nanquantile_unchecked(
-/data2/u0137815/US_SCR/scr_anchor.py:789: RuntimeWarning: Mean of empty slice
-  mean = lambda m, k: float(np.nanmean([v[k] for v in res[m].values()]))
-poses of the system (smoothed 2 s) -> runs/track-v2map-5XXB-generic/poses/fold0_<sweep>_scr-track.json
+cd /data2/u0137815/US_SCR
+git pull
+export DATA=/data2/u0137815/rgbd-us/data
+CAL="--cam-calib-from runs/repro/map-3XX/map.json"
 
-| method | US image median | p90 | frames with a pose | step, 2 row(s) | step, 8 rows |
-|---|---|---|---|---|---|
-| raw | **nan** | nan | 0 % | nan | nan |
-| smoothed 0.25 s | **nan** | nan | 0 % | nan | nan |
-| smoothed 0.5 s | **nan** | nan | 0 % | nan | nan |
-| smoothed 1 s | **nan** | nan | 0 % | nan | nan |
-| smoothed 2 s | **nan** | nan | 0 % | nan | nan |
-
-Per sweep (US image median, step 8 rows):
-
-| sweep | raw | smoothed 0.25 s | smoothed 0.5 s | smoothed 1 s | smoothed 2 s |
-|---|---|---|---|---|---|
-| run-509 | nan (nan) | nan (nan) | nan (nan) | nan (nan) | nan (nan) |
-| run-510 | nan (nan) | nan (nan) | nan (nan) | nan (nan) | nan (nan) |
-| run-511 | nan (nan) | nan (nan) | nan (nan) | nan (nan) | nan (nan) |
-| run-512 | nan (nan) | nan (nan) | nan (nan) | nan (nan) | nan (nan) |
-| run-513 | nan (nan) | nan (nan) | nan (nan) | nan (nan) | nan (nan) |
-| run-514 | nan (nan) | nan (nan) | nan (nan) | nan (nan) | nan (nan) |
-| run-515 | nan (nan) | nan (nan) | nan (nan) | nan (nan) | nan (nan) |
-| run-516 | nan (nan) | nan (nan) | nan (nan) | nan (nan) | nan (nan) |
--> runs/track-v2map-5XXB-generic/scr_track.md
-  room-505: 1798 rows, 1798 usable (0 skipped), 1 segments (0 time jumps, 0 spikes > 7.99 mm)
-1798 room-scan frames from room-505; seed ('room-505', 0) = map origin
-seed: 61 frames by depth ICP around the seed (up to 2 s each way)
-seed: 2000 steps on the seed frames, loss 68.2 mm                                                                                                           
-round 1: network 195 of 203 candidates (inliers median 1692, p90 1788); depth ICP 1542 more                                                                 
-round 1: loss 68.2 mm, +1737 frames, mapped 1798/1798 (100 %); vs Polaris after one rigid alignment: scene points at 1 m 8.6 / 18.3 mm, camera position 13.5 / 29.5 mm, rotation 0.94 deg, 1 s motion 7.7 mm [287 s]
-final pass: 1565 of 1798 frames passed (inliers median 694)                                                                                                 
-final pass: loss 68.2 mm, +1565 frames, mapped 1798/1798 (100 %); vs Polaris after one rigid alignment: scene points at 1 m 7.7 / 16.5 mm, camera position 10.2 / 25.7 mm, rotation 0.78 deg, 1 s motion 7.1 mm [383 s]
-graph edges (depth ICP, kept / tried): 1 frames apart 1797/1797, 5 frames apart 1793/1793, 15 frames apart 1775/1783, 30 frames apart 1732/1768             
-loop edges:  21%|█████████████████████▉                                                                                  | 223/1058 [00:18<01:06, 12.53it/s]^Traceback (most recent call last):                                                                                                                          
-  File "/data2/u0137815/US_SCR/scr_map.py", line 829, in <module>
-    main()
-  File "/data2/u0137815/US_SCR/scr_map.py", line 822, in main
-    run_graph(est, items, cloud, args, out / "graph_edges.npz")
-  File "/data2/u0137815/US_SCR/scr_map.py", line 446, in run_graph
-    loops = cached(cache and cache.with_name("graph_loops.npz"), lkey, lambda: loop_edges(est, items, cloud, args), "loop edges")
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/data2/u0137815/US_SCR/scr_map.py", line 457, in cached
-    edges = make()
-            ^^^^^^
-  File "/data2/u0137815/US_SCR/scr_map.py", line 446, in <lambda>
-    loops = cached(cache and cache.with_name("graph_loops.npz"), lkey, lambda: loop_edges(est, items, cloud, args), "loop edges")
-                                                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/data2/u0137815/US_SCR/scr_map.py", line 370, in loop_edges
-    Tm, _, _ = icp(cloud(j), cloud(k), args, init=rel)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/data2/u0137815/US_SCR/scr_map.py", line 270, in icp
-    A = np.hstack([np.cross(p, nq), nq])                    # n.(p + w x p + t - q) = 0, linearised
-                   ^^^^^^^^^^^^^^^
-  File "/data2/u0137815/conda/envs/free/lib/python3.11/site-packages/numpy/_core/numeric.py", line 1563, in _cross_dispatcher
-    def _cross_dispatcher(a, b, axisa=None, axisb=None, axisc=None, axis=None):
-
-
+# 3. block B: both maps again (general: arm at the start; exam-view: stopped)
+rm -r runs/map-5XXB-generic runs/v2map-5XXB-generic runs/track-v2map-5XXB-generic runs/map-5XXB-exam
+python scr_map.py --root $DATA/test_5XXB --scan-runs room-504 $CAL --out runs/map-5XXB-generic
+python scr_anchor.py train --root $DATA/test_5XXB --scan-runs room-504 --map runs/map-5XXB-generic --out runs/v2map-5XXB-generic
+python scr_anchor.py track --ckpt runs/v2map-5XXB-generic/best.pt --test-root $DATA/test_5XXB --every 2 --out runs/track-v2map-5XXB-generic
+python scr_map.py --root $DATA/test_5XXB --scan-runs room-505 $CAL --out runs/map-5XXB-exam
+python scr_anchor.py train --root $DATA/test_5XXB --scan-runs room-505 --map runs/map-5XXB-exam --out runs/v2map-5XXB-exam
+python scr_anchor.py track --ckpt runs/v2map-5XXB-exam/best.pt --test-root $DATA/test_5XXB --every 2 --out runs/track-v2map-5XXB-exam
 
 # 4. block E (empty room)
 python scr_map.py --root $DATA/test_5XXE --scan-runs room-508 $CAL --out runs/map-5XXE-generic
@@ -398,23 +338,24 @@ python scr_map.py --root $DATA/test_5XXE --scan-runs room-509 $CAL --out runs/ma
 python scr_anchor.py train --root $DATA/test_5XXE --scan-runs room-509 --map runs/map-5XXE-exam --out runs/v2map-5XXE-exam
 python scr_anchor.py track --ckpt runs/v2map-5XXE-exam/best.pt --test-root $DATA/test_5XXE --every 2 --out runs/track-v2map-5XXE-exam
 
-# 5. scan after the sweeps (block A, room-503)
+# 5. block A, scan after the sweeps
 python scr_map.py --root $DATA/test_5XXA --scan-runs room-503 $CAL --out runs/map-5XXA-after
 python scr_anchor.py train --root $DATA/test_5XXA --scan-runs room-503 --map runs/map-5XXA-after --out runs/v2map-5XXA-after
 python scr_anchor.py track --ckpt runs/v2map-5XXA-after/best.pt --test-root $DATA/test_5XXA --every 2 --out runs/track-v2map-5XXA-after
 
-# 6. outdated maps after a scene change (tracking only, networks from above)
+# 6. outdated maps after a scene change (tracking only)
 python scr_anchor.py track --ckpt runs/v2map-5XXA-exam/best.pt --test-root $DATA/test_5XXB --every 2 --out runs/track-v2map-5XXB-oldA
 python scr_anchor.py track --ckpt runs/v2map-5XXA-exam/best.pt --test-root $DATA/test_5XXC --every 2 --out runs/track-v2map-5XXC-oldA
 python scr_anchor.py track --ckpt runs/v2map-5XXB-generic/best.pt --test-root $DATA/test_5XXC --every 2 --out runs/track-v2map-5XXC-oldB
 python scr_anchor.py track --ckpt runs/v2map-5XXC-exam/best.pt --test-root $DATA/test_5XXE --every 2 --out runs/track-v2map-5XXE-oldC
 
-# 7. shape of every result
+# 7. shape of every 5XX result
 python tools/us_analysis.py shape --json runs/track-v2map-5XX*/poses/*.json --out runs/shape-5XX.md
-The outdated-map tests in step 6 work because Polaris didn't move during the session, so all 5XX maps share one frame. They also need each sweep's coverage by the old scan. These commands run from rgbd-us and take seconds each:
+Coverage for the outdated-map tests (from rgbd-us; paste the output to me):
 
 
 cd /data2/u0137815/rgbd-us
 python tools/check_coverage.py --root data/train_5XX --scans room-502 --sweeps run-5{09..24}
 python tools/check_coverage.py --root data/train_5XX --scans room-504 --sweeps run-5{17..24}
 python tools/check_coverage.py --root data/train_5XX --scans room-507 --sweeps run-5{29..32}
+In the room-504 mapping output, check for a line ending not used, followed by seed: ('room-504', 30) or a little later, with about 60 frames or more. If the seed line still shows only a few frames, stop the run and paste the output. Then push the runs/ results as usual.
