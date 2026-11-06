@@ -263,6 +263,20 @@ scene_coords = (T_wc @ X)[:3].T                                       # room coo
 
 **5XX raw check (5 Nov, before matching):** all 41 recordings complete (60 / 90 s, RGB 29.4–30.0 Hz), names match the configs. Marker lost: run-530 12.3 s (of 60), room-504 4.3 s, run-509 1.3 s, room-508 1.2 s, run-529 / 532 < 1 s, otherwise none. Not matched yet (no `frames.csv`, depth not aligned): `match_streams.py --apply-sync`, then `tools/check_session.py` (depth usable within 0.1–2 m, marker, clock offset, US).
 
+**5XX matched and checked (6 Nov, `runs/check-5XX.md`):** all 41 recordings usable. Marker ≥ 95 % everywhere except run-530 (79 %, longest loss 6.9 s); clock offset +5 to +30 ms (gyro correlation 0.89–0.99), applied; US in 100 % of sweep frames; depth within 0.1–2 m in 47–73 % of the pixels (empty room lowest: room-508 38 %, E sweeps 47–51 %), no frame below 10 % usable.
+
+**5XX coverage** (`check_coverage.py`, % of sweep frames with a room-scan pose within 30 mm and 10°, mean (range) over the block's sweeps):
+
+| block | sweeps | generic scan | coverage | exam-view scan | coverage |
+|---|---|---|---|---|---|
+| A | run-501…508 | room-501 (90 s) | **0 %** (0–0; nearest 58–76 mm) | room-502 (90 s) | **96 %** (89–100) |
+| B | run-509…516 | room-504 (90 s) | 93 % (81–100) | room-505 (60 s) | 75 % (42–95) |
+| C | run-517…524 | room-506 (90 s) | 78 % (65–95) | room-507 (90 s) | 96 % (75–100) |
+| D | run-525…528 | room-506 | 100 % | room-507 | 98 % (91–100) |
+| E | run-529…532 | room-508 (90 s) | 97 % (90–100) | room-509 (60 s) | 92 % (70–100) |
+
+Only block A has the clean contrast (0 % vs 96 %, the 4XX and 3XX regimes in one session). In B, C, D and E the generic scans also covered the sweeps, partly (B's generic scan covers better than its 60 s exam-view scan). **Analysis rule (fixed 6 Nov, before any 5XX result):** the main comparison is block A, room-501 vs room-502, on the same 8 sweeps. Across all blocks and maps the variable is the measured coverage per sweep, not the scan's name: error against coverage, 0–100 %.
+
 **Quirks:** `record_config.json` in 3XX carries old run names (run-316 says `run-216`), trust the folder name; in 4XX, run-427 was run-422 and run-428 was run-417.
 
 ## 4. Literature
