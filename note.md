@@ -263,20 +263,6 @@ scene_coords = (T_wc @ X)[:3].T                                       # room coo
 
 **5XX raw check (5 Nov, before matching):** all 41 recordings complete (60 / 90 s, RGB 29.4–30.0 Hz), names match the configs. Marker lost: run-530 12.3 s (of 60), room-504 4.3 s, run-509 1.3 s, room-508 1.2 s, run-529 / 532 < 1 s, otherwise none. Not matched yet (no `frames.csv`, depth not aligned): `match_streams.py --apply-sync`, then `tools/check_session.py` (depth usable within 0.1–2 m, marker, clock offset, US).
 
-**5XX matched and checked (6 Nov, `runs/check-5XX.md`):** all 41 recordings usable. Marker ≥ 95 % everywhere except run-530 (79 %, longest loss 6.9 s); clock offset +5 to +30 ms (gyro correlation 0.89–0.99), applied; US in 100 % of sweep frames; depth within 0.1–2 m in 47–73 % of the pixels (empty room lowest: room-508 38 %, E sweeps 47–51 %), no frame below 10 % usable.
-
-**5XX coverage** (`check_coverage.py`, % of sweep frames with a room-scan pose within 30 mm and 10°, mean (range) over the block's sweeps):
-
-| block | sweeps | generic scan | coverage | exam-view scan | coverage |
-|---|---|---|---|---|---|
-| A | run-501…508 | room-501 (90 s) | **0 %** (0–0; nearest 58–76 mm) | room-502 (90 s) | **96 %** (89–100) |
-| B | run-509…516 | room-504 (90 s) | 93 % (81–100) | room-505 (60 s) | 75 % (42–95) |
-| C | run-517…524 | room-506 (90 s) | 78 % (65–95) | room-507 (90 s) | 96 % (75–100) |
-| D | run-525…528 | room-506 | 100 % | room-507 | 98 % (91–100) |
-| E | run-529…532 | room-508 (90 s) | 97 % (90–100) | room-509 (60 s) | 92 % (70–100) |
-
-Only block A has the clean contrast (0 % vs 96 %, the 4XX and 3XX regimes in one session). In B, C, D and E the generic scans also covered the sweeps, partly (B's generic scan covers better than its 60 s exam-view scan). **Analysis rule (fixed 6 Nov, before any 5XX result):** the main comparison is block A, room-501 vs room-502, on the same 8 sweeps. Across all blocks and maps the variable is the measured coverage per sweep, not the scan's name: error against coverage, 0–100 %.
-
 **Quirks:** `record_config.json` in 3XX carries old run names (run-316 says `run-216`), trust the folder name; in 4XX, run-427 was run-422 and run-428 was run-417.
 
 ## 4. Literature
@@ -317,102 +303,66 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
  
- 
- 
+ The coverage table and this rule are now in note.md.
 
- ap: room-502 (1823 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
+Commands on the training PC, in priority order. Each map takes about 30 min, each training about 40 min, and each tracking run a few minutes:
 
-run-501:  97 % covered, nearest similar view median 14 mm -> GO
-run-502:  92 % covered, nearest similar view median 7 mm -> GO
-run-503:  96 % covered, nearest similar view median 11 mm -> GO
-run-504:  94 % covered, nearest similar view median 7 mm -> GO
-run-505:  89 % covered, nearest similar view median 8 mm -> GO
-run-506: 100 % covered, nearest similar view median 6 mm -> GO
-run-507: 100 % covered, nearest similar view median 6 mm -> GO
-run-508: 100 % covered, nearest similar view median 4 mm -> GO
 
-8/8 sweeps covered.
-map: room-501 (1823 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
+cd /data2/u0137815/US_SCR
+export DATA=/data2/u0137815/rgbd-us/data
+CAL="--cam-calib-from runs/repro/map-3XX/map.json"
 
-run-501:   0 % covered, nearest similar view median 58 mm -> NO-GO; uncovered: 0-60 s
-run-502:   0 % covered, nearest similar view median 76 mm -> NO-GO; uncovered: 0-60 s
-run-503:   0 % covered, nearest similar view median 62 mm -> NO-GO; uncovered: 0-60 s
-run-504:   0 % covered, nearest similar view median 66 mm -> NO-GO; uncovered: 0-60 s
-run-505:   0 % covered, nearest similar view median 68 mm -> NO-GO; uncovered: 0-60 s
-run-506:   0 % covered, nearest similar view median 63 mm -> NO-GO; uncovered: 0-60 s
-run-507:   0 % covered, nearest similar view median 71 mm -> NO-GO; uncovered: 0-60 s
-run-508:   0 % covered, nearest similar view median 63 mm -> NO-GO; uncovered: 0-60 s
+# 1. main result: block A, general (0 %) vs exam-view (96 %) scan
+python scr_map.py --root $DATA/test_5XXA --scan-runs room-501 $CAL --out runs/map-5XXA-generic
+python scr_anchor.py train --root $DATA/test_5XXA --scan-runs room-501 --map runs/map-5XXA-generic --out runs/v2map-5XXA-generic
+python scr_anchor.py track --ckpt runs/v2map-5XXA-generic/best.pt --test-root $DATA/test_5XXA --every 2 --out runs/track-v2map-5XXA-generic
+python scr_map.py --root $DATA/test_5XXA --scan-runs room-502 $CAL --out runs/map-5XXA-exam
+python scr_anchor.py train --root $DATA/test_5XXA --scan-runs room-502 --map runs/map-5XXA-exam --out runs/v2map-5XXA-exam
+python scr_anchor.py track --ckpt runs/v2map-5XXA-exam/best.pt --test-root $DATA/test_5XXA --every 2 --out runs/track-v2map-5XXA-exam
 
-0/8 sweeps covered. For NO-GO sweeps, scan the room again from the probe's positions and heights in the uncovered spans.
-map: room-505 (1217 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
+# 2. block C, then D with C's maps (people moving)
+python scr_map.py --root $DATA/test_5XXC --scan-runs room-507 $CAL --out runs/map-5XXC-exam
+python scr_anchor.py train --root $DATA/test_5XXC --scan-runs room-507 --map runs/map-5XXC-exam --out runs/v2map-5XXC-exam
+python scr_anchor.py track --ckpt runs/v2map-5XXC-exam/best.pt --test-root $DATA/test_5XXC --every 2 --out runs/track-v2map-5XXC-exam
+python scr_anchor.py track --ckpt runs/v2map-5XXC-exam/best.pt --test-root $DATA/test_5XXD --every 2 --out runs/track-v2map-5XXD-exam
+python scr_map.py --root $DATA/test_5XXC --scan-runs room-506 $CAL --out runs/map-5XXC-generic
+python scr_anchor.py train --root $DATA/test_5XXC --scan-runs room-506 --map runs/map-5XXC-generic --out runs/v2map-5XXC-generic
+python scr_anchor.py track --ckpt runs/v2map-5XXC-generic/best.pt --test-root $DATA/test_5XXC --every 2 --out runs/track-v2map-5XXC-generic
+python scr_anchor.py track --ckpt runs/v2map-5XXC-generic/best.pt --test-root $DATA/test_5XXD --every 2 --out runs/track-v2map-5XXD-generic
 
-run-509:  95 % covered, nearest similar view median 10 mm -> GO
-run-510:  58 % covered, nearest similar view median 22 mm -> NO-GO; uncovered: 8-31 s, 58-60 s
-run-511:  81 % covered, nearest similar view median 14 mm -> GO
-run-512:  42 % covered, nearest similar view median 19 mm -> NO-GO; uncovered: 0-11 s, 13-23 s, 46-59 s
-run-513:  86 % covered, nearest similar view median 16 mm -> GO
-run-514:  64 % covered, nearest similar view median 20 mm -> NO-GO; uncovered: 1-4 s, 9-12 s, 17-20 s, 21-24 s, 24-27 s, 28-33 s, 35-36 s, 58-60 s
-run-515:  95 % covered, nearest similar view median 16 mm -> GO
-run-516:  79 % covered, nearest similar view median 11 mm -> NO-GO; uncovered: 8-11 s, 13-19 s, 44-47 s
+# 3. block B
+python scr_map.py --root $DATA/test_5XXB --scan-runs room-504 $CAL --out runs/map-5XXB-generic
+python scr_anchor.py train --root $DATA/test_5XXB --scan-runs room-504 --map runs/map-5XXB-generic --out runs/v2map-5XXB-generic
+python scr_anchor.py track --ckpt runs/v2map-5XXB-generic/best.pt --test-root $DATA/test_5XXB --every 2 --out runs/track-v2map-5XXB-generic
+python scr_map.py --root $DATA/test_5XXB --scan-runs room-505 $CAL --out runs/map-5XXB-exam
+python scr_anchor.py train --root $DATA/test_5XXB --scan-runs room-505 --map runs/map-5XXB-exam --out runs/v2map-5XXB-exam
+python scr_anchor.py track --ckpt runs/v2map-5XXB-exam/best.pt --test-root $DATA/test_5XXB --every 2 --out runs/track-v2map-5XXB-exam
 
-4/8 sweeps covered. For NO-GO sweeps, scan the room again from the probe's positions and heights in the uncovered spans.
-map: room-504 (1719 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
+# 4. block E (empty room)
+python scr_map.py --root $DATA/test_5XXE --scan-runs room-508 $CAL --out runs/map-5XXE-generic
+python scr_anchor.py train --root $DATA/test_5XXE --scan-runs room-508 --map runs/map-5XXE-generic --out runs/v2map-5XXE-generic
+python scr_anchor.py track --ckpt runs/v2map-5XXE-generic/best.pt --test-root $DATA/test_5XXE --every 2 --out runs/track-v2map-5XXE-generic
+python scr_map.py --root $DATA/test_5XXE --scan-runs room-509 $CAL --out runs/map-5XXE-exam
+python scr_anchor.py train --root $DATA/test_5XXE --scan-runs room-509 --map runs/map-5XXE-exam --out runs/v2map-5XXE-exam
+python scr_anchor.py track --ckpt runs/v2map-5XXE-exam/best.pt --test-root $DATA/test_5XXE --every 2 --out runs/track-v2map-5XXE-exam
 
-run-509:  97 % covered, nearest similar view median 6 mm -> GO
-run-510:  96 % covered, nearest similar view median 10 mm -> GO
-run-511: 100 % covered, nearest similar view median 8 mm -> GO
-run-512:  81 % covered, nearest similar view median 12 mm -> GO
-run-513:  97 % covered, nearest similar view median 10 mm -> GO
-run-514:  88 % covered, nearest similar view median 8 mm -> GO
-run-515:  96 % covered, nearest similar view median 12 mm -> GO
-run-516:  91 % covered, nearest similar view median 7 mm -> GO
+# 5. scan after the sweeps (block A, room-503)
+python scr_map.py --root $DATA/test_5XXA --scan-runs room-503 $CAL --out runs/map-5XXA-after
+python scr_anchor.py train --root $DATA/test_5XXA --scan-runs room-503 --map runs/map-5XXA-after --out runs/v2map-5XXA-after
+python scr_anchor.py track --ckpt runs/v2map-5XXA-after/best.pt --test-root $DATA/test_5XXA --every 2 --out runs/track-v2map-5XXA-after
 
-8/8 sweeps covered.
-map: room-507 (1805 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
+# 6. outdated maps after a scene change (tracking only, networks from above)
+python scr_anchor.py track --ckpt runs/v2map-5XXA-exam/best.pt --test-root $DATA/test_5XXB --every 2 --out runs/track-v2map-5XXB-oldA
+python scr_anchor.py track --ckpt runs/v2map-5XXA-exam/best.pt --test-root $DATA/test_5XXC --every 2 --out runs/track-v2map-5XXC-oldA
+python scr_anchor.py track --ckpt runs/v2map-5XXB-generic/best.pt --test-root $DATA/test_5XXC --every 2 --out runs/track-v2map-5XXC-oldB
+python scr_anchor.py track --ckpt runs/v2map-5XXC-exam/best.pt --test-root $DATA/test_5XXE --every 2 --out runs/track-v2map-5XXE-oldC
 
-run-517: 100 % covered, nearest similar view median 9 mm -> GO
-run-518: 100 % covered, nearest similar view median 10 mm -> GO
-run-519:  97 % covered, nearest similar view median 11 mm -> GO
-run-520:  99 % covered, nearest similar view median 15 mm -> GO
-run-521: 100 % covered, nearest similar view median 12 mm -> GO
-run-522:  99 % covered, nearest similar view median 7 mm -> GO
-run-523:  75 % covered, nearest similar view median 13 mm -> NO-GO; uncovered: 0-3 s, 33-35 s, 38-39 s, 41-45 s, 46-49 s, 51-53 s
-run-524:  97 % covered, nearest similar view median 11 mm -> GO
-run-525:  91 % covered, nearest similar view median 8 mm -> GO
-run-526: 100 % covered, nearest similar view median 6 mm -> GO
-run-527: 100 % covered, nearest similar view median 6 mm -> GO
-run-528: 100 % covered, nearest similar view median 7 mm -> GO
+# 7. shape of every result
+python tools/us_analysis.py shape --json runs/track-v2map-5XX*/poses/*.json --out runs/shape-5XX.md
+The outdated-map tests in step 6 work because Polaris didn't move during the session, so all 5XX maps share one frame. They also need each sweep's coverage by the old scan. These commands run from rgbd-us and take seconds each:
 
-11/12 sweeps covered. For NO-GO sweeps, scan the room again from the probe's positions and heights in the uncovered spans.
-map: room-506 (1824 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
 
-run-517:  70 % covered, nearest similar view median 18 mm -> NO-GO; uncovered: 21-32 s, 43-48 s, 56-57 s
-run-518:  70 % covered, nearest similar view median 20 mm -> NO-GO; uncovered: 12-21 s, 24-25 s, 53-60 s
-run-519:  78 % covered, nearest similar view median 16 mm -> NO-GO; uncovered: 2-7 s, 32-34 s, 39-43 s, 49-50 s
-run-520:  65 % covered, nearest similar view median 18 mm -> NO-GO; uncovered: 0-3 s, 12-24 s, 32-35 s, 39-41 s
-run-521:  72 % covered, nearest similar view median 20 mm -> NO-GO; uncovered: 18-25 s, 42-45 s, 53-60 s
-run-522:  94 % covered, nearest similar view median 11 mm -> GO
-run-523:  77 % covered, nearest similar view median 8 mm -> NO-GO; uncovered: 0-5 s, 14-17 s, 26-29 s, 46-49 s
-run-524:  95 % covered, nearest similar view median 8 mm -> GO
-run-525: 100 % covered, nearest similar view median 4 mm -> GO
-run-526: 100 % covered, nearest similar view median 5 mm -> GO
-run-527: 100 % covered, nearest similar view median 5 mm -> GO
-run-528: 100 % covered, nearest similar view median 6 mm -> GO
-
-6/12 sweeps covered. For NO-GO sweeps, scan the room again from the probe's positions and heights in the uncovered spans.
-map: room-509 (1204 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
-
-run-529: 100 % covered, nearest similar view median 8 mm -> GO
-run-530:  98 % covered, nearest similar view median 8 mm -> GO
-run-531:  70 % covered, nearest similar view median 17 mm -> NO-GO; uncovered: 15-19 s, 30-32 s, 48-59 s
-run-532: 100 % covered, nearest similar view median 7 mm -> GO
-
-3/4 sweeps covered. For NO-GO sweeps, scan the room again from the probe's positions and heights in the uncovered spans.
-map: room-508 (1801 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
-
-run-529:  90 % covered, nearest similar view median 8 mm -> GO
-run-530: 100 % covered, nearest similar view median 8 mm -> GO
-run-531:  99 % covered, nearest similar view median 9 mm -> GO
-run-532: 100 % covered, nearest similar view median 8 mm -> GO
-
-4/4 sweeps covered.
+cd /data2/u0137815/rgbd-us
+python tools/check_coverage.py --root data/train_5XX --scans room-502 --sweeps run-5{09..24}
+python tools/check_coverage.py --root data/train_5XX --scans room-504 --sweeps run-5{17..24}
+python tools/check_coverage.py --root data/train_5XX --scans room-507 --sweeps run-5{29..32}
