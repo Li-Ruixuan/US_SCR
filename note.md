@@ -282,9 +282,9 @@ export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 export DATA=/data2/u0137815/rgbd-us/data US=/data2/u0137815/US_SCR ORB=/data2/u0137815/ORB_SLAM3
 CAL="--cam-calib-from runs/repro/map-3XX/map.json"
 cd $US
-python tools/slam_baseline.py export --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/slam-3XX/seq
-python tools/slam_baseline.py export --root $DATA/test_5XXA --scan-runs room-502 --out runs/slam-5XXA-exam/seq
-python tools/slam_baseline.py export --root $DATA/test_5XXA --scan-runs room-501 --out runs/slam-5XXA-generic/seq
+python3 tools/slam_baseline.py export --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/slam-3XX/seq
+python3 tools/slam_baseline.py export --root $DATA/test_5XXA --scan-runs room-502 --out runs/slam-5XXA-exam/seq
+python3 tools/slam_baseline.py export --root $DATA/test_5XXA --scan-runs room-501 --out runs/slam-5XXA-generic/seq
 
 cd $ORB && ./Examples/RGB-D/rgbd_tum Vocabulary/ORBvoc.txt $US/runs/slam-3XX/seq/camera.yaml $US/runs/slam-3XX/seq $US/runs/slam-3XX/seq/associations.txt
 cd $US && python tools/slam_baseline.py evaluate --root $DATA/train_3XX --scan-runs room-301 room-302 --seq runs/slam-3XX/seq --traj $ORB/CameraTrajectory.txt --smooth 1 --out runs/slam-3XX
@@ -306,59 +306,19 @@ python tools/us_analysis.py shape --json runs/slam-*/poses/*.json --out runs/sha
 
 
 
-  
-
-# check: should print a usage line
-export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
-./Examples/RGB-D/rgbd_tum
-What the sed lines fix:
-
-Viewer off: no display is needed.
-OpenCV version: the build accepts OpenCV 4.x instead of exactly 4.4.
-Newer gcc: two compile errors that newer compilers raise in Pangolin and ORB-SLAM3.
-make -j8: build.sh otherwise runs make with no job limit and can run out of memory.
-build.sh takes roughly 10–20 minutes. If any step fails, paste the last 20 lines of the error.
-
-3. Run ORB-SLAM3
-Once the build works, run all of note.md section 5. It exports 3XX, 5XX A exam-view and 5XX A generic, runs ORB-SLAM3 on each and evaluates it straight after, then computes the shape. Start each new terminal with:
+(orbslam) u0137815@set-d-l626e10ns:/data2/u0137815/US_SCR$ export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+export DATA=/data2/u0137815/rgbd-us/data US=/data2/u0137815/US_SCR ORB=/data2/u0137815/ORB_SLAM3
+CAL="--cam-calib-from runs/repro/map-3XX/map.json"
+cd $US
+python3 tools/slam_baseline.py export --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/slam-3XX/seq
+Traceback (most recent call last):
+  File "/data2/u0137815/US_SCR/tools/slam_baseline.py", line 37, in <module>
+    import numpy as np
+ModuleNotFoundError: No module named 'numpy'
 
 
-conda activate orbslam
-export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
-4. Re-run the block C figure (fixed grid)
-
-cd /data2/u0137815/US_SCR
-python tools/volume_figure.py --json runs/track-v2map-5XXC-exam/poses/fold0_run-517_scr-track.json runs/track-v2map-5XXC-oldB/poses/fold0_run-517_scr-track.json --labels "current scan" "outdated scan (block B)" --rigid-fit --crop 20 --out runs/figures/volume_5XXC_run-517.png
-Run this with your usual Python environment, not orbslam.
-
+   
 
  
 
-
-
-2. Point CMake at it and accept any OpenCV 4.x
-
-
-export CMAKE_PREFIX_PATH=$CONDA_PREFIX
-export OpenCV_DIR=$CONDA_PREFIX/lib/cmake/opencv4
-export CXXFLAGS="$CXXFLAGS -include cstdint -include limits"
-cd /data2/u0137815/ORB_SLAM3
-grep -rl 'find_package(OpenCV 4.4' --include=CMakeLists.txt . | xargs sed -i 's/find_package(OpenCV 4.4/find_package(OpenCV 4/'
-grep -rn "find_package(OpenCV" --include=CMakeLists.txt .
-The last grep should show no 4.4 left. That includes Thirdparty/DBoW2/CMakeLists.txt, which has its own OpenCV check that my earlier sed missed.
-
-3. Clear the failed builds and build again
-
-
-rm -rf build Thirdparty/DBoW2/build Thirdparty/g2o/build Thirdparty/Sophus/build
-./build.sh
-rm -rf is needed because CMake caches "OpenCV not found" in the build folders and would fail again without re-checking.
-
-The other sed fixes from before (viewer off, C++14, LoopClosing.h, make -j8) are already applied to your copy, so you don't need to repeat them. Every new terminal needs the conda activate and the three export lines again.
-
-When ./build.sh finishes, check it works:
-
-
-export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
-./Examples/RGB-D/rgbd_tum
   
