@@ -263,21 +263,3 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
- 
- 
-
- On the training PC:
-
-
-cd /data2/u0137815/US_SCR
-git pull
-export DATA=/data2/u0137815/rgbd-us/data
-
-# 1. Polaris stream: 3XX and 4XX (good results) vs 5XX
-python tools/check_polaris.py --roots $DATA/train_3XX $DATA/train_4XX $DATA/train_5XX --out runs/polaris-check.md
-
-# 2. tracking error vs Polaris distance: 3XX, 4XX and the 5XX fresh maps
-python tools/check_polaris.py --track runs/repro/track-v2map-3XX runs/track-v2map-4XXA runs/track-v2map-5XXA-exam runs/track-v2map-5XXA-after runs/track-v2map-5XXB-generic runs/track-v2map-5XXC-exam runs/track-v2map-5XXD-exam runs/track-v2map-5XXE-exam --out runs/polaris-track.md
-
-# 3. the session table again, now with the Polaris columns
-python tools/check_session.py --root $DATA/train_5XX --out runs/check-5XX.md
