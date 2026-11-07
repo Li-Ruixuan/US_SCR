@@ -366,34 +366,29 @@ ORB-SLAM3 runs with its viewer off, so OpenGL is only needed to compile and link
 
 
 
-sed -i '1i #include <limits>' include/pangolin/gl/colour.h
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF -DBUILD_PANGOLIN_PYTHON=OFF -DBUILD_PANGOLIN_FFMPEG=OFF
-CMake Error at CMakeLists.txt:1 (cmake_minimum_required):
-  Compatibility with CMake < 3.5 has been removed from CMake.
-
-  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
-  to tell CMake that the project requires at least <min> but has been updated
-  to work with policies introduced by <max> or earlier.
-
-  Or, add -DCMAKE_POLICY_VERSION_MINIMUM=3.5 to try configuring anyway.
+Conda installed CMake 4, which rejects old projects like Pangolin v0.6. The ORB-SLAM3 build (DBoW2, g2o, Sophus) has the same problem, so the cleanest fix is CMake 3 in the environment:
 
 
--- Configuring incomplete, errors occurred!
-(orbslam) u0137815@set-d-l626e10ns:/data2/u0137815/Pangolin$ 
+conda activate orbslam
+conda install -c conda-forge -y "cmake<4"
+hash -r
+cmake --version
+cmake --version should now show 3.x, e.g. 3.31. hash -r makes the shell forget the old cmake path.
+
+Then configure Pangolin again:
+
+
+export CMAKE_PREFIX_PATH=$CONDA_PREFIX
+cd /data2/u0137815/Pangolin
+rm -rf build
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF -DBUILD_PANGOLIN_PYTHON=OFF -DBUILD_PANGOLIN_FFMPEG=OFF -DOpenGL_GL_PREFERENCE=GLVND -DOPENGL_INCLUDE_DIR=$CONDA_PREFIX/include -DOPENGL_opengl_LIBRARY=$CONDA_PREFIX/lib/libOpenGL.so -DOPENGL_glx_LIBRARY=$CONDA_PREFIX/lib/libGLX.so
+Check the end of the output. If it ends with -- Generating done and -- Build files have been written to, build and install:
+
+
 cmake --build build -j8
 cmake --install build
-CMake Error at CMakeLists.txt:1 (cmake_minimum_required):
-  Compatibility with CMake < 3.5 has been removed from CMake.
+Then continue with the ORB-SLAM3 steps.
 
-  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
-  to tell CMake that the project requires at least <min> but has been updated
-  to work with policies introduced by <max> or earlier.
+If conda can't install CMake 3, a quick alternative is to keep CMake 4 and set export CMAKE_POLICY_VERSION_MINIMUM=3.5 before every cmake and ./build.sh step.
 
-  Or, add -DCMAKE_POLICY_VERSION_MINIMUM=3.5 to try configuring anyway.
-
-
--- Configuring incomplete, errors occurred!
-Error: could not find CMAKE_PROJECT_NAME in Cache
-CMake Error: Not a file: /data2/u0137815/Pangolin/build/cmake_install.cmake
-CMake Error: Error processing file: /data2/u0137815/Pangolin/build/cmake_install.cmake
+I also pinned "cmake<4" in the conda setup line in README.md. If the next error appears, paste from the first CMake Error, Could NOT find, or compiler error: line.
