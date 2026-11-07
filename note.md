@@ -359,3 +359,34 @@ export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 cd /data2/u0137815/US_SCR
 python tools/volume_figure.py --json runs/track-v2map-5XXC-exam/poses/fold0_run-517_scr-track.json runs/track-v2map-5XXC-oldB/poses/fold0_run-517_scr-track.json --labels "current scan" "outdated scan (block B)" --rigid-fit --crop 20 --out runs/figures/volume_5XXC_run-517.png
 Run this with your usual Python environment, not orbslam.
+
+
+
+Pangolin needs the OpenGL headers (GL/gl.h) and libraries, which your conda environment doesn't have yet. You don't need sudo. Run this in the same terminal:
+
+1. Install OpenGL into the conda environment
+
+
+conda activate orbslam
+conda install -c conda-forge -y libgl-devel libopengl-devel libglx-devel libegl-devel
+ls $CONDA_PREFIX/include/GL/gl.h $CONDA_PREFIX/lib/libOpenGL.so $CONDA_PREFIX/lib/libGLX.so
+The ls should list all three files.
+
+2. Configure Pangolin again, pointing it at them
+
+
+export CMAKE_PREFIX_PATH=$CONDA_PREFIX
+cd /data2/u0137815/Pangolin
+rm -rf build
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF -DBUILD_PANGOLIN_PYTHON=OFF -DBUILD_PANGOLIN_FFMPEG=OFF -DOpenGL_GL_PREFERENCE=GLVND -DOPENGL_INCLUDE_DIR=$CONDA_PREFIX/include -DOPENGL_opengl_LIBRARY=$CONDA_PREFIX/lib/libOpenGL.so -DOPENGL_glx_LIBRARY=$CONDA_PREFIX/lib/libGLX.so
+cmake --build build -j8
+cmake --install build
+Then continue with the ORB-SLAM3 part from my last message.
+
+If step 1 can't find those packages (older conda), use Mesa's software OpenGL instead, then run step 2 with the three OpenGL path flags replaced:
+
+
+conda install -c conda-forge -y mesalib
+# in step 2, instead of the GLVND / OPENGL_opengl / OPENGL_glx flags:
+#   -DOpenGL_GL_PREFERENCE=LEGACY -DOPENGL_INCLUDE_DIR=$CONDA_PREFIX/include -DOPENGL_gl_LIBRARY=$CONDA_PREFIX/lib/libGL.so
+ORB-SLAM3 runs with its viewer off, so OpenGL is only needed to compile and link; nothing is drawn at run time.
