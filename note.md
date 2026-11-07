@@ -282,33 +282,48 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
+2. Training PC: pull and set up the variables
 
 
-Traceback (most recent call last):
-  File "/data2/u0137815/US_SCR/tools/slam_baseline.py", line 261, in <module>
-    main()
-  File "/data2/u0137815/US_SCR/tools/slam_baseline.py", line 257, in main
-    export(args) if args.cmd == "export" else evaluate(args)
-                                              ^^^^^^^^^^^^^^
-  File "/data2/u0137815/US_SCR/tools/slam_baseline.py", line 157, in evaluate
-    traj = read_tum(args.traj)
-           ^^^^^^^^^^^^^^^^^^^
-  File "/data2/u0137815/US_SCR/tools/slam_baseline.py", line 141, in read_tum
-    for line in open(path):
-                ^^^^^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: 'runs/slam-5XXA-exam/CameraTrajectory.txt'
+conda activate free
+cd /data2/u0137815/US_SCR
+git pull
+export DATA=/data2/u0137815/rgbd-us/data US=/data2/u0137815/US_SCR ORB=/data2/u0137815/ORB_SLAM3
+ORBLIB=/data2/u0137815/conda/envs/orbslam/lib:$ORB/lib:$ORB/Thirdparty/DBoW2/lib:$ORB/Thirdparty/g2o/lib
+CAL="--cam-calib-from runs/repro/map-3XX/map.json"
+3. Export the three sequences again
 
 
+python tools/slam_baseline.py export --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/slam-3XX/seq
+python tools/slam_baseline.py export --root $DATA/test_5XXA --scan-runs room-502 --out runs/slam-5XXA-exam/seq
+python tools/slam_baseline.py export --root $DATA/test_5XXA --scan-runs room-501 --out runs/slam-5XXA-generic/seq
+grep DepthMapFactor runs/slam-*/seq/camera.yaml
+The grep should show 1000.0 three times.
 
-This program comes with ABSOLUTELY NO WARRANTY;
-This is free software, and you are welcome to redistribute it
-under certain conditions. See LICENSE.txt.
+4. Run ORB-SLAM3, one at a time (a few minutes each)
 
-Input sensor was set to: RGB-D
-Loading settings from seq/camera.yaml
-Camera1.k3 optional parameter does not exist...
-	-Loaded camera 1
-Camera.newHeight optional parameter does not exist...
-Camera.newWidth optional parameter does not exist...
-	-Loaded image info
-RGBD.DepthMapFactor parameter must be a real number, aborting...
+
+cd $US/runs/slam-3XX && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
+cd $US/runs/slam-5XXA-exam && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
+cd $US/runs/slam-5XXA-generic && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
+cd $US
+ls runs/slam-*/CameraTrajectory.txt
+The ls should list three files.
+
+5. Score the SLAM runs like our system
+
+
+python tools/slam_baseline.py evaluate --root $DATA/train_3XX --scan-runs room-301 room-302 --seq runs/slam-3XX/seq --traj runs/slam-3XX/CameraTrajectory.txt --smooth 1 --out runs/slam-3XX
+python tools/slam_baseline.py evaluate --root $DATA/test_5XXA --scan-runs room-502 --seq runs/slam-5XXA-exam/seq --traj runs/slam-5XXA-exam/CameraTrajectory.txt $CAL --smooth 1 --out runs/slam-5XXA-exam
+python tools/slam_baseline.py evaluate --root $DATA/test_5XXA --scan-runs room-501 --seq runs/slam-5XXA-generic/seq --traj runs/slam-5XXA-generic/CameraTrajectory.txt $CAL --smooth 1 --out runs/slam-5XXA-generic
+python tools/us_analysis.py shape --json runs/slam-*/poses/*.json --out runs/shape-slam.md
+6. Redo the block C figure with the fixed grid (if not done yet)
+
+
+python tools/volume_figure.py --json runs/track-v2map-5XXC-exam/poses/fold0_run-517_scr-track.json runs/track-v2map-5XXC-oldB/poses/fold0_run-517_scr-track.json --labels "current scan" "outdated scan (block B)" --rigid-fit --crop 20 --out runs/figures/volume_5XXC_run-517.png
+7. Push the results
+
+
+git add runs/slam-*/slam_eval.md runs/slam-*/slam_eval.json runs/slam-*/CameraTrajectory.txt runs/shape-slam.md runs/figures/volume_5XXC_run-517.*
+git commit -m "ORB-SLAM3 baseline 3XX, 5XX A; 5XX C figure"
+git push

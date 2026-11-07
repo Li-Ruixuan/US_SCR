@@ -147,7 +147,7 @@ python tools/us_analysis.py shape --json runs/volume3d/3XX/poses/*.json --out ru
 
 ```bash
 # 1. libraries (conda-forge), and the compilers that match them
-conda create -n orbslam -c conda-forge -y c-compiler cxx-compiler make cmake pkg-config eigen=3.4 libopencv libboost-devel glew libglu libgl-devel libopengl-devel libglx-devel libegl-devel xorg-libx11 xorg-libxext
+conda create -n orbslam -c conda-forge -y c-compiler cxx-compiler make "cmake<4" pkg-config eigen=3.4 "libopencv<5" libboost-devel glew libglu libgl-devel libopengl-devel libglx-devel libegl-devel xorg-libx11 xorg-libxext
 conda activate orbslam
 export CMAKE_PREFIX_PATH=$CONDA_PREFIX
 
@@ -155,7 +155,7 @@ export CMAKE_PREFIX_PATH=$CONDA_PREFIX
 cd /data2/u0137815
 git clone --branch v0.6 --depth 1 https://github.com/stevenlovegrove/Pangolin.git
 cd Pangolin
-sed -i '1i #include <limits>' include/pangolin/gl/colour.h          # newer gcc: std::numeric_limits
+export CXXFLAGS="$CXXFLAGS -include cstdint -include limits"        # newer gcc: old code relies on these headers (also for ORB-SLAM3)
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF -DBUILD_PANGOLIN_PYTHON=OFF -DBUILD_PANGOLIN_FFMPEG=OFF \
       -DOpenGL_GL_PREFERENCE=GLVND -DOPENGL_INCLUDE_DIR=$CONDA_PREFIX/include \
       -DOPENGL_opengl_LIBRARY=$CONDA_PREFIX/lib/libOpenGL.so -DOPENGL_glx_LIBRARY=$CONDA_PREFIX/lib/libGLX.so   # OpenGL from conda
@@ -167,7 +167,9 @@ cd /data2/u0137815
 git clone https://github.com/UZ-SLAMLab/ORB_SLAM3.git
 cd ORB_SLAM3
 sed -i 's/ORB_SLAM3::System::RGBD,true/ORB_SLAM3::System::RGBD,false/' Examples/RGB-D/rgbd_tum.cc      # no viewer
-sed -i 's/find_package(OpenCV 4.4)/find_package(OpenCV 4)/; s/-std=c++11/-std=c++14/g; s/CXX11/CXX14/g' CMakeLists.txt
+export OpenCV_DIR=$CONDA_PREFIX/lib/cmake/opencv4                                                    # conda's OpenCV
+grep -rl 'find_package(OpenCV 4.4' --include=CMakeLists.txt . | xargs sed -i 's/find_package(OpenCV 4.4/find_package(OpenCV 4/'   # any 4.x, also in Thirdparty/
+sed -i 's/-std=c++11/-std=c++14/g; s/CXX11/CXX14/g' CMakeLists.txt
 sed -i 's/std::pair<const KeyFrame\*, g2o::Sim3>/std::pair<KeyFrame* const, g2o::Sim3>/' include/LoopClosing.h   # newer gcc
 sed -i 's/make -j$/make -j8/' build.sh                                                                # unbounded -j runs out of memory
 ./build.sh

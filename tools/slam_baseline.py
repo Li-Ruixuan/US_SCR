@@ -109,11 +109,11 @@ Camera1.p1: 0.0
 Camera1.p2: 0.0
 Camera.width: {int(info["width"])}
 Camera.height: {int(info["height"])}
-Camera.fps: {30 / args.every:g}
+Camera.fps: {max(1, round(30 / args.every))}
 Camera.RGB: 1
 Stereo.ThDepth: 40.0
 Stereo.b: 0.05
-RGBD.DepthMapFactor: {1 / depth_scale:g}
+RGBD.DepthMapFactor: {1 / depth_scale:.1f}
 ORBextractor.nFeatures: {args.features}
 ORBextractor.scaleFactor: 1.2
 ORBextractor.nLevels: 8
