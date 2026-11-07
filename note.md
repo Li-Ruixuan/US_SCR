@@ -306,17 +306,7 @@ python tools/us_analysis.py shape --json runs/slam-*/poses/*.json --out runs/sha
 
 
 
- 
-
-# ORB-SLAM3
-cd /data2/u0137815
-git clone https://github.com/UZ-SLAMLab/ORB_SLAM3.git
-cd ORB_SLAM3
-sed -i 's/ORB_SLAM3::System::RGBD,true/ORB_SLAM3::System::RGBD,false/' Examples/RGB-D/rgbd_tum.cc
-sed -i 's/find_package(OpenCV 4.4)/find_package(OpenCV 4)/; s/-std=c++11/-std=c++14/g; s/CXX11/CXX14/g' CMakeLists.txt
-sed -i 's/std::pair<const KeyFrame\*, g2o::Sim3>/std::pair<KeyFrame* const, g2o::Sim3>/' include/LoopClosing.h
-sed -i 's/make -j$/make -j8/' build.sh
-./build.sh
+  
 
 # check: should print a usage line
 export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
@@ -347,51 +337,4 @@ Run this with your usual Python environment, not orbslam.
 
 
 
- 
-
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF -DBUILD_PANGOLIN_PYTHON=OFF -DBUILD_PANGOLIN_FFMPEG=OFF -DOpenGL_GL_PREFERENCE=GLVND -DOPENGL_INCLUDE_DIR=$CONDA_PREFIX/include -DOPENGL_opengl_LIBRARY=$CONDA_PREFIX/lib/libOpenGL.so -DOPENGL_glx_LIBRARY=$CONDA_PREFIX/lib/libGLX.so
-cmake --build build -j8
-cmake --install build
-Then continue with the ORB-SLAM3 part from my last message.
-
-If step 1 can't find those packages (older conda), use Mesa's software OpenGL instead, then run step 2 with the three OpenGL path flags replaced:
-
-
-conda install -c conda-forge -y mesalib
-# in step 2, instead of the GLVND / OPENGL_opengl / OPENGL_glx flags:
-#   -DOpenGL_GL_PREFERENCE=LEGACY -DOPENGL_INCLUDE_DIR=$CONDA_PREFIX/include -DOPENGL_gl_LIBRARY=$CONDA_PREFIX/lib/libGL.so
-ORB-SLAM3 runs with its viewer off, so OpenGL is only needed to compile and link; nothing is drawn at run time.
-
-
- 
-
-
-
-files with the same problem won't stop the build either:
-
-
-conda activate orbslam
-export CMAKE_PREFIX_PATH=$CONDA_PREFIX
-export CXXFLAGS="$CXXFLAGS -include cstdint -include limits"
-cd /data2/u0137815/Pangolin
-rm -rf build
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF -DBUILD_PANGOLIN_PYTHON=OFF -DBUILD_PANGOLIN_FFMPEG=OFF -DOpenGL_GL_PREFERENCE=GLVND -DOPENGL_INCLUDE_DIR=$CONDA_PREFIX/include -DOPENGL_opengl_LIBRARY=$CONDA_PREFIX/lib/libOpenGL.so -DOPENGL_glx_LIBRARY=$CONDA_PREFIX/lib/libGLX.so
-cmake --build build -j8
-rm -rf build matters: CMake reads CXXFLAGS only when the build folder is first created.
-
-Only install once the build reaches [100%] Built target pangolin. Then check that the library is there:
-
-
-cmake --install build
-ls $CONDA_PREFIX/lib/libpangolin.so
-Then build ORB-SLAM3 in the same terminal, so it gets the same CXXFLAGS:
-
-
-cd /data2/u0137815
-git clone https://github.com/UZ-SLAMLab/ORB_SLAM3.git
-cd ORB_SLAM3
-sed -i 's/ORB_SLAM3::System::RGBD,true/ORB_SLAM3::System::RGBD,false/' Examples/RGB-D/rgbd_tum.cc
-sed -i 's/find_package(OpenCV 4.4)/find_package(OpenCV 4)/; s/-std=c++11/-std=c++14/g; s/CXX11/CXX14/g' CMakeLists.txt
-sed -i 's/std::pair<const KeyFrame\*, g2o::Sim3>/std::pair<KeyFrame* const, g2o::Sim3>/' include/LoopClosing.h
-sed -i 's/make -j$/make -j8/' build.sh
-./build.sh
+  
