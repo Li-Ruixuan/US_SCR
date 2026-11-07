@@ -262,45 +262,14 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
- 
 
 
-cd /data2/u0137815/US_SCR
-export DATA=/data2/u0137815/rgbd-us/data
-CAL="--cam-calib-from runs/repro/map-3XX/map.json"
-1. Oracle map (Polaris labels) for 5XX A. This separates the coverage effect from map error. Without --map, training uses Polaris labels.
 
 
-python scr_anchor.py train --root $DATA/test_5XXA --scan-runs room-502 --out runs/v2-5XXA-exam
-python scr_anchor.py track --ckpt runs/v2-5XXA-exam/best.pt --test-root $DATA/test_5XXA --every 2 --out runs/track-v2-5XXA-exam
-python scr_anchor.py train --root $DATA/test_5XXA --scan-runs room-501 --out runs/v2-5XXA-generic
-python scr_anchor.py track --ckpt runs/v2-5XXA-generic/best.pt --test-root $DATA/test_5XXA --every 2 --out runs/track-v2-5XXA-generic
-2. Both A scans in one map (room unchanged between them).
 
 
-python scr_map.py --root $DATA/test_5XXA --scan-runs room-501 room-502 $CAL --out runs/map-5XXA-both
-python scr_anchor.py train --root $DATA/test_5XXA --scan-runs room-501 room-502 --map runs/map-5XXA-both --out runs/v2map-5XXA-both
-python scr_anchor.py track --ckpt runs/v2map-5XXA-both/best.pt --test-root $DATA/test_5XXA --every 2 --out runs/track-v2map-5XXA-both
-3. Shorter training (preparation time), on the A exam-view map. The default is 120 epochs, which gave 2.28 mm.
 
 
-python scr_anchor.py train --root $DATA/test_5XXA --scan-runs room-502 --map runs/map-5XXA-exam --epochs 20 --out runs/v2map-5XXA-exam-e20
-python scr_anchor.py track --ckpt runs/v2map-5XXA-exam-e20/best.pt --test-root $DATA/test_5XXA --every 2 --out runs/track-v2map-5XXA-exam-e20
-python scr_anchor.py train --root $DATA/test_5XXA --scan-runs room-502 --map runs/map-5XXA-exam --epochs 40 --out runs/v2map-5XXA-exam-e40
-python scr_anchor.py track --ckpt runs/v2map-5XXA-exam-e40/best.pt --test-root $DATA/test_5XXA --every 2 --out runs/track-v2map-5XXA-exam-e40
-python scr_anchor.py train --root $DATA/test_5XXA --scan-runs room-502 --map runs/map-5XXA-exam --epochs 80 --out runs/v2map-5XXA-exam-e80
-python scr_anchor.py track --ckpt runs/v2map-5XXA-exam-e80/best.pt --test-root $DATA/test_5XXA --every 2 --out runs/track-v2map-5XXA-exam-e80
-4. Shape for the new runs, after 1–3 have finished:
-
-
-python tools/us_analysis.py shape --json runs/track-v2-5XXA-*/poses/*.json runs/track-v2map-5XXA-both/poses/*.json runs/track-v2map-5XXA-exam-e*/poses/*.json --out runs/shape-5XX-extra.md
-5. Volume figures.
-
-Block A, one sweep tracked with the exam-view map and with the generic map.
-Block C, the fresh map against an outdated one.
-
-python tools/volume_figure.py --json runs/track-v2map-5XXA-exam/poses/fold0_run-501_scr-track.json runs/track-v2map-5XXA-generic/poses/fold0_run-501_scr-track.json --labels "exam-view scan (96 % covered)" "generic scan (0 % covered)" --rigid-fit --out runs/figures/volume_5XXA_run-501.png
-python tools/volume_figure.py --json runs/track-v2map-5XXC-exam/poses/fold0_run-517_scr-track.json runs/track-v2map-5XXC-oldB/poses/fold0_run-517_scr-track.json --labels "current scan" "outdated scan (block B)" --rigid-fit --out runs/figures/volume_5XXC_run-517.png
 6. ORB-SLAM3 on 3XX and 5XX A, run once with each A scan. First build ORB-SLAM3 once on the training PC, using the steps in README.md section 6. ORB-SLAM3 always writes CameraTrajectory.txt to its own folder, so run each evaluate straight after its SLAM run.
 
 
@@ -309,10 +278,14 @@ python tools/slam_baseline.py export --root $DATA/train_3XX --scan-runs room-301
 python tools/slam_baseline.py export --root $DATA/test_5XXA --scan-runs room-502 --out runs/slam-5XXA-exam/seq
 python tools/slam_baseline.py export --root $DATA/test_5XXA --scan-runs room-501 --out runs/slam-5XXA-generic/seq
 
-cd ~/ORB_SLAM3
+cd /data2/u0137815/ORB_SLAM3
 ./Examples/RGB-D/rgbd_tum Vocabulary/ORBvoc.txt $US/runs/slam-3XX/seq/camera.yaml $US/runs/slam-3XX/seq $US/runs/slam-3XX/seq/associations.txt
 cd $US
 python tools/slam_baseline.py evaluate --root $DATA/train_3XX --scan-runs room-301 room-302 --seq runs/slam-3XX/seq --traj ~/ORB_SLAM3/CameraTrajectory.txt --smooth 1 --out runs/slam-3XX
+
+
+
+
 
 cd ~/ORB_SLAM3
 ./Examples/RGB-D/rgbd_tum Vocabulary/ORBvoc.txt $US/runs/slam-5XXA-exam/seq/camera.yaml $US/runs/slam-5XXA-exam/seq $US/runs/slam-5XXA-exam/seq/associations.txt
