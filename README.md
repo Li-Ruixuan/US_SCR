@@ -147,7 +147,7 @@ python tools/us_analysis.py shape --json runs/volume3d/3XX/poses/*.json --out ru
 
 ```bash
 # 1. libraries (conda-forge), and the compilers that match them
-conda create -n orbslam -c conda-forge -y c-compiler cxx-compiler make cmake pkg-config eigen=3.4 libopencv libboost-devel glew libglu libgl-devel xorg-libx11 xorg-libxext
+conda create -n orbslam -c conda-forge -y c-compiler cxx-compiler make cmake pkg-config eigen=3.4 libopencv libboost-devel glew libglu libgl-devel libopengl-devel libglx-devel libegl-devel xorg-libx11 xorg-libxext
 conda activate orbslam
 export CMAKE_PREFIX_PATH=$CONDA_PREFIX
 
@@ -156,7 +156,9 @@ cd /data2/u0137815
 git clone --branch v0.6 --depth 1 https://github.com/stevenlovegrove/Pangolin.git
 cd Pangolin
 sed -i '1i #include <limits>' include/pangolin/gl/colour.h          # newer gcc: std::numeric_limits
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF -DBUILD_PANGOLIN_PYTHON=OFF -DBUILD_PANGOLIN_FFMPEG=OFF
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF -DBUILD_PANGOLIN_PYTHON=OFF -DBUILD_PANGOLIN_FFMPEG=OFF \
+      -DOpenGL_GL_PREFERENCE=GLVND -DOPENGL_INCLUDE_DIR=$CONDA_PREFIX/include \
+      -DOPENGL_opengl_LIBRARY=$CONDA_PREFIX/lib/libOpenGL.so -DOPENGL_glx_LIBRARY=$CONDA_PREFIX/lib/libGLX.so   # OpenGL from conda
 cmake --build build -j8
 cmake --install build
 
@@ -186,3 +188,40 @@ Options of `anchoring.py evaluate`: `--start anchor` (no ground-truth pose at th
 Every number in `summary.md` names its run folder in `runs/`; `runs/README.md` explains the files, and each folder's `config.json` / `map.json` / `scr_track.json` records the command's settings. Training is not bit-exact across machines (cuDNN), so a retrained model lands within the seed spread (3XX 1.85–2.12 mm over three seeds); tracking a given checkpoint is deterministic (RANSAC seeded per frame).
 
 Code history: `dataloader.py`, `geometry.py`, `scr.py` and the files in `baselines/` (except `anchoring_kabsch.py`) are copies of rgbd-us commit a5bf2ce; changed here: `anchoring.py` (`--gate-recover`, `--scr-frames`; its unused `train` command removed), `scr.py` (its own `train` / `eval` commands removed: `scr_anchor.py` replaced them). Moved on 3 Nov 2026 (older run folders record the old paths): `anchoring.py`, `eval.py`, `poses.py`, `trajectory.py`, `model.py`, `loss.py`, `tools/anchoring_kabsch.py`, `tools/anchor_classical.py`, `tools/anchor_saliency.py` → `baselines/`; `scr_render.py`, `tools/li_baseline.py` → `studies/`. Renamed on 28 Oct 2026: `tools/us_inplane.py`, `us_speckle.py`, `shape_error.py` → `tools/us_analysis.py inplane / speckle / shape`; `tools/li_repro.py`, `li_transfer.py` → `li_baseline.py repro / transfer`; `tools/scr_track.py` → `scr_anchor.py track`. Runs made before 23 Oct 2026 used options removed then (Huber loss, one-cycle schedule, Kabsch refinement); commit `3599239` has that code.
+
+
+
+
+
+
+
+
+
+Pangolin needs the OpenGL headers (GL/gl.h) and libraries, which your conda environment doesn't have yet. You don't need sudo. Run this in the same terminal:
+
+1. Install OpenGL into the conda environment
+
+
+conda activate orbslam
+conda install -c conda-forge -y libgl-devel libopengl-devel libglx-devel libegl-devel
+ls $CONDA_PREFIX/include/GL/gl.h $CONDA_PREFIX/lib/libOpenGL.so $CONDA_PREFIX/lib/libGLX.so
+The ls should list all three files.
+
+2. Configure Pangolin again, pointing it at them
+
+
+export CMAKE_PREFIX_PATH=$CONDA_PREFIX
+cd /data2/u0137815/Pangolin
+rm -rf build
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF -DBUILD_PANGOLIN_PYTHON=OFF -DBUILD_PANGOLIN_FFMPEG=OFF -DOpenGL_GL_PREFERENCE=GLVND -DOPENGL_INCLUDE_DIR=$CONDA_PREFIX/include -DOPENGL_opengl_LIBRARY=$CONDA_PREFIX/lib/libOpenGL.so -DOPENGL_glx_LIBRARY=$CONDA_PREFIX/lib/libGLX.so
+cmake --build build -j8
+cmake --install build
+Then continue with the ORB-SLAM3 part from my last message.
+
+If step 1 can't find those packages (older conda), use Mesa's software OpenGL instead, then run step 2 with the three OpenGL path flags replaced:
+
+
+conda install -c conda-forge -y mesalib
+# in step 2, instead of the GLVND / OPENGL_opengl / OPENGL_glx flags:
+#   -DOpenGL_GL_PREFERENCE=LEGACY -DOPENGL_INCLUDE_DIR=$CONDA_PREFIX/include -DOPENGL_gl_LIBRARY=$CONDA_PREFIX/lib/libGL.so
+ORB-SLAM3 runs with its viewer off, so OpenGL is only needed to compile and link; nothing is drawn at run time.
