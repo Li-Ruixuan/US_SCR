@@ -266,69 +266,18 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
  
  
 
+ On the training PC:
 
 
+cd /data2/u0137815/US_SCR
+git pull
+export DATA=/data2/u0137815/rgbd-us/data
 
+# 1. Polaris stream: 3XX and 4XX (good results) vs 5XX
+python tools/check_polaris.py --roots $DATA/train_3XX $DATA/train_4XX $DATA/train_5XX --out runs/polaris-check.md
 
+# 2. tracking error vs Polaris distance: 3XX, 4XX and the 5XX fresh maps
+python tools/check_polaris.py --track runs/repro/track-v2map-3XX runs/track-v2map-4XXA runs/track-v2map-5XXA-exam runs/track-v2map-5XXA-after runs/track-v2map-5XXB-generic runs/track-v2map-5XXC-exam runs/track-v2map-5XXD-exam runs/track-v2map-5XXE-exam --out runs/polaris-track.md
 
-
-| split | source | sweeps | absolute | **shape** | k = 1: in / **out** (true) | k = 8: in / **out** (true) | k = 30: in / **out** (true) |
-|---|---|---|---|---|---|---|---|
-| track-v2map-5XXA-after | scr-track | 8 | 2.48 | **1.96** | 0.06 / **0.06** (0.2) | 0.36 / **0.26** (1.4) | 0.94 / **0.54** (5.4) |
-| track-v2map-5XXA-exam | scr-track | 8 | 2.26 | **1.90** | 0.06 / **0.06** (0.2) | 0.34 / **0.27** (1.4) | 0.86 / **0.56** (5.4) |
-| track-v2map-5XXA-generic | scr-track | 8 | 13.57 | **3.79** | 0.08 / **0.07** (0.2) | 0.59 / **0.30** (1.4) | 1.70 / **0.70** (5.4) |
-| track-v2map-5XXB-exam | scr-track | 8 | 4.41 | **2.81** | 0.06 / **0.07** (0.2) | 0.37 / **0.28** (1.8) | 1.03 / **0.62** (6.8) |
-| track-v2map-5XXB-generic | scr-track | 8 | 3.35 | **2.46** | 0.06 / **0.07** (0.2) | 0.35 / **0.26** (1.8) | 0.97 / **0.53** (6.8) |
-| track-v2map-5XXB-oldA | scr-track | 8 | 4.23 | **3.00** | 0.09 / **0.07** (0.2) | 0.61 / **0.32** (1.8) | 1.57 / **0.69** (6.8) |
-| track-v2map-5XXC-exam | scr-track | 8 | 3.09 | **1.76** | 0.04 / **0.06** (0.2) | 0.23 / **0.20** (1.7) | 0.62 / **0.36** (6.5) |
-| track-v2map-5XXC-generic | scr-track | 8 | 6.32 | **1.76** | 0.04 / **0.06** (0.2) | 0.23 / **0.22** (1.7) | 0.64 / **0.46** (6.5) |
-| track-v2map-5XXC-oldA | scr-track | 2 | 58.59 | **47.65** | 0.08 / **0.18** (0.2) | 0.57 / **1.48** (1.9) | 1.79 / **5.32** (7.3) |
-| track-v2map-5XXC-oldB | scr-track | 8 | 40.70 | **29.24** | 0.07 / **0.17** (0.2) | 0.47 / **1.36** (1.7) | 1.53 / **5.03** (6.5) |
-| track-v2map-5XXD-exam | scr-track | 4 | 2.19 | **1.70** | 0.06 / **0.08** (0.2) | 0.35 / **0.34** (1.9) | 0.73 / **0.57** (7.0) |
-| track-v2map-5XXD-generic | scr-track | 4 | 5.09 | **1.28** | 0.06 / **0.08** (0.2) | 0.33 / **0.35** (1.9) | 0.65 / **0.58** (7.0) |
-| track-v2map-5XXE-exam | scr-track | 4 | 5.86 | **3.04** | 0.04 / **0.06** (0.2) | 0.28 / **0.25** (1.6) | 0.79 / **0.63** (6.1) |
-| track-v2map-5XXE-generic | scr-track | 4 | 13.08 | **2.83** | 0.04 / **0.06** (0.2) | 0.28 / **0.25** (1.6) | 0.81 / **0.56** (6.1) |
-| track-v2map-5XXE-oldC | scr-track | 4 | 13.61 | **14.61** | 0.08 / **0.13** (0.2) | 0.55 / **0.94** (1.6) | 1.84 / **3.24** (6.1) |
--> runs/shape-5XX.md
-bash: syntax error near unexpected token `('
-map: room-502 (1823 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
-
-run-509:  82 % covered, nearest similar view median 13 mm -> GO
-run-510: 100 % covered, nearest similar view median 6 mm -> GO
-run-511: 100 % covered, nearest similar view median 6 mm -> GO
-run-512:  95 % covered, nearest similar view median 11 mm -> GO
-run-513:  99 % covered, nearest similar view median 11 mm -> GO
-run-514:  82 % covered, nearest similar view median 10 mm -> GO
-run-515:  73 % covered, nearest similar view median 14 mm -> NO-GO; uncovered: 0-4 s, 18-20 s, 23-27 s, 33-38 s, 39-40 s, 52-53 s
-run-516:  94 % covered, nearest similar view median 11 mm -> GO
-run-517:  86 % covered, nearest similar view median 14 mm -> GO
-run-518: 100 % covered, nearest similar view median 13 mm -> GO
-run-519:  83 % covered, nearest similar view median 16 mm -> GO
-run-520:  69 % covered, nearest similar view median 20 mm -> NO-GO; uncovered: 0-4 s, 13-14 s, 17-24 s, 29-35 s
-run-521:  88 % covered, nearest similar view median 15 mm -> GO
-run-522:  97 % covered, nearest similar view median 11 mm -> GO
-run-523:  55 % covered, nearest similar view median 20 mm -> NO-GO; uncovered: 0-4 s, 14-17 s, 26-29 s, 33-35 s, 37-40 s, 45-50 s, 53-60 s
-run-524:  90 % covered, nearest similar view median 18 mm -> GO
-
-13/16 sweeps covered. For NO-GO sweeps, scan the room again from the probe's positions and heights in the uncovered spans.
-map: room-504 (1719 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
-
-run-517:  90 % covered, nearest similar view median 18 mm -> GO
-run-518: 100 % covered, nearest similar view median 14 mm -> GO
-run-519:  99 % covered, nearest similar view median 11 mm -> GO
-run-520:  74 % covered, nearest similar view median 17 mm -> NO-GO; uncovered: 3-4 s, 14-17 s, 19-24 s, 28-32 s
-run-521:  99 % covered, nearest similar view median 13 mm -> GO
-run-522: 100 % covered, nearest similar view median 8 mm -> GO
-run-523:  91 % covered, nearest similar view median 8 mm -> GO
-run-524: 100 % covered, nearest similar view median 10 mm -> GO
-
-7/8 sweeps covered. For NO-GO sweeps, scan the room again from the probe's positions and heights in the uncovered spans.
-map: room-507 (1805 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
-
-run-529: 100 % covered, nearest similar view median 10 mm -> GO
-run-530: 100 % covered, nearest similar view median 9 mm -> GO
-run-531:  88 % covered, nearest similar view median 12 mm -> GO
-run-532:  94 % covered, nearest similar view median 13 mm -> GO
-
-4/4 sweeps covered.
-
+# 3. the session table again, now with the Polaris columns
+python tools/check_session.py --root $DATA/train_5XX --out runs/check-5XX.md
