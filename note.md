@@ -306,26 +306,7 @@ python tools/us_analysis.py shape --json runs/slam-*/poses/*.json --out runs/sha
 
 
 
-
-
-2. Build ORB-SLAM3 on the training PC (once)
-
-cd /data2/u0137815/US_SCR
-git pull
-
-# libraries and matching compilers from conda-forge (no sudo)
-conda create -n orbslam -c conda-forge -y c-compiler cxx-compiler make cmake pkg-config eigen=3.4 libopencv libboost-devel glew libglu libgl-devel xorg-libx11 xorg-libxext
-conda activate orbslam
-export CMAKE_PREFIX_PATH=$CONDA_PREFIX
-
-# Pangolin v0.6, installed into the conda environment
-cd /data2/u0137815
-git clone --branch v0.6 --depth 1 https://github.com/stevenlovegrove/Pangolin.git
-cd Pangolin
-sed -i '1i #include <limits>' include/pangolin/gl/colour.h
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF -DBUILD_PANGOLIN_PYTHON=OFF -DBUILD_PANGOLIN_FFMPEG=OFF
-cmake --build build -j8
-cmake --install build
+ 
 
 # ORB-SLAM3
 cd /data2/u0137815
@@ -361,23 +342,13 @@ python tools/volume_figure.py --json runs/track-v2map-5XXC-exam/poses/fold0_run-
 Run this with your usual Python environment, not orbslam.
 
 
-
-Pangolin needs the OpenGL headers (GL/gl.h) and libraries, which your conda environment doesn't have yet. You don't need sudo. Run this in the same terminal:
-
-1. Install OpenGL into the conda environment
+ 
 
 
-conda activate orbslam
-conda install -c conda-forge -y libgl-devel libopengl-devel libglx-devel libegl-devel
-ls $CONDA_PREFIX/include/GL/gl.h $CONDA_PREFIX/lib/libOpenGL.so $CONDA_PREFIX/lib/libGLX.so
-The ls should list all three files.
-
-2. Configure Pangolin again, pointing it at them
 
 
-export CMAKE_PREFIX_PATH=$CONDA_PREFIX
-cd /data2/u0137815/Pangolin
-rm -rf build
+ 
+
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF -DBUILD_PANGOLIN_PYTHON=OFF -DBUILD_PANGOLIN_FFMPEG=OFF -DOpenGL_GL_PREFERENCE=GLVND -DOPENGL_INCLUDE_DIR=$CONDA_PREFIX/include -DOPENGL_opengl_LIBRARY=$CONDA_PREFIX/lib/libOpenGL.so -DOPENGL_glx_LIBRARY=$CONDA_PREFIX/lib/libGLX.so
 cmake --build build -j8
 cmake --install build
@@ -390,3 +361,39 @@ conda install -c conda-forge -y mesalib
 # in step 2, instead of the GLVND / OPENGL_opengl / OPENGL_glx flags:
 #   -DOpenGL_GL_PREFERENCE=LEGACY -DOPENGL_INCLUDE_DIR=$CONDA_PREFIX/include -DOPENGL_gl_LIBRARY=$CONDA_PREFIX/lib/libGL.so
 ORB-SLAM3 runs with its viewer off, so OpenGL is only needed to compile and link; nothing is drawn at run time.
+
+
+
+
+
+sed -i '1i #include <limits>' include/pangolin/gl/colour.h
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF -DBUILD_PANGOLIN_PYTHON=OFF -DBUILD_PANGOLIN_FFMPEG=OFF
+CMake Error at CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.5 has been removed from CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+  Or, add -DCMAKE_POLICY_VERSION_MINIMUM=3.5 to try configuring anyway.
+
+
+-- Configuring incomplete, errors occurred!
+(orbslam) u0137815@set-d-l626e10ns:/data2/u0137815/Pangolin$ 
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF -DBUILD_PANGOLIN_PYTHON=OFF -DBUILD_PANGOLIN_FFMPEG=OFF -DOpenGL_GL_PREFERENCE=GLVND -DOPENGL_INCLUDE_DIR=$CONDA_PREFIX/include -DOPENGL_opengl_LIBRARY=$CONDA_PREFIX/lib/libOpenGL.so -DOPENGL_glx_LIBRARY=$CONDA_PREFIX/lib/libGLX.so
+cmake --build build -j8
+cmake --install build
+CMake Error at CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.5 has been removed from CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+  Or, add -DCMAKE_POLICY_VERSION_MINIMUM=3.5 to try configuring anyway.
+
+
+-- Configuring incomplete, errors occurred!
+Error: could not find CMAKE_PROJECT_NAME in Cache
+CMake Error: Not a file: /data2/u0137815/Pangolin/build/cmake_install.cmake
+CMake Error: Error processing file: /data2/u0137815/Pangolin/build/cmake_install.cmake
