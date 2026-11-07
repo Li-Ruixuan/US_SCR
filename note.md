@@ -271,9 +271,7 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 - Sun, Gilbertson, Anthony (MICCAI 2014, "Probe localization for freehand 3D ultrasound by tracking skin features"): camera on the probe, no tracker, skin-feature visual SLAM, scale from a sticker; ~0.91 mm, 0.55° per 10 mm of travel. **The key medical prior work.**
 - Outside-in markerless probe tracking with a fixed RGB-D camera: MLRecon (arXiv 2603.00990, FoundationPose + SAM 2); Aliani et al. (EMBC 2025, D435 + FoundationPose).
 - Literature-chat prompt for a full search: given in the session of 4 Nov (groups: SCR without poses, RGB-D SLAM, inside-out probe tracking, outside-in, sensorless US, SCR in medicine).
-
-## 5. ORB-SLAM3 baseline (to run on the training PC)
-
+ 
 
 
 
@@ -286,28 +284,31 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
-conda activate free
-export DATA=/data2/u0137815/rgbd-us/data US=/data2/u0137815/US_SCR ORB=/data2/u0137815/ORB_SLAM3
-ORBLIB=/data2/u0137815/conda/envs/orbslam/lib:$ORB/lib:$ORB/Thirdparty/DBoW2/lib:$ORB/Thirdparty/g2o/lib
-CAL="--cam-calib-from runs/repro/map-3XX/map.json"
+Traceback (most recent call last):
+  File "/data2/u0137815/US_SCR/tools/slam_baseline.py", line 261, in <module>
+    main()
+  File "/data2/u0137815/US_SCR/tools/slam_baseline.py", line 257, in main
+    export(args) if args.cmd == "export" else evaluate(args)
+                                              ^^^^^^^^^^^^^^
+  File "/data2/u0137815/US_SCR/tools/slam_baseline.py", line 157, in evaluate
+    traj = read_tum(args.traj)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/data2/u0137815/US_SCR/tools/slam_baseline.py", line 141, in read_tum
+    for line in open(path):
+                ^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'runs/slam-5XXA-exam/CameraTrajectory.txt'
 
-# quick check: should print the usage line
-LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum
 
-# 1. export the sequences (Python, free env)
-cd $US
-python tools/slam_baseline.py export --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/slam-3XX/seq
-python tools/slam_baseline.py export --root $DATA/test_5XXA --scan-runs room-502 --out runs/slam-5XXA-exam/seq
-python tools/slam_baseline.py export --root $DATA/test_5XXA --scan-runs room-501 --out runs/slam-5XXA-generic/seq
 
-# 2. ORB-SLAM3, each run inside its own folder (its CameraTrajectory.txt is written there)
-cd $US/runs/slam-3XX && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
-cd $US/runs/slam-5XXA-exam && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
-cd $US/runs/slam-5XXA-generic && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
+This program comes with ABSOLUTELY NO WARRANTY;
+This is free software, and you are welcome to redistribute it
+under certain conditions. See LICENSE.txt.
 
-# 3. score them like our system (Python, free env)
-cd $US
-python tools/slam_baseline.py evaluate --root $DATA/train_3XX --scan-runs room-301 room-302 --seq runs/slam-3XX/seq --traj runs/slam-3XX/CameraTrajectory.txt --smooth 1 --out runs/slam-3XX
-python tools/slam_baseline.py evaluate --root $DATA/test_5XXA --scan-runs room-502 --seq runs/slam-5XXA-exam/seq --traj runs/slam-5XXA-exam/CameraTrajectory.txt $CAL --smooth 1 --out runs/slam-5XXA-exam
-python tools/slam_baseline.py evaluate --root $DATA/test_5XXA --scan-runs room-501 --seq runs/slam-5XXA-generic/seq --traj runs/slam-5XXA-generic/CameraTrajectory.txt $CAL --smooth 1 --out runs/slam-5XXA-generic
-python tools/us_analysis.py shape --json runs/slam-*/poses/*.json --out runs/shape-slam.md
+Input sensor was set to: RGB-D
+Loading settings from seq/camera.yaml
+Camera1.k3 optional parameter does not exist...
+	-Loaded camera 1
+Camera.newHeight optional parameter does not exist...
+Camera.newWidth optional parameter does not exist...
+	-Loaded image info
+RGBD.DepthMapFactor parameter must be a real number, aborting...
