@@ -336,5 +336,29 @@ Run this with your usual Python environment, not orbslam.
 
 
 
+2. Point CMake at it and accept any OpenCV 4.x
 
+
+export CMAKE_PREFIX_PATH=$CONDA_PREFIX
+export OpenCV_DIR=$CONDA_PREFIX/lib/cmake/opencv4
+export CXXFLAGS="$CXXFLAGS -include cstdint -include limits"
+cd /data2/u0137815/ORB_SLAM3
+grep -rl 'find_package(OpenCV 4.4' --include=CMakeLists.txt . | xargs sed -i 's/find_package(OpenCV 4.4/find_package(OpenCV 4/'
+grep -rn "find_package(OpenCV" --include=CMakeLists.txt .
+The last grep should show no 4.4 left. That includes Thirdparty/DBoW2/CMakeLists.txt, which has its own OpenCV check that my earlier sed missed.
+
+3. Clear the failed builds and build again
+
+
+rm -rf build Thirdparty/DBoW2/build Thirdparty/g2o/build Thirdparty/Sophus/build
+./build.sh
+rm -rf is needed because CMake caches "OpenCV not found" in the build folders and would fail again without re-checking.
+
+The other sed fixes from before (viewer off, C++14, LoopClosing.h, make -j8) are already applied to your copy, so you don't need to repeat them. Every new terminal needs the conda activate and the three export lines again.
+
+When ./build.sh finishes, check it works:
+
+
+export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+./Examples/RGB-D/rgbd_tum
   
