@@ -143,18 +143,41 @@ python tools/us_analysis.py shape --json runs/volume3d/3XX/poses/*.json --out ru
 
 **Classical anchors on our own tracker-free map:** add `--map runs/repro/map-3XX` to the classical command: the keyframes are posed by that map (times its camera calibration) instead of Polaris.
 
-**RGB-D SLAM baseline (ORB-SLAM3).** Build once (Ubuntu; needs Eigen3, OpenCV >= 4, Boost, Pangolin; see the ORB-SLAM3 README):
+**RGB-D SLAM baseline (ORB-SLAM3).** Build once on the training PC. No sudo needed: the libraries come from a conda environment, Pangolin is installed into it, ORB-SLAM3 is built in `/data2/u0137815/ORB_SLAM3`. Headless: the viewer is switched off.
 
 ```bash
-git clone https://github.com/stevenlovegrove/Pangolin.git ~/Pangolin && cd ~/Pangolin && ./scripts/install_prerequisites.sh recommended
-cmake -B build && cmake --build build -j8 && sudo cmake --install build
-git clone https://github.com/UZ-SLAMLab/ORB_SLAM3.git ~/ORB_SLAM3 && cd ~/ORB_SLAM3
-sed -i 's/ORB_SLAM3::System::RGBD,true/ORB_SLAM3::System::RGBD,false/' Examples/RGB-D/rgbd_tum.cc   # no viewer (headless)
+# 1. libraries (conda-forge), and the compilers that match them
+conda create -n orbslam -c conda-forge -y c-compiler cxx-compiler make cmake pkg-config eigen=3.4 libopencv libboost-devel glew libglu libgl-devel xorg-libx11 xorg-libxext
+conda activate orbslam
+export CMAKE_PREFIX_PATH=$CONDA_PREFIX
+
+# 2. Pangolin v0.6 (the version ORB-SLAM3 was tested with), into the environment
+cd /data2/u0137815
+git clone --branch v0.6 --depth 1 https://github.com/stevenlovegrove/Pangolin.git
+cd Pangolin
+sed -i '1i #include <limits>' include/pangolin/gl/colour.h          # newer gcc: std::numeric_limits
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF -DBUILD_PANGOLIN_PYTHON=OFF -DBUILD_PANGOLIN_FFMPEG=OFF
+cmake --build build -j8
+cmake --install build
+
+# 3. ORB-SLAM3
+cd /data2/u0137815
+git clone https://github.com/UZ-SLAMLab/ORB_SLAM3.git
+cd ORB_SLAM3
+sed -i 's/ORB_SLAM3::System::RGBD,true/ORB_SLAM3::System::RGBD,false/' Examples/RGB-D/rgbd_tum.cc      # no viewer
 sed -i 's/find_package(OpenCV 4.4)/find_package(OpenCV 4)/; s/-std=c++11/-std=c++14/g; s/CXX11/CXX14/g' CMakeLists.txt
+sed -i 's/std::pair<const KeyFrame\*, g2o::Sim3>/std::pair<KeyFrame* const, g2o::Sim3>/' include/LoopClosing.h   # newer gcc
+sed -i 's/make -j$/make -j8/' build.sh                                                                # unbounded -j runs out of memory
 ./build.sh
+
+# 4. check: prints its usage line
+export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+./Examples/RGB-D/rgbd_tum
 ```
 
-Then per session: `tools/slam_baseline.py export` (room scans, then sweeps, as one RGB-D sequence), `rgbd_tum`, `tools/slam_baseline.py evaluate` (one alignment + camera calibration on the room scan, as our maps; `--cam-calib-from` for 4XX); commands in `note.md` 2. Frames ORB-SLAM3 loses have no pose and are counted.
+Before each use: `conda activate orbslam` and the `LD_LIBRARY_PATH` line. With sudo, the system packages (`libeigen3-dev libopencv-dev libboost-all-dev libglew-dev libgl1-mesa-dev`) replace step 1, and Pangolin installs with `sudo cmake --install build`.
+
+Then per session: `tools/slam_baseline.py export` (room scans, then sweeps, as one RGB-D sequence), `rgbd_tum`, `tools/slam_baseline.py evaluate` (one alignment + camera calibration on the room scan, as our maps; `--cam-calib-from` for 4XX); commands in `note.md` 5. Frames ORB-SLAM3 loses have no pose and are counted.
 
 Options of `anchoring.py evaluate`: `--start anchor` (no ground-truth pose at the start of a segment), `--gate-recover 3` (accept anchors again after a wrong one was accepted), `--scr-frames M` (one SCR anchor from M chain frames). Its other commands: `coverage`, `simulate`, `pairs` (the RPR anchor network itself is trained in rgbd-us).
 

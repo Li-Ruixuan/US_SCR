@@ -1,6 +1,6 @@
 # US_SCR: working notes
 
-Status 4 Nov 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and commands: `README.md`. Source project: `rgbd-us` (`note_RPR.md` there). The earlier, longer version of these notes (status tables, experiment log) is in git commit 870a144.
+Status 7 Nov 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and commands: `README.md`. Source project: `rgbd-us` (`note_RPR.md` there). The earlier, longer version of these notes (status tables, experiment log) is in git commit 870a144.
 
 ## 1. Objective, questions, claims (updated 3 Nov 2026)
 
@@ -12,26 +12,27 @@ Status 4 Nov 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and
 
 | | question | answer so far | evidence |
 |---|---|---|---|
-| RQ1 | Can a probe-mounted RGB-D camera and one learned model track freehand US with no tracker at any stage? | **Yes:** 3XX 2.34 mm at the US image, shape 1.72 mm (strict protocol 2.94); 4XX shape 2.69 mm, best of all systems; every frame mapped and tracked. 2XX validation is the exception (8.06 mm, poor map) | Results without a tracker, below |
-| RQ2 | What does removing the tracker cost? | 3XX about 0.5 mm (2.34 / 1.72 vs 1.85 / 1.57 with Polaris labels); 4XX nothing in shape (2.69 vs 3.17) but 1.4 mm in absolute placement (7.92 vs 6.48). The network reproduces its labels, so the map is the bottleneck, not the network | below |
+| RQ1 | Can a probe-mounted RGB-D camera and one learned model track freehand US with no tracker at any stage? | **Yes:** 3XX 2.34 mm at the US image, shape 1.72 mm (strict protocol 2.94); 4XX shape 2.69 mm, best of all systems; every frame mapped and tracked. 2XX validation is the exception (8.06 mm, poor map); 5XX (third session, phantom) 2.28 mm with a scan along the exam views | Results without a tracker, below |
+| RQ2 | What does removing the tracker cost? | 3XX about 0.5 mm (2.34 / 1.72 vs 1.85 / 1.57 with Polaris labels); 4XX nothing in shape (2.69 vs 3.17) but 1.4 mm in absolute placement (7.92 vs 6.48); 5XX A 0.4 mm (2.28 vs 1.85) when the scan covers the exam views. The network reproduces its labels, so the map is the bottleneck, not the network | below |
 | RQ3 | Learned room coordinates vs the alternatives? | vs pose regression 8× better on anchors (strong); vs a classical SIFT pipeline on the same Polaris-posed map: better where the scan covers the sweeps, worse where not, shape better everywhere | Tables A–D |
-| RQ4 | What decides the accuracy? | room-scan coverage of the sweep viewpoints; without a tracker the map: each mapping component is needed (without loop closures 5.77 mm, without the camera calibration 11.49, without both and the graph 13.26, vs 2.34) | Tables C, F |
+| RQ4 | What decides the accuracy? | room-scan coverage of the sweep viewpoints (5XX A, same sweeps: 2.28 vs 13.57 mm; with Polaris labels 1.85 vs 10.95), then the map quality (with ≥ 90 % coverage, error ≈ map camera error + 1 mm); without a tracker the map: each mapping component is needed (without loop closures 5.77 mm, without the camera calibration 11.49, without both and the graph 13.26, vs 2.34) | Tables C, F |
 | RQ5 | Do the US images help? | no (10 tests, Li et al. reproduced) | summary 6 |
 
 **Claims.** The main claim is the tracker-free system; the earlier claims (summary 1.1, all with Polaris-posed maps) now describe its tracking part.
 
 | | claim | evidence | strength | state with it |
 |---|---|---|---|---|
-| **C0** | **No tracker at any stage:** a 1–2 min room scan, one SCR network that labels itself, then every frame tracked | 3XX 2.34 / 1.72 mm (Polaris labels 1.85 / 1.57; classical with a Polaris-posed map 3.11 / 2.47); strict 2.94 (Polaris labels 2.98, classical 3.0); 4XX shape 2.69, best of all systems on every block | strong for shape, moderate for absolute | probe calibration fitted with Polaris once; 4XX absolute 7.92 vs 6.48 / 4.76; 2XX validation map failed (8.06 vs 3.35); three seeds 2.22–2.34 |
+| **C0** | **No tracker at any stage:** a 1–2 min room scan, one SCR network that labels itself, then every frame tracked | 3XX 2.34 / 1.72 mm (Polaris labels 1.85 / 1.57; classical with a Polaris-posed map 3.11 / 2.47); strict 2.94 (Polaris labels 2.98, classical 3.0); 4XX shape 2.69, best of all systems on every block; 5XX 2.28 with an exam-view scan (Polaris labels 1.85) | strong for shape, moderate for absolute | probe calibration fitted with Polaris once; 4XX absolute 7.92 vs 6.48 / 4.76; 2XX validation map failed (8.06 vs 3.35); three seeds 2.22–2.34 |
 | C1 | One network on every frame replaces odometry + anchors | all 7 splits (Polaris maps) | strong | |
 | C2 | Room coordinates + geometric solver beat pose regression | anchors 8× more accurate on 3XX and 4XX | strong | |
-| C3 | Room-scan coverage decides the accuracy | covered 4.1 vs uncovered 13.4 mm; real views 4XX A 5.6 → 2.0 | strong | |
+| C3 | Room-scan coverage decides the accuracy | covered 4.1 vs uncovered 13.4 mm; real views 4XX A 5.6 → 2.0; 5XX A same sweeps 2.28 vs 13.57 (Polaris labels 1.85 vs 10.95) | strong | |
 | C4 | SCR uses all room scans of the day despite moved objects; feature matching cannot | 4XX B–E 6.82 → 5.53 vs 4.90 → 13.93 | strong | pooling decided on test blocks |
 | C5 | Smoother tracking and better volume shape than classical | every split | strong / moderate | shape metric introduced after the 4XX gap |
 | C6 | The US images add nothing | 10 tests | strong (this setup) | |
 | C7 | Real time | 0.25 s delay = offline | moderate | replayed, not live |
+| C8 | Rescan after major changes; the inlier count flags an outdated map | 5XX: old map 4.28 after a large change, 13.9–59 after a very large one / emptied room; median inliers 23–450 vs ≥ 1126 | moderate | one session, threshold not tuned |
 
-**Not claimed:** one network trained end to end (one SCR network + exact geometry: Kabsch, ICP, pose graph; deliberate, pose regression failed; see "End to end?" below); as accurate as Polaris labels; better than classical in new sessions with short scans; generalisation to new rooms (trained per room by design); a fully Polaris-free workflow (the calibration). 
+**Not claimed:** one network trained end to end (one SCR network + exact geometry: Kabsch, ICP, pose graph; deliberate, pose regression failed; see "End to end?" below); as accurate as Polaris labels; better than classical in new sessions with short scans; generalisation to new rooms (trained per room by design); accuracy from any room scan (a scan that misses the exam views: 11–14 mm, even with Polaris labels); a fully Polaris-free workflow (the calibration). 
 
 Position for the paper: like DSAC*, ACE and ACE0, the system is a hybrid on purpose: the network learns the room (the hard, appearance part); exact geometry does what is known exactly (rigid fit on measured depth, ICP, pose graph). End-to-end pose regression was tested and is 3–8× worse (claim C2). An end-to-end fine-tune through a differentiable Kabsch is an optional ablation (task 6 in section 2).
 
@@ -72,6 +73,17 @@ Position for the paper: like DSAC*, ACE and ACE0, the system is a hybrid on purp
 - **2XX map (5 Nov, task 4):** the problem is `room-201`. Alone it keeps the 31 mm p90 of the 1 s motion (some stretch is joined wrongly), while `room-202` alone is clean (p90 6.2 mm, scene points 4.0 mm). Stricter joining is worse (map 9.2 mm, tracking 9.52 vs 8.13). The own calibration helps the map a little (5.9 / 5.2 mm vs 6.7 / 8.3); not yet tracked. Next: find the bad stretch of room-201 (fast motion? textureless?), and train / track on the room-202 map (and on the own-calibration map) for run-205 / run-211 (2XX is validation, so the setting may be chosen here).
 - **Volume figures (5 Nov, task 5):** `runs/figures/volume_*.png/.pdf` (3XX run-313, 316; 4XX A run-406, C run-414, D run-420). 3XX run-316: pixel error 1.9 mm (rigid fit 1.5) vs classical 2.6 (2.4); 4XX C run-414: 12.2 mm, after the rigid fit 2.9 (classical 4.6 / 3.7), the clearest picture of "right shape, wrong place". The title overlapped the view names (fixed 5 Nov; re-run to refresh). For the paper, use a subset of the rows (true, ours, ours after the rigid fit, overlay).
 - `summary.md` Tables F (ablations) and G (every split) and `tools/tables/table_F.png`, `table_G.png` hold the final numbers. Open tasks: section 2.
+
+**Session 5XX (5–7 Nov; full tables in `summary.md` 4.9).** Reporting rule (fixed 6 Nov): the exam-view scan is the protocol and gives each block's headline number; the generic scan is a controlled test of a scan that misses the exam views, never a second result to choose from.
+- Protocol (exam-view scan), absolute / shape: A **2.28** / 1.90, B 4.43 / 2.81 (75 % covered; its generic scan covered 93 % and gave 3.36), C 3.11 / 1.76, D (people moving, C's scan) 2.24 / 1.70, E (empty room) 5.85 / 3.04.
+- Block A, same sweeps: Polaris labels 1.85 (exam) / 10.95 (generic); our map 2.28 / 13.57; both scans in one map 3.15 (the generic footage bends the map, camera 2.7 → 3.4 mm); 20 / 40 / 80 / 120 epochs 2.53 / 2.34 / 2.37 / 2.28. Removing the tracker costs 0.4 mm when the scan covers the views (3XX: 0.5); coverage costs ~9 mm even with perfect labels.
+- Take-home from the generic scan: (1) the room scan must film the exam views; coverage, not the kind or length of scan, is the variable; (2) a limit of learning the room from a scan, not of removing the tracker; (3) the volume keeps its shape but is misplaced (shape 3.8 vs 13.6 mm); (4) the inlier gate does not catch it, the coverage check does; (5) more footage does not help.
+- With ≥ 90 % coverage the error is about the map camera error + 1 mm (C/D generic 5.2 → 5.1–6.4, E 4.3 → 5.9, 10.9 → 13.0). Scan after the sweeps: 2.50 (no effect).
+- Outdated maps: B with A's map 4.28 (tolerated); C with A's / B's map 59.4 / 40.9, E with C's 13.9 (fail, although the views were covered). Median inliers: current maps 1371–2213, the old map that works 1126, failing 23–450: a Polaris-free rescan warning (not tuned).
+- Polaris check (`tools/check_polaris.py`, `runs/polaris-*.md`): the marker was at the near edge of the volume in every session (median 0.93 / 0.88 / 0.90 m for 3XX / 4XX / 5XX); noise at the US image 0.24 / 0.25 / 0.12 mm; no trend of our error with distance. Next recordings: Polaris 1.0–2.0 m away (`tools/check_session.py` warns).
+- Figures: `runs/figures/volume_5XXA_run-501.png` (exam vs generic scan: shifted volume, right shape); `volume_5XXC_run-517.png` must be re-run with `--crop 20` (the outdated estimate made the grid huge).
+- Seed fix (`scr_map.py`): room-504 starts with an arm in view; the seed now moves 1 s later when its depth ICP places < 1 s of frames. Earlier maps unchanged.
+- Still open: ORB-SLAM3 (section 5), classical on 5XX, a go / no-go check without Polaris, map update by fine-tuning (`summary.md` 8).
 
 **How the tests are organised (paper and webpage).** Main result: the tracker-free system (Table F). Every other test is one of:
 - *Ablations of the mapping* (3XX, no tracker): frame-by-frame map → + pose graph → + camera calibration; prior 10 / 30 mm; joint refinement; loop closures; the oracle map (Polaris) as the upper bound.
@@ -114,7 +126,7 @@ python tools/us_analysis.py shape --json runs/track-v2map-3XX/poses/*.json --out
 
 ### 2.1 Recording plan, 5 Nov 2026 (session 5XX: same room, many views, several scene changes)
 
-**Status (5 Nov):** A, B and C are recorded, up to `run-524`. The lighting block is dropped. Still to do: D, people moving in C's layout; then E, an empty room.
+**Status (7 Nov):** all 41 recordings done (lighting block dropped) and every planned test run except ORB-SLAM3 and classical; results in 1 (Session 5XX) and `summary.md` 4.9.
 
 Done before recording:
 - Probe, camera and marker mount unchanged since 14 Oct, so `T_marker_cam.npy` and the US calibration stay valid. No hand–eye recording is needed.
@@ -260,44 +272,90 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 - Outside-in markerless probe tracking with a fixed RGB-D camera: MLRecon (arXiv 2603.00990, FoundationPose + SAM 2); Aliani et al. (EMBC 2025, D435 + FoundationPose).
 - Literature-chat prompt for a full search: given in the session of 4 Nov (groups: SCR without poses, RGB-D SLAM, inside-out probe tracking, outside-in, sensorless US, SCR in medicine).
 
+## 5. ORB-SLAM3 baseline (to run on the training PC)
 
+Build once: `README.md` 6 (conda, no sudo; installed in `/data2/u0137815/ORB_SLAM3`). ORB-SLAM3 writes `CameraTrajectory.txt` into the folder it runs in, so evaluate right after each run.
 
-
-
-
-
-
-
-
-
-6. ORB-SLAM3 on 3XX and 5XX A, run once with each A scan. First build ORB-SLAM3 once on the training PC, using the steps in README.md section 6. ORB-SLAM3 always writes CameraTrajectory.txt to its own folder, so run each evaluate straight after its SLAM run.
-
-
-US=/data2/u0137815/US_SCR
+```bash
+conda activate orbslam
+export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+export DATA=/data2/u0137815/rgbd-us/data US=/data2/u0137815/US_SCR ORB=/data2/u0137815/ORB_SLAM3
+CAL="--cam-calib-from runs/repro/map-3XX/map.json"
+cd $US
 python tools/slam_baseline.py export --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/slam-3XX/seq
 python tools/slam_baseline.py export --root $DATA/test_5XXA --scan-runs room-502 --out runs/slam-5XXA-exam/seq
 python tools/slam_baseline.py export --root $DATA/test_5XXA --scan-runs room-501 --out runs/slam-5XXA-generic/seq
 
-cd /data2/u0137815/ORB_SLAM3
-./Examples/RGB-D/rgbd_tum Vocabulary/ORBvoc.txt $US/runs/slam-3XX/seq/camera.yaml $US/runs/slam-3XX/seq $US/runs/slam-3XX/seq/associations.txt
-cd $US
-python tools/slam_baseline.py evaluate --root $DATA/train_3XX --scan-runs room-301 room-302 --seq runs/slam-3XX/seq --traj ~/ORB_SLAM3/CameraTrajectory.txt --smooth 1 --out runs/slam-3XX
+cd $ORB && ./Examples/RGB-D/rgbd_tum Vocabulary/ORBvoc.txt $US/runs/slam-3XX/seq/camera.yaml $US/runs/slam-3XX/seq $US/runs/slam-3XX/seq/associations.txt
+cd $US && python tools/slam_baseline.py evaluate --root $DATA/train_3XX --scan-runs room-301 room-302 --seq runs/slam-3XX/seq --traj $ORB/CameraTrajectory.txt --smooth 1 --out runs/slam-3XX
 
+cd $ORB && ./Examples/RGB-D/rgbd_tum Vocabulary/ORBvoc.txt $US/runs/slam-5XXA-exam/seq/camera.yaml $US/runs/slam-5XXA-exam/seq $US/runs/slam-5XXA-exam/seq/associations.txt
+cd $US && python tools/slam_baseline.py evaluate --root $DATA/test_5XXA --scan-runs room-502 --seq runs/slam-5XXA-exam/seq --traj $ORB/CameraTrajectory.txt $CAL --smooth 1 --out runs/slam-5XXA-exam
 
-
-
-
-cd ~/ORB_SLAM3
-./Examples/RGB-D/rgbd_tum Vocabulary/ORBvoc.txt $US/runs/slam-5XXA-exam/seq/camera.yaml $US/runs/slam-5XXA-exam/seq $US/runs/slam-5XXA-exam/seq/associations.txt
-cd $US
-python tools/slam_baseline.py evaluate --root $DATA/test_5XXA --scan-runs room-502 --seq runs/slam-5XXA-exam/seq --traj ~/ORB_SLAM3/CameraTrajectory.txt $CAL --smooth 1 --out runs/slam-5XXA-exam
-
-cd ~/ORB_SLAM3
-./Examples/RGB-D/rgbd_tum Vocabulary/ORBvoc.txt $US/runs/slam-5XXA-generic/seq/camera.yaml $US/runs/slam-5XXA-generic/seq $US/runs/slam-5XXA-generic/seq/associations.txt
-cd $US
-python tools/slam_baseline.py evaluate --root $DATA/test_5XXA --scan-runs room-501 --seq runs/slam-5XXA-generic/seq --traj ~/ORB_SLAM3/CameraTrajectory.txt $CAL --smooth 1 --out runs/slam-5XXA-generic
+cd $ORB && ./Examples/RGB-D/rgbd_tum Vocabulary/ORBvoc.txt $US/runs/slam-5XXA-generic/seq/camera.yaml $US/runs/slam-5XXA-generic/seq $US/runs/slam-5XXA-generic/seq/associations.txt
+cd $US && python tools/slam_baseline.py evaluate --root $DATA/test_5XXA --scan-runs room-501 --seq runs/slam-5XXA-generic/seq --traj $ORB/CameraTrajectory.txt $CAL --smooth 1 --out runs/slam-5XXA-generic
 
 python tools/us_analysis.py shape --json runs/slam-*/poses/*.json --out runs/shape-slam.md
---smooth 1 smooths the SLAM poses over 1 s, the same as our numbers. For 3XX, evaluate fits the camera calibration on the room scan, as our 3XX map did. For 5XX it reuses the 3XX calibration, as all our 5XX maps did.
+```
 
-If you run them all, a suggested order: 1, 2, 3, 4, 5, then 6.
+`--smooth 1` smooths the SLAM poses over 1 s, as our numbers. 3XX: evaluate fits the camera calibration on the room scan, as our 3XX map did; 5XX reuses the 3XX calibration, as all 5XX maps. The `seq/` folders are links into the data and stay out of git (`.gitignore`).
+
+
+
+
+
+
+
+
+
+2. Build ORB-SLAM3 on the training PC (once)
+
+cd /data2/u0137815/US_SCR
+git pull
+
+# libraries and matching compilers from conda-forge (no sudo)
+conda create -n orbslam -c conda-forge -y c-compiler cxx-compiler make cmake pkg-config eigen=3.4 libopencv libboost-devel glew libglu libgl-devel xorg-libx11 xorg-libxext
+conda activate orbslam
+export CMAKE_PREFIX_PATH=$CONDA_PREFIX
+
+# Pangolin v0.6, installed into the conda environment
+cd /data2/u0137815
+git clone --branch v0.6 --depth 1 https://github.com/stevenlovegrove/Pangolin.git
+cd Pangolin
+sed -i '1i #include <limits>' include/pangolin/gl/colour.h
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF -DBUILD_PANGOLIN_PYTHON=OFF -DBUILD_PANGOLIN_FFMPEG=OFF
+cmake --build build -j8
+cmake --install build
+
+# ORB-SLAM3
+cd /data2/u0137815
+git clone https://github.com/UZ-SLAMLab/ORB_SLAM3.git
+cd ORB_SLAM3
+sed -i 's/ORB_SLAM3::System::RGBD,true/ORB_SLAM3::System::RGBD,false/' Examples/RGB-D/rgbd_tum.cc
+sed -i 's/find_package(OpenCV 4.4)/find_package(OpenCV 4)/; s/-std=c++11/-std=c++14/g; s/CXX11/CXX14/g' CMakeLists.txt
+sed -i 's/std::pair<const KeyFrame\*, g2o::Sim3>/std::pair<KeyFrame* const, g2o::Sim3>/' include/LoopClosing.h
+sed -i 's/make -j$/make -j8/' build.sh
+./build.sh
+
+# check: should print a usage line
+export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+./Examples/RGB-D/rgbd_tum
+What the sed lines fix:
+
+Viewer off: no display is needed.
+OpenCV version: the build accepts OpenCV 4.x instead of exactly 4.4.
+Newer gcc: two compile errors that newer compilers raise in Pangolin and ORB-SLAM3.
+make -j8: build.sh otherwise runs make with no job limit and can run out of memory.
+build.sh takes roughly 10–20 minutes. If any step fails, paste the last 20 lines of the error.
+
+3. Run ORB-SLAM3
+Once the build works, run all of note.md section 5. It exports 3XX, 5XX A exam-view and 5XX A generic, runs ORB-SLAM3 on each and evaluates it straight after, then computes the shape. Start each new terminal with:
+
+
+conda activate orbslam
+export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+4. Re-run the block C figure (fixed grid)
+
+cd /data2/u0137815/US_SCR
+python tools/volume_figure.py --json runs/track-v2map-5XXC-exam/poses/fold0_run-517_scr-track.json runs/track-v2map-5XXC-oldB/poses/fold0_run-517_scr-track.json --labels "current scan" "outdated scan (block B)" --rigid-fit --crop 20 --out runs/figures/volume_5XXC_run-517.png
+Run this with your usual Python environment, not orbslam.

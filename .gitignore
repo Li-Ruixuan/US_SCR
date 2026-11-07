@@ -10,3 +10,4 @@ runs/**/graph_loops.npz
 
 __pycache__/
 .vscode/
+runs/slam-*/seq/

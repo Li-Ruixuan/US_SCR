@@ -14,6 +14,9 @@ tools/slam_baseline.py evaluate. Rows without a pose in any of them are left out
 
   python tools/volume_figure.py --json runs/repro/volume3d/3XX/poses/fold0_run-316_scr-track.json \\
       --labels "no tracker (ours)" --rigid-fit --out runs/figures/volume_3XX_run-316.png
+
+An estimate far from the truth (an outdated map, tens of cm off) makes the common grid huge and the volumes tiny:
+--crop 40 keeps the grid on the true volume (+ 40 mm) and cuts off what falls outside (the share is printed).
 """
 
 import argparse
@@ -59,6 +62,9 @@ def main():
     ap.add_argument("--stride", type=int, default=2, help="US pixel stride")
     ap.add_argument("--slab", type=float, default=6.0, help="slab thickness (mm) of each projection; 0 = whole volume")
     ap.add_argument("--margin", type=float, default=3.0, help="mm")
+    ap.add_argument("--crop", type=float, default=None,
+                    help="mm: grid = the true volume + this margin; estimates outside it are cut off (for estimates "
+                         "far off, e.g. an outdated map, which otherwise shrink the true volume to a dot)")
     ap.add_argument("--max-voxels", type=float, default=4e7)
     ap.add_argument("--fan-threshold", type=float, default=5.0)
     ap.add_argument("--title", default=None)
@@ -109,8 +115,10 @@ def main():
     W = np.eye(4)
     W[:3, :3], W[:3, 3] = Vt, -Vt @ cen                     # world -> sweep frame
     corners = S @ np.array([[1, 1, 0, 1], [640, 1, 0, 1], [640, 480, 0, 1], [1, 480, 0, 1]], float).T
-    allc = np.concatenate([(W @ T @ corners)[:, :3].transpose(0, 2, 1).reshape(-1, 3) for _, T, _ in sources])
-    lo, hi = allc.min(0) - args.margin, allc.max(0) + args.margin
+    allc = np.concatenate([(W @ T @ corners)[:, :3].transpose(0, 2, 1).reshape(-1, 3)
+                           for _, T, _ in (sources[:1] if args.crop is not None else sources)])
+    pad = args.margin if args.crop is None else args.crop
+    lo, hi = allc.min(0) - pad, allc.max(0) + pad
     voxel = args.voxel
     while np.prod(np.ceil((hi - lo) / voxel)) > args.max_voxels:
         voxel *= 1.25
@@ -121,11 +129,13 @@ def main():
     vols = []
     for lab, T, kind in sources:
         s, n = np.zeros(shape, np.float32), np.zeros(shape, np.float32)
+        dropped = 0
         for i in range(len(frames)):
-            accumulate(s, n, lo, voxel, (W @ T[i] @ P)[:3].T, imgs[i])
+            dropped += accumulate(s, n, lo, voxel, (W @ T[i] @ P)[:3].T, imgs[i])
         err = float(np.linalg.norm((T @ P_err - T_gt @ P_err)[:, :3], axis=1).mean()) if kind else 0.0
         vols.append((lab, np.where(n > 0, s / np.maximum(n, 1), 0), n, err, kind))
-        print(f"  {lab:40s} mean pixel error {err:5.1f} mm", flush=True)
+        cut = f", {100 * dropped / max(len(frames) * P.shape[1], 1):.0f} % of the pixels outside the grid" if dropped else ""
+        print(f"  {lab:40s} mean pixel error {err:5.1f} mm{cut}", flush=True)
     vmax = float(np.percentile(vols[0][1][vols[0][2] > 0], 99.5)) or 1.0
     centre = ((W @ np.append(cen, 1))[:3] - lo) / voxel        # = the origin of the sweep frame
     slab = args.slab / voxel
