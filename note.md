@@ -274,51 +274,40 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 ## 5. ORB-SLAM3 baseline (to run on the training PC)
 
-Build once: `README.md` 6 (conda, no sudo; installed in `/data2/u0137815/ORB_SLAM3`). ORB-SLAM3 writes `CameraTrajectory.txt` into the folder it runs in, so evaluate right after each run.
 
-```bash
-conda activate orbslam
-export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+
+
+
+
+
+
+
+
+
+
+
+conda activate free
 export DATA=/data2/u0137815/rgbd-us/data US=/data2/u0137815/US_SCR ORB=/data2/u0137815/ORB_SLAM3
+ORBLIB=/data2/u0137815/conda/envs/orbslam/lib:$ORB/lib:$ORB/Thirdparty/DBoW2/lib:$ORB/Thirdparty/g2o/lib
 CAL="--cam-calib-from runs/repro/map-3XX/map.json"
+
+# quick check: should print the usage line
+LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum
+
+# 1. export the sequences (Python, free env)
 cd $US
-python3 tools/slam_baseline.py export --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/slam-3XX/seq
-python3 tools/slam_baseline.py export --root $DATA/test_5XXA --scan-runs room-502 --out runs/slam-5XXA-exam/seq
-python3 tools/slam_baseline.py export --root $DATA/test_5XXA --scan-runs room-501 --out runs/slam-5XXA-generic/seq
+python tools/slam_baseline.py export --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/slam-3XX/seq
+python tools/slam_baseline.py export --root $DATA/test_5XXA --scan-runs room-502 --out runs/slam-5XXA-exam/seq
+python tools/slam_baseline.py export --root $DATA/test_5XXA --scan-runs room-501 --out runs/slam-5XXA-generic/seq
 
-cd $ORB && ./Examples/RGB-D/rgbd_tum Vocabulary/ORBvoc.txt $US/runs/slam-3XX/seq/camera.yaml $US/runs/slam-3XX/seq $US/runs/slam-3XX/seq/associations.txt
-cd $US && python tools/slam_baseline.py evaluate --root $DATA/train_3XX --scan-runs room-301 room-302 --seq runs/slam-3XX/seq --traj $ORB/CameraTrajectory.txt --smooth 1 --out runs/slam-3XX
+# 2. ORB-SLAM3, each run inside its own folder (its CameraTrajectory.txt is written there)
+cd $US/runs/slam-3XX && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
+cd $US/runs/slam-5XXA-exam && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
+cd $US/runs/slam-5XXA-generic && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
 
-cd $ORB && ./Examples/RGB-D/rgbd_tum Vocabulary/ORBvoc.txt $US/runs/slam-5XXA-exam/seq/camera.yaml $US/runs/slam-5XXA-exam/seq $US/runs/slam-5XXA-exam/seq/associations.txt
-cd $US && python tools/slam_baseline.py evaluate --root $DATA/test_5XXA --scan-runs room-502 --seq runs/slam-5XXA-exam/seq --traj $ORB/CameraTrajectory.txt $CAL --smooth 1 --out runs/slam-5XXA-exam
-
-cd $ORB && ./Examples/RGB-D/rgbd_tum Vocabulary/ORBvoc.txt $US/runs/slam-5XXA-generic/seq/camera.yaml $US/runs/slam-5XXA-generic/seq $US/runs/slam-5XXA-generic/seq/associations.txt
-cd $US && python tools/slam_baseline.py evaluate --root $DATA/test_5XXA --scan-runs room-501 --seq runs/slam-5XXA-generic/seq --traj $ORB/CameraTrajectory.txt $CAL --smooth 1 --out runs/slam-5XXA-generic
-
+# 3. score them like our system (Python, free env)
+cd $US
+python tools/slam_baseline.py evaluate --root $DATA/train_3XX --scan-runs room-301 room-302 --seq runs/slam-3XX/seq --traj runs/slam-3XX/CameraTrajectory.txt --smooth 1 --out runs/slam-3XX
+python tools/slam_baseline.py evaluate --root $DATA/test_5XXA --scan-runs room-502 --seq runs/slam-5XXA-exam/seq --traj runs/slam-5XXA-exam/CameraTrajectory.txt $CAL --smooth 1 --out runs/slam-5XXA-exam
+python tools/slam_baseline.py evaluate --root $DATA/test_5XXA --scan-runs room-501 --seq runs/slam-5XXA-generic/seq --traj runs/slam-5XXA-generic/CameraTrajectory.txt $CAL --smooth 1 --out runs/slam-5XXA-generic
 python tools/us_analysis.py shape --json runs/slam-*/poses/*.json --out runs/shape-slam.md
-```
-
-`--smooth 1` smooths the SLAM poses over 1 s, as our numbers. 3XX: evaluate fits the camera calibration on the room scan, as our 3XX map did; 5XX reuses the 3XX calibration, as all 5XX maps. The `seq/` folders are links into the data and stay out of git (`.gitignore`).
-
-
-
-
-
-
-
-(orbslam) u0137815@set-d-l626e10ns:/data2/u0137815/US_SCR$ export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
-export DATA=/data2/u0137815/rgbd-us/data US=/data2/u0137815/US_SCR ORB=/data2/u0137815/ORB_SLAM3
-CAL="--cam-calib-from runs/repro/map-3XX/map.json"
-cd $US
-python3 tools/slam_baseline.py export --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/slam-3XX/seq
-Traceback (most recent call last):
-  File "/data2/u0137815/US_SCR/tools/slam_baseline.py", line 37, in <module>
-    import numpy as np
-ModuleNotFoundError: No module named 'numpy'
-
-
-   
-
- 
-
-  
