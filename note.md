@@ -367,224 +367,31 @@ ORB-SLAM3 runs with its viewer off, so OpenGL is only needed to compile and link
 
 
 
+files with the same problem won't stop the build either:
 
-[  9%] Building CXX object src/CMakeFiles/pangolin.dir/image/image_io_exr.cpp.o
-[ 11%] Building CXX object src/CMakeFiles/pangolin.dir/image/image_io_jpg.cpp.o
-/data2/u0137815/Pangolin/src/image/image_io_jpg.cpp: In function 'pangolin::TypedImage pangolin::LoadJpg(std::istream&)':
-/data2/u0137815/Pangolin/src/image/image_io_jpg.cpp:187:13: error: 'uint8_t' was not declared in this scope
-  187 |             uint8_t* dstRow = (uint8_t*)image.RowPtr(y);
-      |             ^~~~~~~
-/data2/u0137815/Pangolin/src/image/image_io_jpg.cpp:11:1: note: 'uint8_t' is defined in header '<cstdint>'; this is probably fixable by adding '#include <cstdint>'
-   10 | #  include <jpeglib.h>
-  +++ |+#include <cstdint>
-   11 | #  ifdef _WIN_
-/data2/u0137815/Pangolin/src/image/image_io_jpg.cpp:187:22: error: 'dstRow' was not declared in this scope
-  187 |             uint8_t* dstRow = (uint8_t*)image.RowPtr(y);
-      |                      ^~~~~~
-/data2/u0137815/Pangolin/src/image/image_io_jpg.cpp:187:40: error: expected primary-expression before ')' token
-  187 |             uint8_t* dstRow = (uint8_t*)image.RowPtr(y);
-      |                                        ^
-[ 12%] Building CXX object src/CMakeFiles/pangolin.dir/image/image_io_lz4.cpp.o
-gmake[2]: *** [src/CMakeFiles/pangolin.dir/build.make:191: src/CMakeFiles/pangolin.dir/image/image_io_jpg.cpp.o] Error 1
-gmake[2]: *** Waiting for unfinished jobs....
-gmake[1]: *** [CMakeFiles/Makefile2:204: src/CMakeFiles/pangolin.dir/all] Error 2
-gmake: *** [Makefile:156: all] Error 2
--- Install configuration: "Release"
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/config.h
--- Up-to-date: /data2/u0137815/conda/envs/orbslam/include/pangolin
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/factory
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/factory/factory_registry.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/scene
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/scene/interactive.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/scene/renderable.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/scene/tree.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/scene/scenehandler.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/scene/interactive_index.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/scene/axis.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/plot
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/plot/range.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/plot/datalog.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/plot/plotter.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/log
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/log/packetstream_source.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/log/packet.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/log/sync_time.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/log/packetstream_reader.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/log/packetstream_writer.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/log/playback_session.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/log/packetstream_tags.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/log/packetstream.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/ios
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/ios/PangolinAppDelegate.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/ios/PangolinUIView.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/handler
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/handler/handler_enums.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/handler/handler_image.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/handler/handler.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/handler/handler_glbuffer.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/glpangoglu.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/glvbo.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/gltexturecache.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/glformattraits.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/glinclude.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/colour.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/compat
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/compat/gl_es_compat.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/compat/gl2engine.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/glcuda.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/glpixformat.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/glsl.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/glplatform.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/glfont.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/glchar.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/cg.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/gl.hpp
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/gldraw.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/gl.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/gltext.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/gl/glstate.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/compat
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/compat/variant.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/compat/type_traits.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/compat/glutbitmap.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/compat/optional.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/video.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/video_output.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/video_record_repeat.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/openni.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/uvc.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/test.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/shared_memory.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/firewire.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/images_out.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/mirror.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/realsense.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/deinterlace.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/pango_video_output.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/uvc_mediafoundation.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/pango.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/pvn.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/openni_common.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/unpack.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/v4l.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/shift.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/openni2.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/thread.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/debayer.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/teli.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/truncate.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/realsense2.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/pleora.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/images.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/ffmpeg.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/join.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/depthsense.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/split.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/merge.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/drivers/pack.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/stream_info.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/iostream_operators.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/video_input.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/video_interface.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/stream_encoder_factory.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/video_output_interface.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/video/video_exception.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/var
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/var/varvalue.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/var/varvaluet.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/var/input_record_repeat.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/var/varstate.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/var/varextra.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/var/varwrapper.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/var/varvaluegeneric.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/var/var.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display/window.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display/view.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display/viewport.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display/device
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display/device/WinWindow.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display/device/X11Window.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display/device/OsxWindow.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display/device/X11GlContext.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display/device/display_android.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display/device/PangolinNSGLView.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display/device/PangolinNSApplication.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display/display.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display/attach.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display/image_view.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display/opengl_render_state.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display/widgets
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display/widgets/widgets.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display/display_internal.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/display/user_app.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/pangolin.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/image
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/image/typed_image.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/image/image_utils.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/image/pixel_format.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/image/image_convert.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/image/image.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/image/managed_image.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/image/memcpy.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/image/copy.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/image/image_io.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/platform.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/picojson.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/file_utils.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/log.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/file_extension.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/registration.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/format_string.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/fix_size_buffer_queue.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/assert.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/type_convert.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/posix
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/posix/shared_memory_buffer.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/posix/condition_variable.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/posix/semaphore.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/compontent_cast.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/transform.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/sigstate.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/signal_slot.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/params.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/threadedfilebuf.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/memstreambuf.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/simple_math.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/argagg.hpp
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/variadic_all.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/uri.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/xml
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/xml/rapidxml.hpp
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/xml/license.txt
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/xml/rapidxml_utils.hpp
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/xml/rapidxml_iterators.hpp
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/xml/rapidxml_print.hpp
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/timer.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/utils/parse.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/console
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/console/ConsoleView.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/console/ConsoleInterpreter.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/tools
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/tools/video_viewer.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/geometry
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/geometry/geometry_ply.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/geometry/geometry.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/geometry/glgeometry.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/geometry/geometry_obj.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/python
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/python/pyvar.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/python/pypangolin_init.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/python/pypangoio.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/python/pyinterpreter.h
--- Installing: /data2/u0137815/conda/envs/orbslam/include/pangolin/python/pyuniqueobj.h
-CMake Error at build/src/cmake_install.cmake:84 (file):
-  file INSTALL cannot find
-  "/data2/u0137815/Pangolin/build/src/libpangolin.so": No such file or
-  directory.
-Call Stack (most recent call first):
-  build/cmake_install.cmake:48 (include)
+
+conda activate orbslam
+export CMAKE_PREFIX_PATH=$CONDA_PREFIX
+export CXXFLAGS="$CXXFLAGS -include cstdint -include limits"
+cd /data2/u0137815/Pangolin
+rm -rf build
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DBUILD_EXAMPLES=OFF -DBUILD_TOOLS=OFF -DBUILD_PANGOLIN_PYTHON=OFF -DBUILD_PANGOLIN_FFMPEG=OFF -DOpenGL_GL_PREFERENCE=GLVND -DOPENGL_INCLUDE_DIR=$CONDA_PREFIX/include -DOPENGL_opengl_LIBRARY=$CONDA_PREFIX/lib/libOpenGL.so -DOPENGL_glx_LIBRARY=$CONDA_PREFIX/lib/libGLX.so
+cmake --build build -j8
+rm -rf build matters: CMake reads CXXFLAGS only when the build folder is first created.
+
+Only install once the build reaches [100%] Built target pangolin. Then check that the library is there:
+
+
+cmake --install build
+ls $CONDA_PREFIX/lib/libpangolin.so
+Then build ORB-SLAM3 in the same terminal, so it gets the same CXXFLAGS:
+
+
+cd /data2/u0137815
+git clone https://github.com/UZ-SLAMLab/ORB_SLAM3.git
+cd ORB_SLAM3
+sed -i 's/ORB_SLAM3::System::RGBD,true/ORB_SLAM3::System::RGBD,false/' Examples/RGB-D/rgbd_tum.cc
+sed -i 's/find_package(OpenCV 4.4)/find_package(OpenCV 4)/; s/-std=c++11/-std=c++14/g; s/CXX11/CXX14/g' CMakeLists.txt
+sed -i 's/std::pair<const KeyFrame\*, g2o::Sim3>/std::pair<KeyFrame* const, g2o::Sim3>/' include/LoopClosing.h
+sed -i 's/make -j$/make -j8/' build.sh
+./build.sh
