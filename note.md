@@ -31,17 +31,7 @@ Status 4 Nov 2026. Results: `summary.md`. Run index: `runs/README.md`. Setup and
 | C6 | The US images add nothing | 10 tests | strong (this setup) | |
 | C7 | Real time | 0.25 s delay = offline | moderate | replayed, not live |
 
-**Not claimed:** one network trained end to end (one SCR network + exact geometry: Kabsch, ICP, pose graph; deliberate, pose regression failed; see "End to end?" below); as accurate as Polaris labels; better than classical in new sessions with short scans; generalisation to new rooms (trained per room by design); a fully Polaris-free workflow (the calibration).
-
-**End to end? (4 Nov)** The steps after the network, and whether each could become part of it:
-
-| step | what it does | into the network? | verdict |
-|---|---|---|---|
-| Kabsch RANSAC + inlier gate | pose from the predicted room coordinates and the measured depth | **yes:** Kabsch is differentiable (SVD); RANSAC becomes differentiable with soft hypothesis selection (DSAC, DSAC* end-to-end stage, which includes RGB-D Kabsch). Fine-tune the network with a pose loss through it | the only one worth trying; expected gain small (the network already reproduces its labels; the map is the bottleneck); keeps the solver, so it is "end-to-end trained", not "one network" |
-| temporal smoothing | 2 s window (0.25 s delay in real time) | possible: a recurrent / Kalman layer over the poses (KFNet, CVPR 2020) | little to gain (jitter 0.90 vs Polaris labels 0.93), risk of lag; no |
-| camera calibration X | one fixed camera-frame transform per probe | as 6 learnable parameters only with a reference (Polaris or a phantom) in the loss: it is not observable from the camera alone | stays a calibration, like the US calibration |
-| mapping (seed, rounds, ICP, pose graph, loops) | makes the training labels | joint training of network + poses (ACE0's pose refinement) | tried: made the map worse (8.4 → 8.9 mm); a learned bundle adjustment would still need geometry; no |
-| whole pipeline as one feed-forward model | images → poses with no per-room training (DUSt3R / MASt3R / VGGT-type) | a different method: generic, cm-level, no per-room map | a comparison at most, not our system |
+**Not claimed:** one network trained end to end (one SCR network + exact geometry: Kabsch, ICP, pose graph; deliberate, pose regression failed; see "End to end?" below); as accurate as Polaris labels; better than classical in new sessions with short scans; generalisation to new rooms (trained per room by design); a fully Polaris-free workflow (the calibration). 
 
 Position for the paper: like DSAC*, ACE and ACE0, the system is a hybrid on purpose: the network learns the room (the hard, appearance part); exact geometry does what is known exactly (rigid fit on measured depth, ICP, pose graph). End-to-end pose regression was tested and is 3–8× worse (claim C2). An end-to-end fine-tune through a differentiable Kabsch is an optional ablation (task 6 in section 2).
 
@@ -120,20 +110,7 @@ python scr_anchor.py train --root $DATA/train_3XX --scan-runs room-301 room-302 
 python scr_anchor.py track --ckpt runs/v2map-3XX/best.pt --test-root $DATA/train_3XX --every 2 --out runs/track-v2map-3XX
 python tools/us_analysis.py shape --json runs/track-v2map-3XX/poses/*.json --out runs/track-v2map-3XX/shape.md
 ```
-
-The map without a tracker is the target approach (3 Nov). Done by 4 Nov: reproduction from scratch, three seeds, loop closures and camera calibration ablations, strict, 2XX, 4XX (own and pooled scans, real time), 3D pages.
-
-**Still to run or build (4 Nov)**
-
-| # | task | type | status |
-|---|---|---|---|
-| 1 | 4XX C / D placement: camera calibration refitted on 4XX's scans (diagnostic: uses 4XX Polaris), retrain, track | analysis | **done 5 Nov**: calibration explains 1.5–2.0 mm (section 1) |
-| 2 | RGB-D SLAM baseline (ORB-SLAM3 RGB-D) on room scans + sweeps, same alignment + calibration on the room scan | comparison (the reviewer question) | `tools/slam_baseline.py` (export / evaluate); build ORB-SLAM3 once |
-| 3 | classical anchors on our own tracker-free map (same map, network vs SIFT) | comparison | **done 5 Nov** (absolute); 4XX shape still to run |
-| 4 | why the 2XX map fails: each scan alone, stricter joining, own calibration (2XX is validation: settings may be chosen on it) | analysis | **done 5 Nov**: room-201 is the problem; next: its bad stretch, track on the room-202 map |
-| 5 | static 3D volume figures (true, tracker-free, after the rigid fit, overlays; also classical) | figure | **done 5 Nov**; re-run after the title fix |
-| 6 | end-to-end fine-tune through a differentiable Kabsch (DSAC*-style) | ablation, optional | not written |
-| 7 | session with ~1 min room scans along the exam viewpoints; live run; RGB-only variant | data, future | recording 5 Nov (2.1); live / RGB-only later |
+ 
 
 ### 2.1 Recording plan, 5 Nov 2026 (session 5XX: same room, many views, several scene changes)
 
@@ -241,23 +218,7 @@ python3 tools/check_coverage.py --root data/train_5XX --scans room-501 --sweeps 
 Per run: `frames.csv` (one row per RGB frame, ~30 Hz: `timestamp`; `rgb`, `depth`, `us` paths; `tx, ty, tz` mm and `qx, qy, qz, qw` scalar last = `T_world_marker`, clock offset already applied, **empty = marker lost**; `us_air` = 1 probe not on the skin; `us_repeat` = 1 same US frame as the row before), `rgb/` 1280 × 720, `depth/` aligned to RGB, uint16 mm, 0 = invalid, reliable 100–3000 mm, `camera_info.json` (fx ≈ 919.8, fy ≈ 919.5, cx ≈ 652.9, cy ≈ 373.6, no distortion), `us/` + `us_roi.json` (sweeps), `match_report.json`; ignore `depth_raw/`.
 
 **Camera pose:** `T_world_cam = T_world_marker @ T_marker_cam`, world = Polaris frame (not moved between 2XX and 3XX). **`T_marker_cam.npy` must be the rgbd-us one** (mm, board-corner error 3.5 mm). **US image pose:** `T_world_cam @ inv(T_marker_cam) @ rigid @ scaling` with `calib_matrix.csv` (TUS-REC format, 1-based pixels on the US crop resized to 640 × 480, 0.2295 × 0.2213 mm/px).
-
-```python
-import json, cv2, numpy as np, pandas as pd
-from scipy.spatial.transform import Rotation as R
-
-run = "/data2/u0137815/rgbd-us/data/train_3XX/room-301"
-df = pd.read_csv(f"{run}/frames.csv").dropna(subset=["tx"])          # rows with a Polaris pose
-K = np.array(json.load(open(f"{run}/camera_info.json"))["K"]).reshape(3, 3)
-T_mc = np.load("T_marker_cam.npy")                                    # marker -> camera, mm
-r = df.iloc[0]
-T_wm = np.eye(4); T_wm[:3, :3] = R.from_quat([r.qx, r.qy, r.qz, r.qw]).as_matrix(); T_wm[:3, 3] = [r.tx, r.ty, r.tz]
-T_wc = T_wm @ T_mc                                                    # camera pose in the room (mm)
-z = cv2.imread(f"{run}/{r.depth}", cv2.IMREAD_UNCHANGED).astype(np.float64)   # mm, aligned to rgb
-v, u = np.nonzero((z > 100) & (z < 3000))
-X = np.stack([(u - K[0, 2]) / K[0, 0] * z[v, u], (v - K[1, 2]) / K[1, 1] * z[v, u], z[v, u], np.ones(len(u))])
-scene_coords = (T_wc @ X)[:3].T                                       # room coordinate (mm) of pixel (u, v)
-```
+ 
 
 **Sensor and labels:** D435i, 50 mm stereo baseline, depth noise ~ distance² (under ~2 % at 2 m), mostly along the ray. Room points re-projected across frames 1 s apart agree within 7.9 mm (median) at 1–1.5 m. The 3.5 mm hand-eye error makes labels view-dependent. Never train on hands/arms, the sleeve (4XX D/E) or the subject.
 
@@ -302,60 +263,72 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
-
-
-
+ 
  
 
-1. On this machine: push the fix.
 
 
-git add scr_map.py
-git commit -m "scr_map: move the seed later when its depth ICP fails (hand in front of the camera)"
-git push
-2. On the training PC: pull, then run the remaining 5XX steps in this order.
 
 
-cd /data2/u0137815/US_SCR
-git pull
-export DATA=/data2/u0137815/rgbd-us/data
-CAL="--cam-calib-from runs/repro/map-3XX/map.json"
-
-# 3. block B: both maps again (general: arm at the start; exam-view: stopped)
-rm -r runs/map-5XXB-generic runs/v2map-5XXB-generic runs/track-v2map-5XXB-generic runs/map-5XXB-exam
-python scr_map.py --root $DATA/test_5XXB --scan-runs room-504 $CAL --out runs/map-5XXB-generic
-python scr_anchor.py train --root $DATA/test_5XXB --scan-runs room-504 --map runs/map-5XXB-generic --out runs/v2map-5XXB-generic
-python scr_anchor.py track --ckpt runs/v2map-5XXB-generic/best.pt --test-root $DATA/test_5XXB --every 2 --out runs/track-v2map-5XXB-generic
-python scr_map.py --root $DATA/test_5XXB --scan-runs room-505 $CAL --out runs/map-5XXB-exam
-python scr_anchor.py train --root $DATA/test_5XXB --scan-runs room-505 --map runs/map-5XXB-exam --out runs/v2map-5XXB-exam
-python scr_anchor.py track --ckpt runs/v2map-5XXB-exam/best.pt --test-root $DATA/test_5XXB --every 2 --out runs/track-v2map-5XXB-exam
-
-# 4. block E (empty room)
-python scr_map.py --root $DATA/test_5XXE --scan-runs room-508 $CAL --out runs/map-5XXE-generic
-python scr_anchor.py train --root $DATA/test_5XXE --scan-runs room-508 --map runs/map-5XXE-generic --out runs/v2map-5XXE-generic
-python scr_anchor.py track --ckpt runs/v2map-5XXE-generic/best.pt --test-root $DATA/test_5XXE --every 2 --out runs/track-v2map-5XXE-generic
-python scr_map.py --root $DATA/test_5XXE --scan-runs room-509 $CAL --out runs/map-5XXE-exam
-python scr_anchor.py train --root $DATA/test_5XXE --scan-runs room-509 --map runs/map-5XXE-exam --out runs/v2map-5XXE-exam
-python scr_anchor.py track --ckpt runs/v2map-5XXE-exam/best.pt --test-root $DATA/test_5XXE --every 2 --out runs/track-v2map-5XXE-exam
-
-# 5. block A, scan after the sweeps
-python scr_map.py --root $DATA/test_5XXA --scan-runs room-503 $CAL --out runs/map-5XXA-after
-python scr_anchor.py train --root $DATA/test_5XXA --scan-runs room-503 --map runs/map-5XXA-after --out runs/v2map-5XXA-after
-python scr_anchor.py track --ckpt runs/v2map-5XXA-after/best.pt --test-root $DATA/test_5XXA --every 2 --out runs/track-v2map-5XXA-after
-
-# 6. outdated maps after a scene change (tracking only)
-python scr_anchor.py track --ckpt runs/v2map-5XXA-exam/best.pt --test-root $DATA/test_5XXB --every 2 --out runs/track-v2map-5XXB-oldA
-python scr_anchor.py track --ckpt runs/v2map-5XXA-exam/best.pt --test-root $DATA/test_5XXC --every 2 --out runs/track-v2map-5XXC-oldA
-python scr_anchor.py track --ckpt runs/v2map-5XXB-generic/best.pt --test-root $DATA/test_5XXC --every 2 --out runs/track-v2map-5XXC-oldB
-python scr_anchor.py track --ckpt runs/v2map-5XXC-exam/best.pt --test-root $DATA/test_5XXE --every 2 --out runs/track-v2map-5XXE-oldC
-
-# 7. shape of every 5XX result
-python tools/us_analysis.py shape --json runs/track-v2map-5XX*/poses/*.json --out runs/shape-5XX.md
-Coverage for the outdated-map tests (from rgbd-us; paste the output to me):
 
 
-cd /data2/u0137815/rgbd-us
-python tools/check_coverage.py --root data/train_5XX --scans room-502 --sweeps run-5{09..24}
-python tools/check_coverage.py --root data/train_5XX --scans room-504 --sweeps run-5{17..24}
-python tools/check_coverage.py --root data/train_5XX --scans room-507 --sweeps run-5{29..32}
-In the room-504 mapping output, check for a line ending not used, followed by seed: ('room-504', 30) or a little later, with about 60 frames or more. If the seed line still shows only a few frames, stop the run and paste the output. Then push the runs/ results as usual.
+| split | source | sweeps | absolute | **shape** | k = 1: in / **out** (true) | k = 8: in / **out** (true) | k = 30: in / **out** (true) |
+|---|---|---|---|---|---|---|---|
+| track-v2map-5XXA-after | scr-track | 8 | 2.48 | **1.96** | 0.06 / **0.06** (0.2) | 0.36 / **0.26** (1.4) | 0.94 / **0.54** (5.4) |
+| track-v2map-5XXA-exam | scr-track | 8 | 2.26 | **1.90** | 0.06 / **0.06** (0.2) | 0.34 / **0.27** (1.4) | 0.86 / **0.56** (5.4) |
+| track-v2map-5XXA-generic | scr-track | 8 | 13.57 | **3.79** | 0.08 / **0.07** (0.2) | 0.59 / **0.30** (1.4) | 1.70 / **0.70** (5.4) |
+| track-v2map-5XXB-exam | scr-track | 8 | 4.41 | **2.81** | 0.06 / **0.07** (0.2) | 0.37 / **0.28** (1.8) | 1.03 / **0.62** (6.8) |
+| track-v2map-5XXB-generic | scr-track | 8 | 3.35 | **2.46** | 0.06 / **0.07** (0.2) | 0.35 / **0.26** (1.8) | 0.97 / **0.53** (6.8) |
+| track-v2map-5XXB-oldA | scr-track | 8 | 4.23 | **3.00** | 0.09 / **0.07** (0.2) | 0.61 / **0.32** (1.8) | 1.57 / **0.69** (6.8) |
+| track-v2map-5XXC-exam | scr-track | 8 | 3.09 | **1.76** | 0.04 / **0.06** (0.2) | 0.23 / **0.20** (1.7) | 0.62 / **0.36** (6.5) |
+| track-v2map-5XXC-generic | scr-track | 8 | 6.32 | **1.76** | 0.04 / **0.06** (0.2) | 0.23 / **0.22** (1.7) | 0.64 / **0.46** (6.5) |
+| track-v2map-5XXC-oldA | scr-track | 2 | 58.59 | **47.65** | 0.08 / **0.18** (0.2) | 0.57 / **1.48** (1.9) | 1.79 / **5.32** (7.3) |
+| track-v2map-5XXC-oldB | scr-track | 8 | 40.70 | **29.24** | 0.07 / **0.17** (0.2) | 0.47 / **1.36** (1.7) | 1.53 / **5.03** (6.5) |
+| track-v2map-5XXD-exam | scr-track | 4 | 2.19 | **1.70** | 0.06 / **0.08** (0.2) | 0.35 / **0.34** (1.9) | 0.73 / **0.57** (7.0) |
+| track-v2map-5XXD-generic | scr-track | 4 | 5.09 | **1.28** | 0.06 / **0.08** (0.2) | 0.33 / **0.35** (1.9) | 0.65 / **0.58** (7.0) |
+| track-v2map-5XXE-exam | scr-track | 4 | 5.86 | **3.04** | 0.04 / **0.06** (0.2) | 0.28 / **0.25** (1.6) | 0.79 / **0.63** (6.1) |
+| track-v2map-5XXE-generic | scr-track | 4 | 13.08 | **2.83** | 0.04 / **0.06** (0.2) | 0.28 / **0.25** (1.6) | 0.81 / **0.56** (6.1) |
+| track-v2map-5XXE-oldC | scr-track | 4 | 13.61 | **14.61** | 0.08 / **0.13** (0.2) | 0.55 / **0.94** (1.6) | 1.84 / **3.24** (6.1) |
+-> runs/shape-5XX.md
+bash: syntax error near unexpected token `('
+map: room-502 (1823 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
+
+run-509:  82 % covered, nearest similar view median 13 mm -> GO
+run-510: 100 % covered, nearest similar view median 6 mm -> GO
+run-511: 100 % covered, nearest similar view median 6 mm -> GO
+run-512:  95 % covered, nearest similar view median 11 mm -> GO
+run-513:  99 % covered, nearest similar view median 11 mm -> GO
+run-514:  82 % covered, nearest similar view median 10 mm -> GO
+run-515:  73 % covered, nearest similar view median 14 mm -> NO-GO; uncovered: 0-4 s, 18-20 s, 23-27 s, 33-38 s, 39-40 s, 52-53 s
+run-516:  94 % covered, nearest similar view median 11 mm -> GO
+run-517:  86 % covered, nearest similar view median 14 mm -> GO
+run-518: 100 % covered, nearest similar view median 13 mm -> GO
+run-519:  83 % covered, nearest similar view median 16 mm -> GO
+run-520:  69 % covered, nearest similar view median 20 mm -> NO-GO; uncovered: 0-4 s, 13-14 s, 17-24 s, 29-35 s
+run-521:  88 % covered, nearest similar view median 15 mm -> GO
+run-522:  97 % covered, nearest similar view median 11 mm -> GO
+run-523:  55 % covered, nearest similar view median 20 mm -> NO-GO; uncovered: 0-4 s, 14-17 s, 26-29 s, 33-35 s, 37-40 s, 45-50 s, 53-60 s
+run-524:  90 % covered, nearest similar view median 18 mm -> GO
+
+13/16 sweeps covered. For NO-GO sweeps, scan the room again from the probe's positions and heights in the uncovered spans.
+map: room-504 (1719 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
+
+run-517:  90 % covered, nearest similar view median 18 mm -> GO
+run-518: 100 % covered, nearest similar view median 14 mm -> GO
+run-519:  99 % covered, nearest similar view median 11 mm -> GO
+run-520:  74 % covered, nearest similar view median 17 mm -> NO-GO; uncovered: 3-4 s, 14-17 s, 19-24 s, 28-32 s
+run-521:  99 % covered, nearest similar view median 13 mm -> GO
+run-522: 100 % covered, nearest similar view median 8 mm -> GO
+run-523:  91 % covered, nearest similar view median 8 mm -> GO
+run-524: 100 % covered, nearest similar view median 10 mm -> GO
+
+7/8 sweeps covered. For NO-GO sweeps, scan the room again from the probe's positions and heights in the uncovered spans.
+map: room-507 (1805 poses); covered = a room-scan pose within 30 mm and 10 deg; GO at >= 80 % of each sweep
+
+run-529: 100 % covered, nearest similar view median 10 mm -> GO
+run-530: 100 % covered, nearest similar view median 9 mm -> GO
+run-531:  88 % covered, nearest similar view median 12 mm -> GO
+run-532:  94 % covered, nearest similar view median 13 mm -> GO
+
+4/4 sweeps covered.
+

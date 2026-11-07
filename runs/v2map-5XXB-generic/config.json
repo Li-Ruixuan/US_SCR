@@ -50,9 +50,9 @@
     "eval_runs": null
   },
   "centre": [
-    75.7807821041862,
-    -32.829106287128816,
-    -934.2997204234694
+    81.33479622387961,
+    -29.79579142173439,
+    -996.3756186934924
   ],
   "image_size": [
     360,
@@ -60,17 +60,17 @@
   ],
   "head": "big",
   "confidence": false,
-  "n_frames": 3,
+  "n_frames": 2562,
   "n_rendered": 0,
-  "steps": 0,
+  "steps": 38400,
   "estimated_labels": {
     "room-504": {
       "source": "scr-map (map-5XXB-generic)",
-      "frames": 3,
-      "camera_err_mm_median": 43.306126814502164,
-      "camera_err_mm_p90": 79.56983396448312,
-      "rot_err_deg_median": 9.582913710323854
+      "frames": 2562,
+      "camera_err_mm_median": 32.34999242094358,
+      "camera_err_mm_p90": 34.303242913651644,
+      "rot_err_deg_median": 1.6533375497246325
     }
   },
-  "git": "5c44c5df"
+  "git": "c601104c"
 }
