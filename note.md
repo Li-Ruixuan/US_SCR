@@ -279,94 +279,47 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
+Traceback (most recent call last):
+  File "/data2/u0137815/US_SCR/tools/slam_baseline.py", line 261, in <module>
+    main()
+  File "/data2/u0137815/US_SCR/tools/slam_baseline.py", line 257, in main
+    export(args) if args.cmd == "export" else evaluate(args)
+                                              ^^^^^^^^^^^^^^
+  File "/data2/u0137815/US_SCR/tools/slam_baseline.py", line 157, in evaluate
+    traj = read_tum(args.traj)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/data2/u0137815/US_SCR/tools/slam_baseline.py", line 141, in read_tum
+    for line in open(path):
+                ^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'runs/slam-5XXA-generic/CameraTrajectory.txt'
+
+  
+  
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
  
- 
-Commands, in order (training PC, env free)
-1. Setup
-
-
-conda activate free
-cd /data2/u0137815/US_SCR
-export DATA=/data2/u0137815/rgbd-us/data US=/data2/u0137815/US_SCR ORB=/data2/u0137815/ORB_SLAM3
-ORBLIB=/data2/u0137815/conda/envs/orbslam/lib:$ORB/lib:$ORB/Thirdparty/DBoW2/lib:$ORB/Thirdparty/g2o/lib
-SCAL="--cam-calib-from runs/slam-3XX/slam_eval.json"
-SCAL is ORB-SLAM3's own 3XX calibration. It replaces CAL for every ORB-SLAM3 evaluation from now on.
-
-2. Re-evaluate 5XX A exam-view with ORB-SLAM3's own calibration (seconds)
-
-
-python tools/slam_baseline.py evaluate --root $DATA/test_5XXA --scan-runs room-502 --seq runs/slam-5XXA-exam/seq --traj runs/slam-5XXA-exam/CameraTrajectory.txt $SCAL --smooth 1 --out runs/slam-5XXA-exam
-3. Rerun 5XX A generic (paste the last ~20 lines if it fails again)
-
-
-cd $US/runs/slam-5XXA-generic && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
-cd $US
-python tools/slam_baseline.py evaluate --root $DATA/test_5XXA --scan-runs room-501 --seq runs/slam-5XXA-generic/seq --traj runs/slam-5XXA-generic/CameraTrajectory.txt $SCAL --smooth 1 --out runs/slam-5XXA-generic
-4. 5XX blocks B–E with each block's exam-view scan, plus two outdated scans
-
-Export:
-
-
-python tools/slam_baseline.py export --root $DATA/test_5XXB --scan-runs room-505 --out runs/slam-5XXB-exam/seq
-python tools/slam_baseline.py export --root $DATA/test_5XXC --scan-runs room-507 --out runs/slam-5XXC-exam/seq
-python tools/slam_baseline.py export --root $DATA/test_5XXD --scan-runs room-507 --out runs/slam-5XXD-exam/seq
-python tools/slam_baseline.py export --root $DATA/test_5XXE --scan-runs room-509 --out runs/slam-5XXE-exam/seq
-python tools/slam_baseline.py export --root $DATA/test_5XXC --scan-runs room-504 --out runs/slam-5XXC-oldB/seq
-python tools/slam_baseline.py export --root $DATA/test_5XXE --scan-runs room-507 --out runs/slam-5XXE-oldC/seq
-Run ORB-SLAM3:
-
-
-cd $US/runs/slam-5XXB-exam && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
-cd $US/runs/slam-5XXC-exam && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
-cd $US/runs/slam-5XXD-exam && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
-cd $US/runs/slam-5XXE-exam && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
-cd $US/runs/slam-5XXC-oldB && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
-cd $US/runs/slam-5XXE-oldC && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
-cd $US
-Evaluate:
-
-
-python tools/slam_baseline.py evaluate --root $DATA/test_5XXB --scan-runs room-505 --seq runs/slam-5XXB-exam/seq --traj runs/slam-5XXB-exam/CameraTrajectory.txt $SCAL --smooth 1 --out runs/slam-5XXB-exam
-python tools/slam_baseline.py evaluate --root $DATA/test_5XXC --scan-runs room-507 --seq runs/slam-5XXC-exam/seq --traj runs/slam-5XXC-exam/CameraTrajectory.txt $SCAL --smooth 1 --out runs/slam-5XXC-exam
-python tools/slam_baseline.py evaluate --root $DATA/test_5XXD --scan-runs room-507 --seq runs/slam-5XXD-exam/seq --traj runs/slam-5XXD-exam/CameraTrajectory.txt $SCAL --smooth 1 --out runs/slam-5XXD-exam
-python tools/slam_baseline.py evaluate --root $DATA/test_5XXE --scan-runs room-509 --seq runs/slam-5XXE-exam/seq --traj runs/slam-5XXE-exam/CameraTrajectory.txt $SCAL --smooth 1 --out runs/slam-5XXE-exam
-python tools/slam_baseline.py evaluate --root $DATA/test_5XXC --scan-runs room-504 --seq runs/slam-5XXC-oldB/seq --traj runs/slam-5XXC-oldB/CameraTrajectory.txt $SCAL --smooth 1 --out runs/slam-5XXC-oldB
-python tools/slam_baseline.py evaluate --root $DATA/test_5XXE --scan-runs room-507 --seq runs/slam-5XXE-oldC/seq --traj runs/slam-5XXE-oldC/CameraTrajectory.txt $SCAL --smooth 1 --out runs/slam-5XXE-oldC
-5. 4XX blocks (short scans, the session where our absolute error was weakest)
-
-Export:
-
-
-python tools/slam_baseline.py export --root $DATA/train_4XX --scan-runs room-401 room-402 --runs run-401 run-402 run-403 run-404 run-405 run-406 run-407 run-408 --out runs/slam-4XXA/seq
-python tools/slam_baseline.py export --root $DATA/train_4XX --scan-runs room-403 room-404 --runs run-409 run-410 run-411 run-412 --out runs/slam-4XXB/seq
-python tools/slam_baseline.py export --root $DATA/train_4XX --scan-runs room-405 room-406 --runs run-413 run-414 run-415 run-416 --out runs/slam-4XXC/seq
-python tools/slam_baseline.py export --root $DATA/train_4XX --scan-runs room-405 room-406 --runs run-418 run-419 run-420 run-421 run-423 run-424 --out runs/slam-4XXD/seq
-python tools/slam_baseline.py export --root $DATA/train_4XX --scan-runs room-405 room-406 --runs run-425 run-426 run-427 run-428 --out runs/slam-4XXE/seq
-Run ORB-SLAM3:
-
-
-cd $US/runs/slam-4XXA && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
-cd $US/runs/slam-4XXB && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
-cd $US/runs/slam-4XXC && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
-cd $US/runs/slam-4XXD && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
-cd $US/runs/slam-4XXE && LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_tum $ORB/Vocabulary/ORBvoc.txt seq/camera.yaml seq seq/associations.txt
-cd $US
-Evaluate:
-
-
-python tools/slam_baseline.py evaluate --root $DATA/train_4XX --scan-runs room-401 room-402 --runs run-401 run-402 run-403 run-404 run-405 run-406 run-407 run-408 --seq runs/slam-4XXA/seq --traj runs/slam-4XXA/CameraTrajectory.txt $SCAL --smooth 1 --out runs/slam-4XXA
-python tools/slam_baseline.py evaluate --root $DATA/train_4XX --scan-runs room-403 room-404 --runs run-409 run-410 run-411 run-412 --seq runs/slam-4XXB/seq --traj runs/slam-4XXB/CameraTrajectory.txt $SCAL --smooth 1 --out runs/slam-4XXB
-python tools/slam_baseline.py evaluate --root $DATA/train_4XX --scan-runs room-405 room-406 --runs run-413 run-414 run-415 run-416 --seq runs/slam-4XXC/seq --traj runs/slam-4XXC/CameraTrajectory.txt $SCAL --smooth 1 --out runs/slam-4XXC
-python tools/slam_baseline.py evaluate --root $DATA/train_4XX --scan-runs room-405 room-406 --runs run-418 run-419 run-420 run-421 run-423 run-424 --seq runs/slam-4XXD/seq --traj runs/slam-4XXD/CameraTrajectory.txt $SCAL --smooth 1 --out runs/slam-4XXD
-python tools/slam_baseline.py evaluate --root $DATA/train_4XX --scan-runs room-405 room-406 --runs run-425 run-426 run-427 run-428 --seq runs/slam-4XXE/seq --traj runs/slam-4XXE/CameraTrajectory.txt $SCAL --smooth 1 --out runs/slam-4XXE
-6. Shape of all ORB-SLAM3 runs, then push
-
-
-python tools/us_analysis.py shape --json runs/slam-*/poses/*.json --out runs/shape-slam.md
-git add runs/slam-*/slam_eval.md runs/slam-*/slam_eval.json runs/slam-*/CameraTrajectory.txt runs/shape-slam.md
-git commit -m "ORB-SLAM3 on 4XX, 5XX A-E and outdated scans, own 3XX calibration"
-git push
 
