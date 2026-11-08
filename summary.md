@@ -1,6 +1,6 @@
 # Markerless US probe tracking with one scene coordinate regression (SCR) network: results
 
-Status 7 Nov 2026. Claims and their evidence: 1.1. Overview tables of all tests: 1.2. Data: 2.1. Builds on `rgbd-us` (`note_RPR.md` there). Run index: `runs/README.md`. Working notes and data guide: `note.md`. The earlier, chronological version of this summary (sections 3.1–3.20, all intermediate tables) is in git commit 870a144.
+Status 8 Nov 2026. Claims and their evidence: 1.1. Overview tables of all tests: 1.2. Data: 2.1. Builds on `rgbd-us` (`note_RPR.md` there). Run index: `runs/README.md`. Working notes and data guide: `note.md`. The earlier, chronological version of this summary (sections 3.1–3.20, all intermediate tables) is in git commit 870a144.
 
 ## 1. Bottom line
 
@@ -17,8 +17,9 @@ Status 7 Nov 2026. Claims and their evidence: 1.1. Overview tables of all tests:
 | Strict protocol (map recorded before the sweeps) | **On par with classical:** single network 2.98 (1.18) vs classical system 3.0 (1.34) mm on run-315…317 with the map on room-301 only; with both room scans 1.83 vs 2.9. Part of the 3XX advantage comes from room-302, recorded after the sweeps | 4.7 |
 | Is the 4XX gap distortion or offset? | **A rigid offset of each sweep:** after a rigid fit, the single network's volume shape is better than classical's on every split (2XX 3.04 vs 3.98, 3XX 1.57 vs 2.47, 3XX strict 2.26 vs 2.59, 4XX 2.95 vs 3.34 mm with the pooled scans; each of A–E better) | 4.8 |
 | Can the US images help? | **No.** In-plane registration is worse than assuming no motion; speckle measures out-of-plane distance (0.3–0.4 mm) but the camera is 2–5× better between nearby frames; Li et al. (reproduced on its own data: 21.4 vs 22.8 mm published) is no better than zero motion on ours, fine-tuned worse | 6 |
-| Without a tracker? | **Yes.** The network maps the room scan itself (`scr_map.py`: depth ICP, pose graph with loop closures, camera calibration), its poses label the training. 3XX: **2.34 mm** at the US image, shape **1.72** (three seeds 2.22–2.34), against 1.85 / 1.57 with Polaris labels and 3.11 / 2.47 for the Polaris-mapped classical system; strict protocol 2.94 (Polaris labels 2.98, classical 3.0). 4XX (3XX calibration): shape 2.69, best of all systems, absolute 7.92 (Polaris labels 6.48, classical 4.76). 2XX validation map failed (8.06). The camera calibration (one camera-frame transform per probe) is fitted once with Polaris | Tables F, G |
+| Without a tracker? | **Yes.** The network maps the room scan itself (`scr_map.py`: depth ICP, pose graph with loop closures, camera calibration), its poses label the training. 3XX: **2.34 mm** at the US image, shape **1.72** (three seeds 2.22–2.34), against 1.85 / 1.57 with Polaris labels and 3.11 / 2.47 for the Polaris-mapped classical system; strict protocol 2.94 (Polaris labels 2.98, classical 3.0). 4XX (3XX calibration): shape 2.69, better than classical, absolute 7.92 (Polaris labels 6.48, classical 4.76). 2XX validation map failed (8.06). The camera calibration (one camera-frame transform per probe) is fitted once with Polaris | Tables F, G |
 | Third session (5XX): what decides? | **Coverage, then the map.** With a scan along the exam views (the protocol) 2.28 mm in A (Polaris labels 1.85: removing the tracker costs 0.4 mm, as in 3XX), C 3.11, D 2.24; the same A sweeps with a generic scan that misses the exam views 13.57 mm, and still 10.95 with Polaris labels. With the views covered, the error follows the map (E, empty room: 5.85). People moving: no effect. An outdated map survives a large rearrangement (4.28) but not a very large one (41–59 mm); the inlier count flags it. 40 training epochs are enough | 4.9 |
+| vs RGB-D SLAM (ORB-SLAM3, no tracker either) | **ORB-SLAM3 is better as run:** 3XX 1.79 / 1.34 vs our 2.34 / 1.72 (absolute / shape), 4XX 3.55 / 1.29 vs 7.92 / 2.69, 5XX 2.33 / 1.11 vs 3.58 / 2.24; ours better only in 5XX A (2.28 vs 3.29). Same map quality; it maps the sweeps as it goes, so it needs no coverage and survives outdated scans. Not yet like for like (it maps the sweeps; trajectory refined at shutdown): localisation-only run open | 4.10 |
 | Model variants | Big head + clean labels adopted (lower p90 and rotation); viewpoint augmentation, full resolution, refined pose fit, multi-frame anchors: neutral or worse | 4.5 |
 
 ## 1.1 Claims and evidence
@@ -36,7 +37,7 @@ What the data support, and how strongly. **Strong:** several splits, large effec
 | 7 | More accurate than classical where the scan covers the sweep viewpoints | 3XX 1.85 vs 3.1 mm, three seeds 1.85–2.12; 2XX 3.35 vs 4.2 | moderate | strict protocol (map before the sweeps): on par, 2.98 vs 3.0 |
 | 8 | Better volume shape than classical | after a rigid fit, every split: 2XX 3.04 vs 3.98, 3XX 1.57 vs 2.47, strict 2.26 vs 2.59, 4XX 2.95 vs 3.34 mm | moderate | metric introduced after the 4XX gap was known; report the absolute error too |
 | 9 | Real time | 0.25 s delay gives the offline result on every split; fully causal: same median, steps +20 %; 60–70 ms per frame | moderate | offline replay of recordings, not run live |
-| 10 | Works without a tracker: the network builds its own training labels | 3XX 2.34 / 1.72 mm (Polaris labels 1.85 / 1.57, classical 3.11 / 2.47), three seeds 2.22–2.34; strict 2.94; 4XX shape 2.69 (best of all systems); every frame mapped and tracked; each component needed (Table F); 5XX (third session, phantom) 2.28 mm with an exam-view scan, 0.4 mm behind Polaris labels (1.85), as in 3XX | **strong** for shape, moderate for absolute | camera calibration fitted with Polaris once per probe; 4XX absolute 7.92 vs 6.48 / 4.76; 2XX map failed (8.06); needs a scan along the exam views (4.9) |
+| 10 | Works without a tracker: the network builds its own training labels | 3XX 2.34 / 1.72 mm (Polaris labels 1.85 / 1.57, classical 3.11 / 2.47), three seeds 2.22–2.34; strict 2.94; 4XX shape 2.69 (better than classical, behind ORB-SLAM3 1.29); every frame mapped and tracked; each component needed (Table F); 5XX (third session, phantom) 2.28 mm with an exam-view scan, 0.4 mm behind Polaris labels (1.85), as in 3XX | **strong** for shape, moderate for absolute | camera calibration fitted with Polaris once per probe; 4XX absolute 7.92 vs 6.48 / 4.76; 2XX map failed (8.06); needs a scan along the exam views (4.9) |
 | 11 | Rescan after major changes; the inlier count flags an outdated map | 5XX: old map 4.28 mm after a large change, 13.9–59 mm after a very large one or an emptied room; median inliers 23–450 vs ≥ 1126 for maps that work | moderate | one session; threshold not tuned |
 
 **Not claimed** (and why):
@@ -45,6 +46,7 @@ What the data support, and how strongly. **Strong:** several splits, large effec
 - *Accurate from any room scan:* a scan that misses the exam views gives 11–14 mm (5XX A), even with Polaris labels.
 - *Better than classical in new sessions with short room scans:* 4XX 5.45 vs 4.76 mm (1.15×).
 - *As accurate without a tracker as with Polaris labels:* 3XX 2.34 vs 1.85 mm, 4XX 7.92 vs 6.48 (Tables F, G); the camera calibration still needs Polaris once.
+- *Better than RGB-D SLAM, or the best shape of all systems:* ORB-SLAM3 RGB-D (no tracker either) is better on 10 of 11 splits and in shape on all (4.10); a like-for-like run (localisation only after the room scan) is open.
 - *One network trained end to end:* the system is one SCR network plus exact geometry (Kabsch, ICP, pose graph), by design (`note.md` 1).
 - *Generalises to new rooms:* the network is trained per room, by design.
 - *2 mm everywhere:* reached on the well-covered session only.
@@ -222,7 +224,7 @@ Seven tables cover every test: A every system at the US image, B single-image po
 | 4XX mean | | | 7.92 | **2.69** | 6.48 / 3.17 | 4.76 / 3.34 |
 | 4XX pooled scans of the day (B / C / D / E) | 3XX | 4.0–4.3 / 5.7–5.9 / 1.9 | 8.08 / 10.69 / 14.00 / 10.62 | 2.53 / 2.21 / 3.98 / 3.15 | 3.76 / 3.98 / 8.46 / 5.92 | worse (B–E 13.93) |
 
-- 4XX: the maps are as good as 3XX's (scene points 3.1–3.9 mm), and the shape is the best of all systems on every block (same rows as classical: 2.73 vs 3.34), but the placement is weak (C, D). Calibrations fitted on the 4XX scans differ from 3XX's in rotation (1.9–2.05° vs 1.51°): either the calibration does not transfer, or the map's placement. Test: Section 8, task 1.
+- 4XX: the maps are as good as 3XX's (scene points 3.1–3.9 mm), and the shape is better than classical's on every block (same rows: 2.73 vs 3.34; ORB-SLAM3 1.29, 4.10), but the placement is weak (C, D). Calibrations fitted on the 4XX scans differ from 3XX's in rotation (1.9–2.05° vs 1.51°): either the calibration does not transfer, or the map's placement. Test: Section 8, task 1.
 - Pooled scans of the day are worse without a tracker (the map has to join scans of a room whose objects moved); with Polaris labels pooling helped. Without a tracker: each block's own scans.
 - 2XX fails: round 2 made the map worse (camera 18.6 → 22.1 mm), the per-scan calibrations disagree (0.93° vs 1.89°), and the 1 s motion has a 31 mm p90: some frames were joined wrongly and the pose graph did not fix them. Its scans are the longest (3 min, 5,366 frames). Not yet understood.
 - Real time (4XX, `--lags 0.25 0`): with a 0.25 s delay the error equals the offline result on every block (A 5.01, B 6.54, C 9.41, D 11.61, E 7.05 mm, 1 s window), fully causal the median rises by at most 0.2 mm and the step over 8 rows by 0.3–0.4 mm. 3XX: 2.34 (0.90) with the delay, 2.42 (1.13) causal.
@@ -237,7 +239,7 @@ Seven tables cover every test: A every system at the US image, B single-image po
 5. **SCR can use partly outdated data, classical cannot.** Room scans from earlier in the day, with objects moved since, improve SCR and ruin classical (B–E 4.90 → 13.93 mm, Tables A, C). More scanning always helps SCR.
 6. **It runs in real time:** a 0.25 s delay gives the offline accuracy; fully causal only adds some jitter (Table A).
 7. **The US images carry no usable pose information** beyond what the camera gives (Table E, US rows).
-8. **No tracker is needed.** The network reproduces its labels, so the map decides the result. With a pose graph (depth-ICP edges and loop closures) and the probe's camera calibration the map is good enough: 3XX 2.34 mm at the US image, shape 1.72 mm, 0.5 mm behind the oracle map and ahead of the Polaris-mapped classical system (3.11 / 2.47; Table F). Each component is needed (without loops 5.77, without calibration 11.49). In new sessions the shape stays the best of all systems (4XX 2.69), the placement does not (Table G).
+8. **No tracker is needed.** The network reproduces its labels, so the map decides the result. With a pose graph (depth-ICP edges and loop closures) and the probe's camera calibration the map is good enough: 3XX 2.34 mm at the US image, shape 1.72 mm, 0.5 mm behind the oracle map and ahead of the Polaris-mapped classical system (3.11 / 2.47; Table F). Each component is needed (without loops 5.77, without calibration 11.49). In new sessions the shape stays better than classical's (4XX 2.69 vs 3.34), the placement does not (Table G). ORB-SLAM3 RGB-D, also without a tracker, is better in both (4XX 3.55 / 1.29; 4.10).
 
 ## 2. Setup
 
@@ -480,6 +482,36 @@ Block A in detail (same 8 sweeps; `runs/track-v2-5XXA-*` = Polaris labels, `runs
 - **Polaris reference** (`runs/polaris-check.md`, `runs/polaris-track.md`, `tools/check_polaris.py`): the marker was at the near edge of the Polaris volume (about 0.95 m) in every session, median 0.93 / 0.88 / 0.90 m in 3XX / 4XX / 5XX (80 / 86 / 97 % of samples nearer than 0.95 m). Tracker noise at the US image 0.24 / 0.25 / 0.12 mm, spikes 6 / 8 / 0 per min: 5XX has the cleanest reference. Our error shows no trend with distance (bands within ~1 mm, correlation −0.23 to +0.30, mixed signs). The reference is the same across sessions; a bias common to all sessions cannot be excluded without a second reference.
 - **Seed fix:** room-504 starts with an arm in front of the camera, so the seed's depth ICP placed 3 frames and the map failed; `scr_map.py` now moves the seed 1 s later when it reaches < 1 s of the scan (`--seed-min-seconds`, `--seed-tries`); unchanged for every earlier map.
 
+### 4.10 RGB-D SLAM baseline: ORB-SLAM3 (8 Nov)
+
+ORB-SLAM3 RGB-D (`rgbd_tum`, default settings, 1250 ORB features, viewer off) on each session exported as one sequence, room scans first and then the sweeps (`tools/slam_baseline.py export`); scored like our system: one alignment and the camera calibration fitted on the room-scan frames only (3XX), the 3XX calibration reused for 4XX / 5XX (`--cam-calib-from runs/slam-3XX/slam_eval.json`, ORB-SLAM3's own, as ours reuses our 3XX one), 1 s smoothing (ours: 2 s in 3XX / 4XX, 1 s in 5XX). Same room scans as our maps (4XX D, E: C's scans; 5XX D: C's room-507). `runs/slam-*/slam_eval.md`, `runs/shape-slam.md`. Every frame tracked (100 %) on every run.
+
+| split | ORB-SLAM3 map camera | ours map camera | **ORB-SLAM3** absolute / shape | **ours (no tracker)** absolute / shape | ours, Polaris labels | classical (Polaris map) |
+|---|---|---|---|---|---|---|
+| 3XX | 2.2 | 2.0 | **1.79 / 1.34** | 2.34 / 1.72 | 1.85 / 1.57 | 3.11 / 2.47 |
+| 4XX A | 5.2 | 4.8 | **4.45 / 1.45** | 5.04 / 2.94 | 5.14 / 2.92 | 4.2 / 3.10 |
+| 4XX B | 2.8 | 3.0 | **2.99 / 1.11** | 6.55 / 2.40 | 5.77 / 2.66 | 3.4 / 2.47 |
+| 4XX C | 2.9 | 3.4 | **3.63 / 1.20** | 9.40 / 2.05 | 5.63 / 2.96 | 4.9 / 3.36 |
+| 4XX D (C's scans) | 2.9 | C's | **3.63 / 1.28** | 11.54 / 3.10 | 9.63 / 3.16 | 6.3 / 3.61 |
+| 4XX E (C's scans) | 2.6 | C's | **3.04 / 1.43** | 7.07 / 2.98 | 6.25 / 4.16 | 5.0 / 4.15 |
+| **4XX mean** | | | **3.55 / 1.29** | 7.92 / 2.69 | 6.48 / 3.17 | 4.76 / 3.34 |
+| 5XX A exam views | 4.0 | 2.7 | 3.29 / **1.15** | **2.28** / 1.90 | 1.85 / 1.67 | – |
+| 5XX B exam views | 1.9 | 2.4 | **1.79 / 1.25** | 4.43 / 2.81 | – | – |
+| 5XX C exam views | 1.7 | 2.2 | **1.88 / 1.17** | 3.11 / 1.76 | – | – |
+| 5XX D (C's room-507) | 2.1 | 2.2 | 2.11 / **1.21** | 2.24 / 1.70 | – | – |
+| 5XX E exam views (empty room) | 1.8 | 4.3 | **2.56 / 0.77** | 5.85 / 3.04 | – | – |
+| **5XX mean (A–E)** | | | **2.33 / 1.11** | 3.58 / 2.24 | | |
+| 5XX C, outdated (B's room-504) | 1.7 | – | **4.65 / 1.15** | 40.9 / 29.2 | | |
+| 5XX E, outdated (C's room-507) | 1.6 | – | **3.06 / 0.85** | 13.9 / 14.6 | | |
+| 5XX A generic (room-501) | no trajectory written (ORB-SLAM3 stopped; log needed) | | – | 13.57 / 3.79 | 10.95 / 3.93 | |
+
+- **ORB-SLAM3, as run, is the most accurate tracker-free system:** absolute lower on 10 of 11 splits (on 5XX D within noise, 2.11 vs 2.24; ours lower only on 5XX A, 2.28 vs 3.29), shape better on all 11 (about half our shape error: 4XX 1.29 vs 2.69, 5XX 1.11 vs 2.24). It also beats the Polaris-mapped classical system (3XX 1.79 vs 3.11, 4XX 3.55 vs 4.76).
+- **Not the map:** its room-scan maps are as good as ours (camera 1.7–5.2 vs 2.0–4.8 mm; better in the empty room E, 1.8 vs 4.3, worse in A, 4.0 vs 2.7). The difference is in the sweeps.
+- **It does not need coverage:** it keeps mapping during the sweeps, so the exam views enter its map as they are scanned. Where our coverage is low (4XX, 0–14 %) it is 2× better (3.55 vs 7.92); where coverage is ≥ 90 % and our map is good (5XX A, D) we are equal or better.
+- **Scene changes do not hurt it:** with an outdated scan it relocalises on the static part and re-maps the rest (C with B's scan 4.65 vs our 40.9; E with C's 3.06 vs 13.9).
+- **Shape:** frame-to-frame (k = 1, 8 rows) both are equal; over 1 s ours wanders twice as much (5XX A, k = 30: 0.86 / 0.56 vs 0.50 / 0.31 mm in / out of plane): per-frame localisation against a network does not keep a sweep rigid, temporal tracking with bundle adjustment does.
+- **Not yet like for like, in ORB-SLAM3's favour:** (1) it maps the sweeps, our system maps only the room scan; (2) `CameraTrajectory.txt` is written at shutdown, each frame re-expressed through its keyframe after local BA and loop closure, so it uses later frames (ours: 1 s window, real-time with 0.25 s delay). Test (`tools/orbslam3/rgbd_online.cc`, README 6): mode `localize` (map from the room scan only, then frozen: our information) and the poses as tracked (`online.txt`). This decides the framing: if localisation-only ORB-SLAM3 also needs coverage, map-then-localise shares our limit and mapping during the exam is what helps; if not, the classical feature pipeline is simply better on this data.
+
 ## 5. Why SCR beats pose regression
 
 | | RPR anchor network | SCR |
@@ -514,6 +546,7 @@ The remaining error is long-range (sweep-scale), which speckle cannot see; a lea
 6. The inlier gate was chosen after seeing the test splits (no effect on system results).
 7. Hand–eye calibration (3.5 mm board-corner error) enters labels and ground truth.
 8. The probe marker was at the near edge of the Polaris volume (median 0.88–0.93 m) in every session; the error shows no trend with distance, but a bias common to all sessions cannot be excluded (4.9). Future recordings: Polaris 1.0–2.0 m from the probe (`tools/check_session.py` warns).
+9. **ORB-SLAM3 RGB-D is more accurate than our system** on 10 of 11 splits and in shape on all (4.10). The comparison is not yet like for like (it maps the sweeps; its trajectory is refined at shutdown); until the localisation-only run, no accuracy claim against RGB-D SLAM.
 
 ## 8. Open tasks
 
@@ -522,7 +555,7 @@ Done (7 Nov): session 5XX recorded and run (4.9: coverage, map quality, scene ch
 | # | task | type | needs |
 |---|---|---|---|
 | 1 | 4XX C / D placement: refit the camera calibration on the 4XX scans (diagnostic, uses that session's Polaris), retrain, track | analysis | **done 5 Nov:** C 9.40 → 7.87, D 11.54 → 9.58 (= oracle 9.63), shape unchanged: the calibration transfer explains 1.5–2.0 mm, the rest of C is the map |
-| 2 | RGB-D SLAM baseline (e.g. ORB-SLAM3 RGB-D) on room scan + sweeps, scored after the same one alignment per session (3XX, 5XX A exam / generic) | comparison | ORB-SLAM3 build on the training PC (README 6, no sudo needed) + `tools/slam_baseline.py`; commands `note.md` 5 |
+| 2 | RGB-D SLAM baseline (ORB-SLAM3 RGB-D) on room scan + sweeps, scored after the same one alignment per session | comparison | **done 8 Nov (4.10):** better than ours on 10 of 11 splits, shape on all. Open: like-for-like run (`tools/orbslam3/rgbd_online.cc`: localisation only after the room scan, poses as tracked); 5XX A generic (no trajectory written) |
 | 3 | classical anchors on our own tracker-free map (same map, network vs SIFT) | comparison | **done 5 Nov:** 3XX SCR 2.35 / 1.73 vs SIFT 3.65 / 2.66; 4XX SIFT 5.78 vs SCR 7.92 (gap to classical: ~2.1 mm method, ~1.0 mm map); 4XX shape to run |
 | 4 | why the 2XX map fails (each scan alone, stricter joining, own calibration) | analysis | **done 5 Nov:** room-201 carries the bad stretch (1 s motion p90 31 mm alone); room-202 alone is clean; strict joining worse (9.52 vs 8.13) |
 | 5 | static 3D volume figures for the paper (true vs tracker-free, also after the rigid fit) | figure | **done 5 Nov** (`runs/figures/`); re-run after the title fix |

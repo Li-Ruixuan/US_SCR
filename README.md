@@ -183,6 +183,16 @@ Before each use: `conda activate orbslam` and the `LD_LIBRARY_PATH` line. With s
 
 Then per session: `tools/slam_baseline.py export` (room scans, then sweeps, as one RGB-D sequence), `rgbd_tum`, `tools/slam_baseline.py evaluate` (one alignment + camera calibration on the room scan, as our maps; `--cam-calib-from` for 4XX); commands in `note.md` 5. Frames ORB-SLAM3 loses have no pose and are counted.
 
+Like-for-like variant `tools/orbslam3/rgbd_online.cc` (replaces `rgbd_tum`): writes the pose of each frame as it was tracked (`online.txt`, what a real-time system shows) besides the trajectory refined at shutdown, and with mode `localize` maps only the room scan and then localises with the map frozen (the information our system has). Build once, in `conda activate orbslam`:
+
+```bash
+cp $US/tools/orbslam3/rgbd_online.cc $ORB/Examples/RGB-D/
+grep -q rgbd_online $ORB/CMakeLists.txt || printf '\nadd_executable(rgbd_online Examples/RGB-D/rgbd_online.cc)\ntarget_link_libraries(rgbd_online ${PROJECT_NAME})\nset_target_properties(rgbd_online PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/RGB-D)\n' >> $ORB/CMakeLists.txt
+cd $ORB/build && cmake .. && make rgbd_online -j8
+```
+
+Run: `rgbd_online VOCAB SETTINGS SEQ ASSOCIATIONS OUT_DIR slam|localize N_MAP` with N_MAP = room-scan frames (`grep -c ',room-' SEQ/index.csv`); evaluate `OUT_DIR/online.txt` with `tools/slam_baseline.py evaluate --traj`.
+
 Options of `anchoring.py evaluate`: `--start anchor` (no ground-truth pose at the start of a segment), `--gate-recover 3` (accept anchors again after a wrong one was accepted), `--scr-frames M` (one SCR anchor from M chain frames). Its other commands: `coverage`, `simulate`, `pairs` (the RPR anchor network itself is trained in rgbd-us).
 
 ## 7. Reproducing the results

@@ -296,25 +296,61 @@ FileNotFoundError: [Errno 2] No such file or directory: 'runs/slam-5XXA-generic/
   
   
   
+Training PC: 1. pull and build (env orbslam)
 
 
+cd /data2/u0137815/US_SCR && git pull
+conda activate orbslam
+export US=/data2/u0137815/US_SCR ORB=/data2/u0137815/ORB_SLAM3
+export CMAKE_PREFIX_PATH=$CONDA_PREFIX OpenCV_DIR=$CONDA_PREFIX/lib/cmake/opencv4
+cp $US/tools/orbslam3/rgbd_online.cc $ORB/Examples/RGB-D/
+grep -q rgbd_online $ORB/CMakeLists.txt || printf '\nadd_executable(rgbd_online Examples/RGB-D/rgbd_online.cc)\ntarget_link_libraries(rgbd_online ${PROJECT_NAME})\nset_target_properties(rgbd_online PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/RGB-D)\n' >> $ORB/CMakeLists.txt
+cd $ORB/build && cmake .. && make rgbd_online -j8
+2. Setup (env free)
 
 
+conda activate free
+cd /data2/u0137815/US_SCR
+export DATA=/data2/u0137815/rgbd-us/data US=/data2/u0137815/US_SCR ORB=/data2/u0137815/ORB_SLAM3
+ORBLIB=/data2/u0137815/conda/envs/orbslam/lib:$ORB/lib:$ORB/Thirdparty/DBoW2/lib:$ORB/Thirdparty/g2o/lib
+SCAL="--cam-calib-from runs/slam-3XX/slam_eval.json"
+3. Runs. Each run is real time, about 1.5 h per mode for all splits. Run the decisive ones first: 5XXA-exam, 5XXA-generic, 4XXA, 3XX.
 
 
+for s in 5XXA-exam 5XXA-generic 4XXA 3XX 4XXB 4XXC 4XXD 4XXE 5XXB-exam 5XXC-exam 5XXD-exam 5XXE-exam 5XXC-oldB 5XXE-oldC; do
+  mkdir -p runs/slam-$s-loc
+  LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_online $ORB/Vocabulary/ORBvoc.txt runs/slam-$s/seq/camera.yaml runs/slam-$s/seq runs/slam-$s/seq/associations.txt runs/slam-$s-loc localize $(grep -c ',room-' runs/slam-$s/seq/index.csv)
+done
+for s in 5XXA-exam 5XXA-generic 4XXA 3XX 4XXB 4XXC 4XXD 4XXE 5XXB-exam 5XXC-exam 5XXD-exam 5XXE-exam 5XXC-oldB 5XXE-oldC; do
+  mkdir -p runs/slam-$s-online
+  LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_online $ORB/Vocabulary/ORBvoc.txt runs/slam-$s/seq/camera.yaml runs/slam-$s/seq runs/slam-$s/seq/associations.txt runs/slam-$s-online slam 0
+done
+If 5XXA-generic stops again, please paste the last ~20 lines it prints. online.txt is written frame by frame, so it can still be evaluated up to the crash.
+
+4. Evaluate (both modes)
 
 
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/train_3XX --scan-runs room-301 room-302 --seq runs/slam-3XX/seq --traj runs/slam-3XX-$m/online.txt --smooth 1 --out runs/slam-3XX-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/train_4XX --scan-runs room-401 room-402 --runs run-401 run-402 run-403 run-404 run-405 run-406 run-407 run-408 --seq runs/slam-4XXA/seq --traj runs/slam-4XXA-$m/online.txt $SCAL --smooth 1 --out runs/slam-4XXA-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/train_4XX --scan-runs room-403 room-404 --runs run-409 run-410 run-411 run-412 --seq runs/slam-4XXB/seq --traj runs/slam-4XXB-$m/online.txt $SCAL --smooth 1 --out runs/slam-4XXB-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/train_4XX --scan-runs room-405 room-406 --runs run-413 run-414 run-415 run-416 --seq runs/slam-4XXC/seq --traj runs/slam-4XXC-$m/online.txt $SCAL --smooth 1 --out runs/slam-4XXC-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/train_4XX --scan-runs room-405 room-406 --runs run-418 run-419 run-420 run-421 run-423 run-424 --seq runs/slam-4XXD/seq --traj runs/slam-4XXD-$m/online.txt $SCAL --smooth 1 --out runs/slam-4XXD-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/train_4XX --scan-runs room-405 room-406 --runs run-425 run-426 run-427 run-428 --seq runs/slam-4XXE/seq --traj runs/slam-4XXE-$m/online.txt $SCAL --smooth 1 --out runs/slam-4XXE-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/test_5XXA --scan-runs room-502 --seq runs/slam-5XXA-exam/seq --traj runs/slam-5XXA-exam-$m/online.txt $SCAL --smooth 1 --out runs/slam-5XXA-exam-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/test_5XXA --scan-runs room-501 --seq runs/slam-5XXA-generic/seq --traj runs/slam-5XXA-generic-$m/online.txt $SCAL --smooth 1 --out runs/slam-5XXA-generic-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/test_5XXB --scan-runs room-505 --seq runs/slam-5XXB-exam/seq --traj runs/slam-5XXB-exam-$m/online.txt $SCAL --smooth 1 --out runs/slam-5XXB-exam-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/test_5XXC --scan-runs room-507 --seq runs/slam-5XXC-exam/seq --traj runs/slam-5XXC-exam-$m/online.txt $SCAL --smooth 1 --out runs/slam-5XXC-exam-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/test_5XXD --scan-runs room-507 --seq runs/slam-5XXD-exam/seq --traj runs/slam-5XXD-exam-$m/online.txt $SCAL --smooth 1 --out runs/slam-5XXD-exam-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/test_5XXE --scan-runs room-509 --seq runs/slam-5XXE-exam/seq --traj runs/slam-5XXE-exam-$m/online.txt $SCAL --smooth 1 --out runs/slam-5XXE-exam-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/test_5XXC --scan-runs room-504 --seq runs/slam-5XXC-oldB/seq --traj runs/slam-5XXC-oldB-$m/online.txt $SCAL --smooth 1 --out runs/slam-5XXC-oldB-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/test_5XXE --scan-runs room-507 --seq runs/slam-5XXE-oldC/seq --traj runs/slam-5XXE-oldC-$m/online.txt $SCAL --smooth 1 --out runs/slam-5XXE-oldC-$m; done
+5. Shape and push
 
 
-
-
-
-
-
-
-
-
-
+python tools/us_analysis.py shape --json runs/slam-*-loc/poses/*.json runs/slam-*-online/poses/*.json --out runs/shape-slam-fair.md
+git add runs/slam-*-loc/slam_eval.* runs/slam-*-loc/online.txt runs/slam-*-online/slam_eval.* runs/slam-*-online/online.txt runs/slam-*-online/CameraTrajectory.txt runs/shape-slam-fair.md
+git commit -m "ORB-SLAM3 like for like: localisation only after the room scan, poses as tracked"
+git push
 
 
 
