@@ -277,10 +277,7 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
  
  
-
-
- Commands (training PC)
-
+ 
 Re-export the two old sequences (env free, setup as before):
 
 grep DepthMapFactor runs/slam-3XX/seq/camera.yaml runs/slam-5XXA-generic/seq/camera.yaml
