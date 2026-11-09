@@ -280,6 +280,28 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
+Commands (training PC, env free, in $US):
+
+
+conda activate free
+cd /data2/u0137815/US_SCR
+export DATA=/data2/u0137815/rgbd-us/data
+SCAL="--cam-calib-from runs/slam-3XX/slam_eval.json"
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/train_3XX --scan-runs room-301 room-302 --seq runs/slam-3XX/seq --traj runs/slam-3XX-$m/online.txt --smooth 1 --out runs/slam-3XX-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/train_4XX --scan-runs room-401 room-402 --runs run-401 run-402 run-403 run-404 run-405 run-406 run-407 run-408 --seq runs/slam-4XXA/seq --traj runs/slam-4XXA-$m/online.txt $SCAL --smooth 1 --out runs/slam-4XXA-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/train_4XX --scan-runs room-403 room-404 --runs run-409 run-410 run-411 run-412 --seq runs/slam-4XXB/seq --traj runs/slam-4XXB-$m/online.txt $SCAL --smooth 1 --out runs/slam-4XXB-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/train_4XX --scan-runs room-405 room-406 --runs run-413 run-414 run-415 run-416 --seq runs/slam-4XXC/seq --traj runs/slam-4XXC-$m/online.txt $SCAL --smooth 1 --out runs/slam-4XXC-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/train_4XX --scan-runs room-405 room-406 --runs run-418 run-419 run-420 run-421 run-423 run-424 --seq runs/slam-4XXD/seq --traj runs/slam-4XXD-$m/online.txt $SCAL --smooth 1 --out runs/slam-4XXD-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/train_4XX --scan-runs room-405 room-406 --runs run-425 run-426 run-427 run-428 --seq runs/slam-4XXE/seq --traj runs/slam-4XXE-$m/online.txt $SCAL --smooth 1 --out runs/slam-4XXE-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/test_5XXA --scan-runs room-502 --seq runs/slam-5XXA-exam/seq --traj runs/slam-5XXA-exam-$m/online.txt $SCAL --smooth 1 --out runs/slam-5XXA-exam-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/test_5XXA --scan-runs room-501 --seq runs/slam-5XXA-generic/seq --traj runs/slam-5XXA-generic-$m/online.txt $SCAL --smooth 1 --out runs/slam-5XXA-generic-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/test_5XXB --scan-runs room-505 --seq runs/slam-5XXB-exam/seq --traj runs/slam-5XXB-exam-$m/online.txt $SCAL --smooth 1 --out runs/slam-5XXB-exam-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/test_5XXC --scan-runs room-507 --seq runs/slam-5XXC-exam/seq --traj runs/slam-5XXC-exam-$m/online.txt $SCAL --smooth 1 --out runs/slam-5XXC-exam-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/test_5XXD --scan-runs room-507 --seq runs/slam-5XXD-exam/seq --traj runs/slam-5XXD-exam-$m/online.txt $SCAL --smooth 1 --out runs/slam-5XXD-exam-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/test_5XXE --scan-runs room-509 --seq runs/slam-5XXE-exam/seq --traj runs/slam-5XXE-exam-$m/online.txt $SCAL --smooth 1 --out runs/slam-5XXE-exam-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/test_5XXC --scan-runs room-504 --seq runs/slam-5XXC-oldB/seq --traj runs/slam-5XXC-oldB-$m/online.txt $SCAL --smooth 1 --out runs/slam-5XXC-oldB-$m; done
+for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/test_5XXE --scan-runs room-507 --seq runs/slam-5XXE-oldC/seq --traj runs/slam-5XXE-oldC-$m/online.txt $SCAL --smooth 1 --out runs/slam-5XXE-oldC-$m; done
+python tools/us_analysis.py shape --json runs/slam-*-loc/poses/*.json runs/slam-*-online/poses/*.json --out runs/shape-slam-fair.md
 
  
 
