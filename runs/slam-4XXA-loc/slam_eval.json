@@ -1,0 +1,145 @@
+{
+ "args": {
+  "cmd": "evaluate",
+  "root": "/data2/u0137815/rgbd-us/data/train_4XX",
+  "scan_runs": [
+   "room-401",
+   "room-402"
+  ],
+  "runs": [
+   "run-401",
+   "run-402",
+   "run-403",
+   "run-404",
+   "run-405",
+   "run-406",
+   "run-407",
+   "run-408"
+  ],
+  "seq": "runs/slam-4XXA/seq",
+  "traj": "runs/slam-4XXA-loc/online.txt",
+  "cam_calib_from": "runs/slam-3XX/slam_eval.json",
+  "no_cam_calib": false,
+  "smooth": 1.0,
+  "source": "orbslam3",
+  "calib": "/data2/u0137815/US_SCR/calib_matrix.csv",
+  "hand_eye": "/data2/u0137815/US_SCR/T_marker_cam.npy",
+  "out": "runs/slam-4XXA-loc"
+ },
+ "map": {
+  "mapped": 3893,
+  "frames": 3893,
+  "mapped_pct": 100.0,
+  "view_mm_median": 5.149583413924141,
+  "view_mm_p90": 11.518133612139254,
+  "pos_mm_median": 5.147107841202573,
+  "pos_mm_p90": 8.275609480831298,
+  "rot_deg_median": 0.33513941819059306,
+  "rel1s_mm_median": 4.059494326819511,
+  "rel1s_mm_p90": 10.047295071161392,
+  "calib_mm": 9.447583856662877,
+  "calib_deg": 0.6094729526505376
+ },
+ "cam_calib": [
+  [
+   0.9999436732455576,
+   -0.009928943325795319,
+   -0.003750522712235445,
+   -3.0758901481806404
+  ],
+  [
+   0.009926294685112748,
+   0.9999504709052304,
+   -0.0007241617447125395,
+   -7.59192905752596
+  ],
+  [
+   0.003757527113162555,
+   0.000686892161366912,
+   0.9999927045579646,
+   -4.707266054781191
+  ],
+  [
+   0.0,
+   0.0,
+   0.0,
+   1.0
+  ]
+ ],
+ "map_to_polaris": [
+  [
+   -0.19010983609675539,
+   0.9804846927342703,
+   -0.05008011115250688,
+   -6.1959654749229855
+  ],
+  [
+   0.8551055209130708,
+   0.14030672647872433,
+   -0.4991077745425428,
+   -115.55407289666846
+  ],
+  [
+   -0.48234095650613135,
+   -0.1377090767473481,
+   -0.8650915627019737,
+   -726.1056663266418
+  ],
+  [
+   0.0,
+   0.0,
+   0.0,
+   1.0
+  ]
+ ],
+ "sweeps": {
+  "run-401": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  },
+  "run-402": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  },
+  "run-403": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  },
+  "run-404": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  },
+  "run-405": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  },
+  "run-406": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  },
+  "run-407": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  },
+  "run-408": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  }
+ }
+}

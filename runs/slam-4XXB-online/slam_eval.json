@@ -1,0 +1,117 @@
+{
+ "args": {
+  "cmd": "evaluate",
+  "root": "/data2/u0137815/rgbd-us/data/train_4XX",
+  "scan_runs": [
+   "room-403",
+   "room-404"
+  ],
+  "runs": [
+   "run-409",
+   "run-410",
+   "run-411",
+   "run-412"
+  ],
+  "seq": "runs/slam-4XXB/seq",
+  "traj": "runs/slam-4XXB-online/online.txt",
+  "cam_calib_from": "runs/slam-3XX/slam_eval.json",
+  "no_cam_calib": false,
+  "smooth": 1.0,
+  "source": "orbslam3",
+  "calib": "/data2/u0137815/US_SCR/calib_matrix.csv",
+  "hand_eye": "/data2/u0137815/US_SCR/T_marker_cam.npy",
+  "out": "runs/slam-4XXB-online"
+ },
+ "map": {
+  "mapped": 695,
+  "frames": 2381,
+  "mapped_pct": 29.189416211675766,
+  "view_mm_median": 3.7494563289266507,
+  "view_mm_p90": 6.443513326724454,
+  "pos_mm_median": 3.6211424689363834,
+  "pos_mm_p90": 6.478088201267097,
+  "rot_deg_median": 0.2371889288930942,
+  "rel1s_mm_median": 1.906267968239962,
+  "rel1s_mm_p90": 4.426712311536026,
+  "calib_mm": 9.447583856662877,
+  "calib_deg": 0.6094729526505376
+ },
+ "cam_calib": [
+  [
+   0.9999436732455576,
+   -0.009928943325795319,
+   -0.003750522712235445,
+   -3.0758901481806404
+  ],
+  [
+   0.009926294685112748,
+   0.9999504709052304,
+   -0.0007241617447125395,
+   -7.59192905752596
+  ],
+  [
+   0.003757527113162555,
+   0.000686892161366912,
+   0.9999927045579646,
+   -4.707266054781191
+  ],
+  [
+   0.0,
+   0.0,
+   0.0,
+   1.0
+  ]
+ ],
+ "map_to_polaris": [
+  [
+   -0.10673230208512133,
+   0.9890479226176185,
+   0.10194323154277422,
+   127.83151035880164
+  ],
+  [
+   0.82384019420183,
+   0.14537342932235262,
+   -0.5478630307518023,
+   -111.64658179279058
+  ],
+  [
+   -0.5566826296096384,
+   0.02551024917228964,
+   -0.8303334734177984,
+   -869.0614346518787
+  ],
+  [
+   0.0,
+   0.0,
+   0.0,
+   1.0
+  ]
+ ],
+ "sweeps": {
+  "run-409": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  },
+  "run-410": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  },
+  "run-411": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  },
+  "run-412": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  }
+ }
+}

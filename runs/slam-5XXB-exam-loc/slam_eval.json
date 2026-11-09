@@ -1,0 +1,135 @@
+{
+ "args": {
+  "cmd": "evaluate",
+  "root": "/data2/u0137815/rgbd-us/data/test_5XXB",
+  "scan_runs": [
+   "room-505"
+  ],
+  "runs": null,
+  "seq": "runs/slam-5XXB-exam/seq",
+  "traj": "runs/slam-5XXB-exam-loc/online.txt",
+  "cam_calib_from": "runs/slam-3XX/slam_eval.json",
+  "no_cam_calib": false,
+  "smooth": 1.0,
+  "source": "orbslam3",
+  "calib": "/data2/u0137815/US_SCR/calib_matrix.csv",
+  "hand_eye": "/data2/u0137815/US_SCR/T_marker_cam.npy",
+  "out": "runs/slam-5XXB-exam-loc"
+ },
+ "map": {
+  "mapped": 1798,
+  "frames": 1798,
+  "mapped_pct": 100.0,
+  "view_mm_median": 3.8696705781878937,
+  "view_mm_p90": 7.120277353788264,
+  "pos_mm_median": 1.5531347881152469,
+  "pos_mm_p90": 2.884495422833447,
+  "rot_deg_median": 0.21557609704836053,
+  "rel1s_mm_median": 1.1280951395233787,
+  "rel1s_mm_p90": 2.8709397671368277,
+  "calib_mm": 9.447583856662877,
+  "calib_deg": 0.6094729526505376
+ },
+ "cam_calib": [
+  [
+   0.9999436732455576,
+   -0.009928943325795319,
+   -0.003750522712235445,
+   -3.0758901481806404
+  ],
+  [
+   0.009926294685112748,
+   0.9999504709052304,
+   -0.0007241617447125395,
+   -7.59192905752596
+  ],
+  [
+   0.003757527113162555,
+   0.000686892161366912,
+   0.9999927045579646,
+   -4.707266054781191
+  ],
+  [
+   0.0,
+   0.0,
+   0.0,
+   1.0
+  ]
+ ],
+ "map_to_polaris": [
+  [
+   -0.051179501844833594,
+   0.9986483269111902,
+   0.009065194338533547,
+   85.80719932382101
+  ],
+  [
+   0.9677463152624481,
+   0.051833739480039144,
+   -0.2465366762724556,
+   -94.9765315201372
+  ],
+  [
+   -0.24667332220341287,
+   -0.0038448158598514415,
+   -0.9690910635766562,
+   -919.5812509806888
+  ],
+  [
+   0.0,
+   0.0,
+   0.0,
+   1.0
+  ]
+ ],
+ "sweeps": {
+  "run-509": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  },
+  "run-510": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  },
+  "run-511": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  },
+  "run-512": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  },
+  "run-513": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  },
+  "run-514": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  },
+  "run-515": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  },
+  "run-516": {
+   "us_median": NaN,
+   "us_p90": NaN,
+   "coverage_pct": 0.0,
+   "step_8rows": NaN
+  }
+ }
+}
