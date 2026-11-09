@@ -16,7 +16,7 @@ Camera.fps: 30
 Camera.RGB: 1
 Stereo.ThDepth: 40.0
 Stereo.b: 0.05
-RGBD.DepthMapFactor: 1000
+RGBD.DepthMapFactor: 1000.0
 ORBextractor.nFeatures: 1250
 ORBextractor.scaleFactor: 1.2
 ORBextractor.nLevels: 8

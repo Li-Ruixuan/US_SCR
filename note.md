@@ -275,43 +275,6 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
- 
- 
- 
-Re-export the two old sequences (env free, setup as before):
-
-grep DepthMapFactor runs/slam-3XX/seq/camera.yaml runs/slam-5XXA-generic/seq/camera.yaml
-python tools/slam_baseline.py export --root $DATA/train_3XX --scan-runs room-301 room-302 --out runs/slam-3XX/seq
-python tools/slam_baseline.py export --root $DATA/test_5XXA --scan-runs room-501 --out runs/slam-5XXA-generic/seq
-grep DepthMapFactor runs/slam-3XX/seq/camera.yaml runs/slam-5XXA-generic/seq/camera.yaml
-The second grep should print 1000.0.
-
-Patch the localisation bug and rebuild (env orbslam):
-
-conda activate orbslam
-export ORB=/data2/u0137815/ORB_SLAM3 CMAKE_PREFIX_PATH=$CONDA_PREFIX OpenCV_DIR=$CONDA_PREFIX/lib/cmake/opencv4
-grep -n "Localization Mode" -A6 $ORB/src/Tracking.cc
-sed -i '/Localization Mode: Local Mapping is deactivated/,/Relocalization()/ s/if(mState==LOST)/if(mState==LOST || mState==RECENTLY_LOST)/' $ORB/src/Tracking.cc
-grep -n "Localization Mode" -A6 $ORB/src/Tracking.cc
-cd $ORB/build && make -j8
-The second grep must show if(mState==LOST || mState==RECENTLY_LOST). If it doesn't, paste me the output of the first grep, because the comment text in your copy may differ.
-
-Rerun (env free, in $US). This runs all localisation-only splits, plus online for 3XX, 5XX A generic and the two 4XX runs that broke down:
-
-conda activate free
-cd /data2/u0137815/US_SCR
-for s in 5XXA-exam 5XXA-generic 4XXA 3XX 4XXB 4XXC 4XXD 4XXE 5XXB-exam 5XXC-exam 5XXD-exam 5XXE-exam 5XXC-oldB 5XXE-oldC; do
-  mkdir -p runs/slam-$s-loc
-  LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_online $ORB/Vocabulary/ORBvoc.txt runs/slam-$s/seq/camera.yaml runs/slam-$s/seq runs/slam-$s/seq/associations.txt runs/slam-$s-loc localize $(grep -c ',room-' runs/slam-$s/seq/index.csv)
-done
-for s in 3XX 5XXA-generic 4XXB 4XXC; do
-  mkdir -p runs/slam-$s-online
-  LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_online $ORB/Vocabulary/ORBvoc.txt runs/slam-$s/seq/camera.yaml runs/slam-$s/seq runs/slam-$s/seq/associations.txt runs/slam-$s-online slam 0
-done
-
-
-
- 
 
 
 
