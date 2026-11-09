@@ -191,7 +191,15 @@ grep -q rgbd_online $ORB/CMakeLists.txt || printf '\nadd_executable(rgbd_online 
 cd $ORB/build && cmake .. && make rgbd_online -j8
 ```
 
-Run: `rgbd_online VOCAB SETTINGS SEQ ASSOCIATIONS OUT_DIR slam|localize N_MAP` with N_MAP = room-scan frames (`grep -c ',room-' SEQ/index.csv`); evaluate `OUT_DIR/online.txt` with `tools/slam_baseline.py evaluate --traj`.
+Run: `rgbd_online VOCAB SETTINGS SEQ ASSOCIATIONS OUT_DIR slam|localize|reloc N_MAP` with N_MAP = room-scan frames (`grep -c ',room-' SEQ/index.csv`); evaluate `OUT_DIR/online.txt` with `tools/slam_baseline.py evaluate --traj`. Mode `reloc` relocalises every frame after the room scan on its own against the frozen map (per-frame localisation, the task of our network); `times.txt` holds the time per frame.
+
+**ORB-SLAM3 patch (needed for `localize` and `reloc`):** in localisation mode, upstream `Tracking::Track()` calls `Relocalization()` only in state `LOST`, but only the SLAM branch turns `RECENTLY_LOST` into `LOST`, so once lost it never relocalises (every sweep after the first one or two was 0 % posed). One line in `$ORB/src/Tracking.cc`, then `cd $ORB/build && make -j8`:
+
+```bash
+sed -i '/Localization Mode: Local Mapping is deactivated/,/Relocalization()/ s/if(mState==LOST)/if(mState==LOST || mState==RECENTLY_LOST)/' $ORB/src/Tracking.cc
+```
+
+Synthetic occlusion (`occlusion.py`): `tools/slam_baseline.py export --occlude FRAC` and `scr_anchor.py track --occlude FRAC` put the same occluder (a textured band over FRAC of the width at 0.4 m, 3 s every 10 s, alternating sides) into the sweep frames of both systems.
 
 Options of `anchoring.py evaluate`: `--start anchor` (no ground-truth pose at the start of a segment), `--gate-recover 3` (accept anchors again after a wrong one was accepted), `--scr-frames M` (one SCR anchor from M chain frames). Its other commands: `coverage`, `simulate`, `pairs` (the RPR anchor network itself is trained in rgbd-us).
 

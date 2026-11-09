@@ -602,16 +602,28 @@ def track_poses(args, ds, sweeps, net, ck, device):
         rows = np.concatenate(r["segments"])[:: args.every]
         T = np.full((len(rows), 4, 4), np.nan)
         inl = np.zeros(len(rows), int)
+        n_occ = 0
         for n, row in enumerate(bar(rows, desc=f"track {sw}")):
             rgb = ds.load_frame(sw, int(row))[0]
             depth = load_depth_mm(ds, args.test_root, sw, int(row))
+            if args.occlude > 0:                  # synthetic occluder (occlusion.py), as slam_baseline.py export
+                import occlusion
+                t_rel = r["stamps"][row] - r["stamps"][0]
+                if occlusion.occluder_window(t_rel, args.occlude, args.occlude_dur, args.occlude_period) is not None:
+                    rgb01 = rgb.transpose(1, 2, 0) * IMAGENET_STD + IMAGENET_MEAN
+                    depth = np.array(depth, copy=True)
+                    occlusion.occlude(rgb01, depth, t_rel, args.occlude, args.occlude_dur, args.occlude_period,
+                                      args.occlude_depth)
+                    rgb = ((rgb01 - IMAGENET_MEAN) / IMAGENET_STD).transpose(2, 0, 1).astype(np.float32)
+                    n_occ += 1
             Tn, k = localize_kabsch(net, ck, rgb, depth, K, r["hw"][1], device, rng=np.random.default_rng(int(row)),
                                     weighted=args.weighted)
             inl[n] = k
             if Tn is not None and k >= args.gate:
                 T[n] = Tn
         out[sw] = (rows, T, inl)
-        print(f"  {sw}: {len(rows)} frames, {np.isfinite(T[:, 0, 0]).mean() * 100:.0f} % passed the gate", flush=True)
+        print(f"  {sw}: {len(rows)} frames, {np.isfinite(T[:, 0, 0]).mean() * 100:.0f} % passed the gate"
+              f"{f', {n_occ} occluded' if n_occ else ''}", flush=True)
     return out
 
 
@@ -717,7 +729,8 @@ def track(args):
     out.mkdir(parents=True, exist_ok=True)
     cache = out / "poses.npz"
     meta = json.load(open(out / "poses.json")) if cache.exists() else {}
-    cached = meta.get("every") == args.every and meta.get("weighted", False) == args.weighted
+    occ = [args.occlude, args.occlude_dur, args.occlude_period, args.occlude_depth] if args.occlude > 0 else None
+    cached = meta.get("every") == args.every and meta.get("weighted", False) == args.weighted and meta.get("occlude") == occ
     if cached and Path(args.ckpt).exists() and Path(args.ckpt).stat().st_mtime > cache.stat().st_mtime:
         print(f"{args.ckpt} is newer than {cache}: tracking again")      # retrained into the same folder
         cached = False
@@ -737,7 +750,7 @@ def track(args):
     else:
         raw = track_poses(args, ds, sweeps, net, ck, device)
         np.savez_compressed(cache, **{f"{sw}_{k}": v for sw, (r, T, i) in raw.items() for k, v in (("rows", r), ("T", T), ("inl", i))})
-        json.dump({"ckpt": args.ckpt, "every": args.every, "gate": args.gate, "weighted": args.weighted},
+        json.dump({"ckpt": args.ckpt, "every": args.every, "gate": args.gate, "weighted": args.weighted, "occlude": occ},
                   open(out / "poses.json", "w"))
     if args.cam_calib is None:                # trained with --map: that map's camera calibration
         cfg = Path(args.ckpt).parent / "config.json"
@@ -767,17 +780,20 @@ def track(args):
         seg_of = {int(x): k for k, s in enumerate(r["segments"]) for x in s}
         segs = [np.flatnonzero(np.array([seg_of[int(x)] for x in rows]) == k) for k in range(len(r["segments"]))]
         segs = [s for s in segs if len(s) > 1]
+        # smoothing restarts at each segment; segments break where Polaris drops out or spikes (dataloader).
+        # --smooth-across-gaps: one window over the whole sweep, so the ground truth does not decide the restarts
+        ssegs = [np.concatenate(segs)] if args.smooth_across_gaps and segs else segs
         T_gt = r["T_world_cam"][rows]
         t = r["stamps"][rows]
         ests = {"raw": T}
         for W in args.windows:
             Ts = np.full_like(T, np.nan)
-            for s in segs:
+            for s in ssegs:
                 Ts[s] = smooth_poses(t[s], T[s], inl[s], W)
             ests[f"smoothed {W:g} s"] = Ts
         for m, W, L in lags:
             Ts = np.full_like(T, np.nan)
-            for s in segs:
+            for s in ssegs:
                 Ts[s] = smooth_poses(t[s], T[s], inl[s], W, lag=L)
             ests[m] = Ts
         step8 = max(1, round(8 / args.every))
@@ -893,6 +909,14 @@ def main():
                    help="map.json of scr_map.py: for a network trained on map labels, apply its camera calibration "
                         "(fixed camera-frame transform) to every pose. Default: the map of train --map, if any; "
                         "'none' = no calibration")
+    k.add_argument("--smooth-across-gaps", action="store_true",
+                   help="smooth each sweep as one piece instead of restarting at the segment breaks (Polaris gaps)")
+    k.add_argument("--occlude", type=float, default=0.0,
+                   help="synthetic occlusion (occlusion.py): band over this share of the width (0 = off); as "
+                        "tools/slam_baseline.py export --occlude")
+    k.add_argument("--occlude-dur", type=float, default=3.0, help="occlusion: seconds per event")
+    k.add_argument("--occlude-period", type=float, default=10.0, help="occlusion: seconds between event starts")
+    k.add_argument("--occlude-depth", type=float, default=400.0, help="occlusion: depth of the occluder (mm)")
     k.add_argument("--export-window", type=float, default=2.0,
                    help="write the poses smoothed over this window (s; the system: 2) per sweep to <out>/poses/ (0 = no)")
     k.add_argument("--out", required=True)

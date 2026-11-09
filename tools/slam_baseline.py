@@ -8,6 +8,8 @@ Two commands around the SLAM run:
             symlinks to the PNGs; associations.txt, camera.yaml (ORB-SLAM3 settings from camera_info.json)
             and index.csv (sequence time -> run, row). The SLAM system maps the room scans and must
             keep tracking or relocalise through the sweeps; nothing from Polaris goes in.
+            --occlude FRAC: the sweeps with the synthetic occluder of occlusion.py (occluded frames are
+            written as PNGs, the others linked), the same as scr_anchor.py track --occlude.
   evaluate  reads the SLAM trajectory (TUM format: t tx ty tz qx qy qz qw, metres, camera -> world) and
             scores it with the protocol of scr_map.py / scr_anchor.py track: ONE rigid alignment of the
             session plus the probe's camera calibration, both fitted on the room-scan frames against
@@ -39,6 +41,7 @@ from scipy.spatial.transform import Rotation
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
+import occlusion  # noqa: E402  (repo root)
 
 GAP_S = 1.0          # time gap between runs in the joined sequence
 
@@ -65,7 +68,7 @@ def export(args):
         rows = list(csv.DictReader(open(root / name / "frames.csv")))
         stamps = np.array([float(r["timestamp"]) for r in rows])
         info = json.load(open(root / name / "camera_info.json"))
-        wh, skipped = (int(info["width"]), int(info["height"])), 0
+        wh, skipped, occluded = (int(info["width"]), int(info["height"])), 0, 0
         for row in range(0, len(rows), args.every):
             paths = [root / name / rows[row][c] for c in ("rgb", "depth")]
             ok = all(rows[row][c] for c in ("rgb", "depth")) and all(p.is_file() for p in paths)
@@ -77,16 +80,29 @@ def export(args):
                 continue
             t = t0 + stamps[row] - stamps[0]
             k = len(index)
-            for sub in ("rgb", "depth"):
-                link = out / sub / f"{k:06d}.png"
+            links = [out / sub / f"{k:06d}.png" for sub in ("rgb", "depth")]
+            for link in links:
                 if link.is_symlink() or link.exists():
                     link.unlink()
-                os.symlink(paths[0 if sub == "rgb" else 1], link)
+            if args.occlude > 0 and not name.startswith("room-") and occlusion.occluder_window(
+                    stamps[row] - stamps[0], args.occlude, args.occlude_dur, args.occlude_period) is not None:
+                import cv2                                       # occluded frame: written, not linked
+                rgb = cv2.cvtColor(cv2.imread(str(paths[0])), cv2.COLOR_BGR2RGB).astype(np.float32) / 255
+                dep = cv2.imread(str(paths[1]), cv2.IMREAD_UNCHANGED)
+                scale = float(info.get("depth_scale", 0.001)) * 1000.0           # mm per depth unit
+                occlusion.occlude(rgb, dep, stamps[row] - stamps[0], args.occlude, args.occlude_dur,
+                                  args.occlude_period, round(args.occlude_depth / scale))
+                cv2.imwrite(str(links[0]), cv2.cvtColor((rgb * 255 + 0.5).astype(np.uint8), cv2.COLOR_RGB2BGR))
+                cv2.imwrite(str(links[1]), dep)
+                occluded += 1
+            else:
+                for link, src in zip(links, paths):
+                    os.symlink(src, link)
             assoc.append(f"{t:.6f} rgb/{k:06d}.png {t:.6f} depth/{k:06d}.png")
             index.append((f"{t:.6f}", name, row))
         t0 += stamps[-1] - stamps[0] + GAP_S
-        print(f"  {name}: {len(rows)} rows, every {args.every}{f', {skipped} skipped (missing or wrong-size image)' if skipped else ''}",
-              flush=True)
+        print(f"  {name}: {len(rows)} rows, every {args.every}{f', {skipped} skipped (missing or wrong-size image)' if skipped else ''}"
+              f"{f', {occluded} occluded' if occluded else ''}", flush=True)
     (out / "associations.txt").write_text("\n".join(assoc) + "\n")
     with open(out / "index.csv", "w", newline="") as f:
         w = csv.writer(f)
@@ -239,6 +255,11 @@ def main():
     e.add_argument("--runs", nargs="+", default=None, help="sweeps (default: every run-* under --root)")
     e.add_argument("--every", type=int, default=1, help="every n-th frame")
     e.add_argument("--features", type=int, default=1250, help="ORB features per frame")
+    e.add_argument("--occlude", type=float, default=0.0,
+                   help="synthetic occlusion of the sweeps (occlusion.py): band over this share of the width (0 = off)")
+    e.add_argument("--occlude-dur", type=float, default=3.0, help="occlusion: seconds per event")
+    e.add_argument("--occlude-period", type=float, default=10.0, help="occlusion: seconds between event starts")
+    e.add_argument("--occlude-depth", type=float, default=400.0, help="occlusion: depth of the occluder (mm)")
     e.add_argument("--out", required=True)
     v = sub.add_parser("evaluate", help="score a SLAM trajectory of an exported sequence")
     v.add_argument("--root", required=True)
