@@ -276,52 +276,16 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
  
+ 
 
 
 
-Traceback (most recent call last):
-  File "/data2/u0137815/US_SCR/tools/slam_baseline.py", line 261, in <module>
-    main()
-  File "/data2/u0137815/US_SCR/tools/slam_baseline.py", line 257, in main
-    export(args) if args.cmd == "export" else evaluate(args)
-                                              ^^^^^^^^^^^^^^
-  File "/data2/u0137815/US_SCR/tools/slam_baseline.py", line 157, in evaluate
-    traj = read_tum(args.traj)
-           ^^^^^^^^^^^^^^^^^^^
-  File "/data2/u0137815/US_SCR/tools/slam_baseline.py", line 141, in read_tum
-    for line in open(path):
-                ^^^^^^^^^^
-FileNotFoundError: [Errno 2] No such file or directory: 'runs/slam-5XXA-generic/CameraTrajectory.txt'
 
-  
-  
-  
-Training PC: 1. pull and build (env orbslam)
+ 
+ 
 
 
-cd /data2/u0137815/US_SCR && git pull
-conda activate orbslam
-export US=/data2/u0137815/US_SCR ORB=/data2/u0137815/ORB_SLAM3
-export CMAKE_PREFIX_PATH=$CONDA_PREFIX OpenCV_DIR=$CONDA_PREFIX/lib/cmake/opencv4
-cp $US/tools/orbslam3/rgbd_online.cc $ORB/Examples/RGB-D/
-grep -q rgbd_online $ORB/CMakeLists.txt || printf '\nadd_executable(rgbd_online Examples/RGB-D/rgbd_online.cc)\ntarget_link_libraries(rgbd_online ${PROJECT_NAME})\nset_target_properties(rgbd_online PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/RGB-D)\n' >> $ORB/CMakeLists.txt
-cd $ORB/build && cmake .. && make rgbd_online -j8
-2. Setup (env free)
-
-
-conda activate free
-cd /data2/u0137815/US_SCR
-export DATA=/data2/u0137815/rgbd-us/data US=/data2/u0137815/US_SCR ORB=/data2/u0137815/ORB_SLAM3
-ORBLIB=/data2/u0137815/conda/envs/orbslam/lib:$ORB/lib:$ORB/Thirdparty/DBoW2/lib:$ORB/Thirdparty/g2o/lib
-SCAL="--cam-calib-from runs/slam-3XX/slam_eval.json"
-3. Runs. Each run is real time, about 1.5 h per mode for all splits. Run the decisive ones first: 5XXA-exam, 5XXA-generic, 4XXA, 3XX.
-
-
-for s in 5XXA-exam 5XXA-generic 4XXA 3XX 4XXB 4XXC 4XXD 4XXE 5XXB-exam 5XXC-exam 5XXD-exam 5XXE-exam 5XXC-oldB 5XXE-oldC; do
-  mkdir -p runs/slam-$s-loc
-  LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_online $ORB/Vocabulary/ORBvoc.txt runs/slam-$s/seq/camera.yaml runs/slam-$s/seq runs/slam-$s/seq/associations.txt runs/slam-$s-loc localize $(grep -c ',room-' runs/slam-$s/seq/index.csv)
-done
-for s in 5XXA-exam 5XXA-generic 4XXA 3XX 4XXB 4XXC 4XXD 4XXE 5XXB-exam 5XXC-exam 5XXD-exam 5XXE-exam 5XXC-oldB 5XXE-oldC; do
+for s in    3XX   4XXD 4XXE 5XXB-exam 5XXC-exam 5XXD-exam 5XXE-exam 5XXC-oldB 5XXE-oldC; do
   mkdir -p runs/slam-$s-online
   LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_online $ORB/Vocabulary/ORBvoc.txt runs/slam-$s/seq/camera.yaml runs/slam-$s/seq runs/slam-$s/seq/associations.txt runs/slam-$s-online slam 0
 done
@@ -348,7 +312,7 @@ for m in loc online; do python tools/slam_baseline.py evaluate --root $DATA/test
 
 
 python tools/us_analysis.py shape --json runs/slam-*-loc/poses/*.json runs/slam-*-online/poses/*.json --out runs/shape-slam-fair.md
-git add runs/slam-*-loc/slam_eval.* runs/slam-*-loc/online.txt runs/slam-*-online/slam_eval.* runs/slam-*-online/online.txt runs/slam-*-online/CameraTrajectory.txt runs/shape-slam-fair.md
+git add note.md  
 git commit -m "ORB-SLAM3 like for like: localisation only after the room scan, poses as tracked"
 git push
 
