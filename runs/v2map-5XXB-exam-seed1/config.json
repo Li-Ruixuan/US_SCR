@@ -1,0 +1,76 @@
+{
+  "args": {
+    "cmd": "train",
+    "root": "/data2/u0137815/rgbd-us/data/test_5XXB",
+    "scan_runs": [
+      "room-505"
+    ],
+    "out": "runs/v2map-5XXB-exam-seed1",
+    "map": "/data2/u0137815/US_SCR/runs/map-5XXB-exam",
+    "label_poses": [
+      "runs/map-5XXB-exam/poses_room-505.json"
+    ],
+    "head": "big",
+    "label_max_depth": 2000.0,
+    "drop_depth_edges": true,
+    "freeze_encoder": false,
+    "render_views": 0.0,
+    "render_shift": 150.0,
+    "render_rot": 20.0,
+    "render_voxel": 5.0,
+    "render_every": 4,
+    "render_min_valid": 0.5,
+    "render_source": "cloud",
+    "render_frames": 3,
+    "confidence": false,
+    "scan_seconds": 0.0,
+    "aug_scale": [
+      1.0,
+      1.0
+    ],
+    "aug_rot": 0.0,
+    "epochs": 120,
+    "flat": 0.6,
+    "batch_size": 8,
+    "lr": 0.001,
+    "lr_encoder": 0.0001,
+    "image_size": [
+      360,
+      640
+    ],
+    "hand_eye": "/data2/u0137815/US_SCR/T_marker_cam.npy",
+    "workers": 12,
+    "seed": 1,
+    "check_every": 6,
+    "check_frames": 120,
+    "max_frames": 0,
+    "px": 10.0,
+    "min_inliers": 30,
+    "eval_root": null,
+    "eval_runs": null
+  },
+  "centre": [
+    87.9280348088671,
+    -41.27480240655435,
+    -988.7419057951207
+  ],
+  "image_size": [
+    360,
+    640
+  ],
+  "head": "big",
+  "confidence": false,
+  "n_frames": 1798,
+  "n_rendered": 0,
+  "steps": 26880,
+  "estimated_labels": {
+    "room-505": {
+      "source": "scr-map (map-5XXB-exam)",
+      "frames": 1798,
+      "camera_err_mm_median": 31.329819593462886,
+      "camera_err_mm_p90": 33.80562996463816,
+      "rot_err_deg_median": 1.554127878660191
+    }
+  },
+  "git": "d644fc37"
+}
