@@ -282,48 +282,17 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
- 
- 
- Commands (training PC, in $US)
-Setup, then check the failed export:
-
-
-export DATA=/data2/u0137815/rgbd-us/data US=/data2/u0137815/US_SCR ORB=/data2/u0137815/ORB_SLAM3
-ORBLIB=/data2/u0137815/conda/envs/orbslam/lib:$ORB/lib:$ORB/Thirdparty/DBoW2/lib:$ORB/Thirdparty/g2o/lib
-SCAL="--cam-calib-from runs/slam-3XX/slam_eval.json"
-conda activate free
-ls runs/slam-5XXC-exam-occ60/seq/camera.yaml; wc -l runs/slam-5XXC-exam-occ60/seq/associations.txt; df -h /data2
-If df shows the disk nearly full, delete runs/slam-5XXB-exam-occ30/seq and runs/slam-5XXC-exam-occ30/seq first. They're only needed for those runs, which are already scored.
-
-Re-export 5XX C at 60 %, run ORB-SLAM3, and score it:
-
-
-python tools/slam_baseline.py export --root $DATA/test_5XXC --scan-runs room-507 --occlude 0.60 --out runs/slam-5XXC-exam-occ60/seq
-s=5XXC-exam-occ60
-for m in online:slam loc:localize reloc:reloc; do
+    
+for m in online:slam  ; do
   mkdir -p runs/slam-$s-${m%%:*}
   LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_online $ORB/Vocabulary/ORBvoc.txt runs/slam-$s/seq/camera.yaml runs/slam-$s/seq runs/slam-$s/seq/associations.txt runs/slam-$s-${m%%:*} ${m##*:} $(grep -c ',room-' runs/slam-$s/seq/index.csv)
 done
-for m in online loc reloc; do
-  python tools/slam_baseline.py evaluate --root $DATA/test_5XXC --scan-runs room-507 --seq runs/slam-$s/seq --traj runs/slam-$s-$m/online.txt $SCAL --smooth 1 --out runs/slam-$s-$m
-done
-Our system under the same occluder (GPU). If it stops with an error, paste me the traceback:
 
 
 for o in 30 60; do
   python scr_anchor.py track --ckpt runs/v2map-5XXB-exam/best.pt --test-root $DATA/test_5XXB --every 2 --occlude 0.$o --out runs/track-v2map-5XXB-exam-occ$o
   python scr_anchor.py track --ckpt runs/v2map-5XXC-exam/best.pt --test-root $DATA/test_5XXC --every 2 --occlude 0.$o --out runs/track-v2map-5XXC-exam-occ$o
 done
-Statistics, shape, push. The git add lines are separate on purpose: one git add with a pattern that matches nothing aborts and adds nothing.
 
 
-python tools/compare_stats.py --modes final online loc loc-r2 loc-r3 reloc --out runs/stats-orbslam.md
-python tools/compare_stats.py --tag -occ30 --modes online loc reloc --out runs/stats-occ30.md
-python tools/compare_stats.py --tag -occ60 --modes online loc reloc --out runs/stats-occ60.md
-python tools/us_analysis.py shape --json runs/slam-*-reloc/poses/*.json runs/slam-*-occ*-*/poses/*.json runs/track-v2map-5XX?-exam-occ*/poses/*.json --out runs/shape-reloc-occ.md
-git add runs/stats-*.md
-git add runs/shape-reloc-occ.*
-git add runs/track-v2map-5XX?-exam-occ??
-git add runs/slam-5XXC-exam-occ60-*
-git commit -m "Occlusion test: ours, 5XXC 60 %; statistics with seeds"
-git push
+
