@@ -1,0 +1,465 @@
+%% IEEE Transactions on Biomedical Engineering -- regular paper (IEEEtran, journal mode)
+%% Compile: pdflatex main; bibtex main; pdflatex main; pdflatex main
+%% Figures expected in figures/: fig_overview.pdf, fig_volume_coverage.png
+%% (framed placeholders are shown until they are uploaded).
+\documentclass[journal]{IEEEtran}
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{xcolor}
+\usepackage{url}
+
+% --- editing macros: remove before submission -------------------------
+\newcommand{\tbd}[1]{\textcolor{red}{[TODO: #1]}}
+\newcommand{\NUMQ}[1]{\textcolor{red}{[NUMBER?: #1]}}
+\newcommand{\NQ}{\textcolor{red}{[?]}}                 % short [NUMBER?] for tables
+\newcommand{\ORBP}{\textcolor{red}{[ORB-SLAM3: pending]}}
+\newcommand{\OP}{\textcolor{red}{[pend.]}}             % short ORB-SLAM3 placeholder for tables
+\newcommand{\figorplaceholder}[2]{%
+  \IfFileExists{figures/#1}{\includegraphics[width=#2]{#1}}{%
+    \fbox{\parbox[c][3.5cm][c]{0.9\linewidth}{\centering\texttt{figures/\detokenize{#1}} not found}}}}
+% session names (defined once in Sec.~IV-B)
+\newcommand{\Sval}{S-val}
+\newcommand{\Stest}{S-test}
+\newcommand{\Snew}{S-new}
+\newcommand{\Sctrl}{S-ctrl}
+
+\begin{document}
+
+\title{Freehand 3D Ultrasound Without an External Tracker: Probe-Mounted RGB-D Tracking by Self-Mapped Scene Coordinate Regression}
+
+\author{Ruixuan~Li , Yipeng~Hu and Emmanuel~Vander~Poorten%  
+\thanks{R. Li and E. Vander Poorten are with the Robot-Assisted Surgery group, KU Leuven, Leuven, Belgium (e-mail: ruixuan.li@kuleuven.be).}%
+\thanks{\tbd{funding; UCL affiliation, if kept}}}
+
+\markboth{IEEE Transactions on Biomedical Engineering}{Li and Vander Poorten: Tracker-Free Freehand 3D Ultrasound}
+
+\maketitle
+
+\begin{abstract}
+\emph{Objective:} Freehand three-dimensional (3D) ultrasound (US) needs the six-degree-of-freedom pose of every US image, which is usually measured by an external optical or electromagnetic tracker. We develop and validate a probe-tracking system that obtains these poses from a probe-mounted RGB-D camera, without any external tracker. \emph{Methods:} Before the examination, the operator scans the room with the probe camera for 1--2\,min. One scene coordinate regression network maps this scan itself and is trained on its own labels. During the examination it localises every frame independently by a Kabsch RANSAC fit to the measured depth, followed by smoothing and a fixed probe calibration. We evaluated 65 sweeps in four sessions in one room, on two subjects and a phantom, against an optical tracker. \emph{Results:} With a room scan along the examination views, the error at the US image was 2.2--3.1\,mm (volume shape 1.7--1.9\,mm) in two sessions, 0.4--0.5\,mm above the same network trained on tracker poses. On the same sweeps, a room scan that missed the examination views raised the error from 2.28 to 13.57\,mm, and to 10.95\,mm even with tracker labels. \emph{Conclusion:} Tracker-free freehand 3D US from a probe-mounted camera is feasible when the room scan covers the examination views. \emph{Significance:} The system removes external tracking hardware from freehand 3D US; we define when it reaches the accuracy needed for compounding and give a scanning protocol with checks that flag low coverage and outdated maps.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Freehand 3D ultrasound, probe tracking, scene coordinate regression, RGB-D camera, visual relocalisation.
+\end{IEEEkeywords}
+
+%======================================================================
+\section{Introduction}
+\label{sec:intro}
+%======================================================================
+
+\IEEEPARstart{F}{reehand} three-dimensional (3D) ultrasound (US) reconstructs a volume from 2D B-mode images acquired while the operator sweeps a conventional probe over the patient. Volumes give access to quantities that single images cannot provide, such as the volume of an organ or lesion, the course of a vessel, or planes for needle guidance \cite{TODO-3dus-clinical-applications}. Reconstruction requires the six-degree-of-freedom (6-DoF) pose of every US image, which in practice is measured by an optical or electromagnetic tracker \cite{TODO-freehand-3dus-review}. These trackers are a major obstacle to using freehand 3D US outside dedicated set-ups. Optical tracking needs a line of sight between a camera on a stand and a marker on the probe, which the operator, the patient and staff interrupt; electromagnetic tracking needs a field generator next to the patient and is disturbed by nearby metal \cite{TODO-em-tracking-distortion}. Both must be installed and calibrated in each room, which rules them out precisely where a volume would be useful at short notice: at the bedside, in the emergency department, or in an operating room already crowded with equipment \cite{TODO-point-of-care-3dus}.
+
+A replacement does not have to match optical tracking; it has to be good enough for 3D compounding. We take about 2--3\,mm at the US image as this threshold, which is of the order of the elevational beam width of a linear probe \cite{TODO-elevational-beamwidth}. For a camera mounted on the probe, rotation dominates this budget: the US image lies about 16\,cm from the camera, so a rotation error of $1^\circ$ moves the image by up to $160\,\mathrm{mm}\times\tan 1^\circ\approx2.8$\,mm. The camera orientation must therefore be known to a fraction of a degree.
+
+A replacement must also deliver three properties at once: an absolute pose for every frame, so that errors do not accumulate over a sweep; no preparation of the room or the patient; and nothing outside the probe. Existing approaches give up at least one of them. Sensorless methods estimate motion from the US images \cite{prevost2018,guo2023tbme,li2024longterm,li2025tusrec}, and probe-mounted cameras estimate it against skin features \cite{sun2014skin} or by visual--inertial odometry \cite{buchanan2024vio,he2024probemounted}; all integrate relative motion and drift. Absolute camera-based methods rely on something prepared in advance: a surface model of the anatomy \cite{wang2017probesight}, a marker-textured workspace \cite{huang2025lightweight,zhang2026seeing}, or a simulated replica of the scene \cite{zhang2025servoing}. Markerless tracking from an external camera \cite{zhang2026mlrecon} brings back a device with a line-of-sight constraint. RGB-D simultaneous localisation and mapping (SLAM), such as ORB-SLAM3 \cite{campos2021orbslam3}, meets all three properties in principle: it builds a metric map from the probe camera alone, and inside-out SLAM from a probe-mounted RGB-D camera facing the room has been demonstrated for transrectal 3D US \cite{busam2018insideout}. It does so by tracking the camera continuously and extending its map during operation, so its accuracy depends on tracking continuity and on keeping the map consistent while the examination runs. It is the natural reference for any tracker-free design, and we compare against it directly.
+
+We take a different route: every frame is relocalised independently against a learned model of the room, built from a 1--2\,min scan with the probe camera itself before the examination. A scene coordinate regression (SCR) network \cite{shotton2013,brachmann2022dsac,brachmann2023ace} predicts, for every image cell, the 3D room point it observes, and the pose follows from an exact geometric fit to the measured depth. Three properties make SCR suitable here. The network is trained for one room, so it only has to memorise that room, not generalise across scenes. RANSAC over thousands of dense correspondences discards cells on moved objects or on the operator's hands. And a rigid fit through these correspondences averages out the noise of individual predictions. The network also maps the room scan itself, without known poses, in the spirit of ACE0 \cite{brachmann2024ace0} but using the measured depth throughout, so no tracker is needed to build the map. As a consequence, there is no tracking state to lose during the examination, and the accuracy is fixed by the map before the first sweep: the map, and how the room scan is recorded, become the object of study.
+
+This design raises four questions that decide whether it is usable. How much accuracy is lost when the network labels its own map instead of a tracker? What decides the accuracy when the room scan and the examination differ? How does it compare with RGB-D SLAM? And when does it fail, and can the failure be detected before it corrupts a volume? We answer them on 65 sweeps in four sessions. With a room scan along the examination views, the error at the US image is 2.2--3.1\,mm, 0.4--0.5\,mm more than with tracker labels. A scan that misses these views costs about 9\,mm even with perfect labels, so coverage of the examination views, not the network, sets the accuracy. ORB-SLAM3 is more accurate on the well-covered test session (1.79 vs.\ 2.34\,mm); \ORBP. The two failure modes we observe, low coverage and an outdated map, can be flagged by simple checks.
+
+The contributions of this paper are:
+\begin{itemize}
+  \item A probe-tracking system for freehand 3D US that needs no external tracker, neither during the examination nor to map the room: one SCR network maps a 1--2\,min room scan by itself and then localises every frame independently, giving the pose of every US image.
+  \item Depth-aided self-mapping: ICP seeding with an automatic seed check, a pose graph with loop closures and network-pose priors, and a camera-frame probe calibration. Each component is necessary: without loop closures the error at the US image rises from 2.34 to 5.77\,mm, without the calibration to 11.49\,mm.
+  \item A validation against an optical tracker, at the US image, on 65 sweeps in four sessions on two subjects and a phantom, which separates mapping from tracking (oracle map) and placement from volume shape, and compares with US-only motion estimation, a classical feature pipeline, pose regression and RGB-D SLAM (ORB-SLAM3).
+  \item The operating conditions under which the system reaches the accuracy needed for compounding, established by controlled experiments: coverage of the examination views by the room scan (2.28 vs.\ 13.57\,mm on the same sweeps; 10.95\,mm with perfect labels), then map quality, then scene changes; and a resulting room-scan protocol with pre-examination checks for low coverage and outdated maps.
+\end{itemize}
+
+Section~\ref{sec:related} reviews related work, Section~\ref{sec:method} the method, Section~\ref{sec:experiments} the experiments, Section~\ref{sec:results} the results, and Section~\ref{sec:discussion} discusses them.
+
+%======================================================================
+\section{Related Work}
+\label{sec:related}
+%======================================================================
+
+\subsection{Tracked and Sensorless Freehand 3D US}
+In tracked freehand 3D US, a spatial calibration relates the tracked marker to the US image, and the posed images are compounded into a volume \cite{TODO-freehand-3dus-review}; accuracy is bounded by the tracker, the calibration and synchronisation. Sensorless methods estimate probe motion from the images: classically from speckle decorrelation \cite{TODO-speckle-decorrelation}, and with deep networks from consecutive frames \cite{prevost2018}, multi-frame context \cite{guo2023tbme} or longer temporal context \cite{li2024longterm}, compared on a common dataset in the TUS-REC2024 challenge \cite{li2025tusrec}. A coupling pad with N-shaped lines adds a reference visible in the image \cite{dai2024coupling}. Without such a reference, these methods integrate relative motion, so the error grows along the sweep, and they must generalise across subjects and protocols.
+
+\subsection{Camera-Based Probe Tracking}
+Sun et al.\ \cite{sun2014skin} mounted a camera on the probe and tracked skin features, building a skin map by visual SLAM and refining the poses with the US images and a motion prior; the poses are relative to the skin and errors accumulate with the distance travelled. ProbeSight localises a probe camera against a prior high-resolution surface map of the anatomy by inverse rendering \cite{wang2017probesight}. Visual--inertial odometry needs no prepared scene but drifts \cite{buchanan2024vio,he2024probemounted}. Huang et al.\ \cite{huang2025lightweight} regress the probe pose from two lightweight cameras relative to a workspace with coloured markers; Zhang et al.\ align camera images with a simulated replica of a textured workspace \cite{zhang2025servoing} and combine global visual guidance with local B-mode cues \cite{zhang2026seeing}. MLRecon tracks the probe from an external RGB-D camera without markers \cite{zhang2026mlrecon}, which reintroduces an external device with a line-of-sight constraint. Closest to our set-up, Busam et al.\ \cite{busam2018insideout} mounted an RGB-D camera of the same family on a transrectal probe, facing away from the patient, tracked it by visual SLAM against a map of the operating room, and compared the resulting 3D US compounding with an optical tracker. We share this inside-out set-up but replace SLAM by per-frame relocalisation against a learned, self-mapped room model, and we determine under which conditions such tracking reaches compounding accuracy. Apart from inside-out SLAM, our setting differs from the methods above: one camera on the probe, an absolute pose for every frame in a room frame, no prepared pattern, model or simulation, at the cost of a 1--2\,min room scan.
+
+\subsection{Visual Relocalisation and Scene Coordinate Regression}
+Absolute pose regression maps an image directly to a pose \cite{TODO-posenet}, but such networks behave more like image retrieval than geometric estimation, which limits their accuracy \cite{sattler2019}. SCR predicts dense image-to-scene correspondences and solves the pose robustly. It was introduced with regression forests on RGB-D images \cite{shotton2013}, adapted to new scenes online \cite{cavallari2017onthefly,cavallari2019online}, trained end to end through a differentiable RANSAC in DSAC* \cite{brachmann2022dsac}, made fast to train by ACE \cite{brachmann2023ace}, and improved for viewpoints far from the mapping images by ACE-G \cite{bruns2025aceg}. ACE0 removes the need for mapping poses by alternating between training the relocaliser on the images registered so far and registering further images with it \cite{brachmann2024ace0}. Our self-mapping follows this scheme but differs in four ways: ACE0 uses RGB only, a reprojection loss and PnP, and refines poses jointly with the network, whereas we use the measured depth for metric labels, ICP seeding and extension, and a 3D--3D solver; we refine poses by a pose graph with ICP loop closures instead of joint refinement; and we add a camera-frame probe calibration. ACE-SLAM uses SCR as the map of a real-time RGB-D SLAM system, training it online \cite{alzugaray2025aceslam}; we instead map once before the examination and keep the network fixed.
+
+\subsection{RGB-D SLAM and Relocalisation in Medicine}
+ORB-SLAM3 \cite{campos2021orbslam3} tracks keypoints from frame to frame with a motion model, optimises keyframes by bundle adjustment, keeps mapping during operation, and relocalises by place recognition when tracking is lost. Our system replaces these with one learned model used to map the room and to localise every frame without a pose prior. In freehand 3D US, inside-out SLAM from a probe camera facing the room has been demonstrated for transrectal imaging \cite{busam2018insideout}; elsewhere in medicine, relocalisation against a prior reconstruction has been studied mainly in endoscopy, where the map is of the anatomy \cite{TODO-endoscopic-relocalisation}. To our knowledge, SCR has not been used for freehand 3D US without an external tracker.
+
+%======================================================================
+\section{Method}
+\label{sec:method}
+%======================================================================
+
+\begin{figure*}[t]
+  \centering
+  \figorplaceholder{fig_overview.pdf}{\textwidth}
+  \caption{System overview. (a)~Before the examination, once per room: the operator scans the room for 1--2\,min with the RGB-D camera on the probe, along the examination views; the scene coordinate network maps this room scan itself (Algorithm~\ref{alg:mapping}) and is trained on the resulting labels. (b)~During the examination, for every frame: the network predicts the room coordinate of every image cell from the RGB image, a Kabsch RANSAC fit with the measured depth gives the camera pose, temporal smoothing combines neighbouring poses, and the probe calibration gives the pose of the US image. The network is the only learned component.}
+  \label{fig:overview}
+\end{figure*}
+
+\subsection{Problem Statement and Notation}
+\label{sec:notation}
+An RGB-D camera is rigidly mounted on a linear US probe and looks at the room (Fig.~\ref{fig:overview}). Before the examination, the operator records a \emph{room scan} (frames indexed by $k$); during it, freehand sweeps (frames indexed by $t$). Each camera frame has a colour image $I$, an aligned depth image $D$ and colour intrinsics $K$. $T^A_B\in SE(3)$ maps coordinates in frame $B$ to frame $A$; lengths are in millimetres. We use the map frame $W$, defined by the seed frame of self-mapping (Sec.~\ref{sec:mapping}); the camera frame $C$; the US image frame $U$; and the tracker frame, used only for evaluation and the one-off calibration. The US image pose is
+\begin{equation}
+  T^W_U(t)=T^W_C(t)\,X\,T^C_U\,S ,
+  \label{eq:chain}
+\end{equation}
+where $T^W_C(t)$ is the estimated camera pose, $X$ the probe calibration in the camera frame (Sec.~\ref{sec:calib}), $T^C_U=(T^M_C)^{-1}T^M_U$ the camera-to-image calibration composed from the marker-to-camera hand--eye calibration $T^M_C$ and the marker-to-image calibration $T^M_U$, and $S=\mathrm{diag}(s,s,1,1)$ with $s=0.23$\,mm/px. The network $f_\theta$ is learned once per room; the room-scan poses $T_k=T^W_C(k)$ are estimated once per room; $X$ and $T^C_U$ are fixed per probe; $T^W_C(t)$ is estimated per frame. The image is divided into $45\times80$ cells of $16\times16$ pixels of the $720\times1280$ colour image, with centres $\mathbf{u}$; a cell with depth $d$ is back-projected by $\pi^{-1}(\mathbf{u},d)=d\,K^{-1}[\mathbf{u}^\top,1]^\top$.
+
+\subsection{Scene Coordinate Network}
+\label{sec:network}
+$f_\theta$ uses an ImageNet-pretrained EfficientNet-B0 encoder \cite{tan2019efficientnet} on the colour image resized to $360\times640$. The stride-8 features (40 channels) and the upsampled stride-16 features (112 channels) are concatenated and passed to a head of $1\times1$ convolutions (152 to 512 channels, four residual blocks, 512 to 3 channels), giving one room coordinate per cell ($3\times45\times80$, Fig.~\ref{fig:architecture}); the network has 3.0\,M parameters. It takes RGB only; depth enters only the labels and the pose solver. The head runs in single precision, because half precision would quantise coordinates 1--2\,m from the origin in 1--2\,mm steps.
+
+\begin{figure*}[t]
+  \centering
+  \figorplaceholder{fig_architecture.pdf}{\textwidth}
+  \caption{Network, labels and pose solver. Training (once per room): each room-scan frame $I_k$ passes through the network; its depth $D_k$ and self-mapped pose $T_k$ give the label $Y_k(\mathbf{u})$ of every valid cell, and the loss is the mean 3D distance between prediction and label (Eq.~\eqref{eq:loss}). Pose estimation (every examination frame): the network gives a room point $\hat{\mathbf{y}}_i$ per cell and the measured depth the same cell in the camera frame, $\mathbf{x}_i$; these dense 3D--3D pairs, fixed by the cell grid, are aligned by Kabsch RANSAC (Eq.~\eqref{eq:kabsch}).}
+  \label{fig:architecture}
+\end{figure*}
+
+\subsection{Training Labels and Loss}
+\label{sec:training}
+Given pose $T_k$, the label of cell $\mathbf{u}$ is its depth point placed in the room, $Y_k(\mathbf{u})=T_k\,\pi^{-1}(\mathbf{u},D_k(\mathbf{u}))$. A cell is labelled only if $0.1\,\mathrm{m}<D_k(\mathbf{u})<2$\,m and no neighbouring cell is more than 6\,\% nearer or farther (a depth edge mixes two surfaces). The loss is the mean Euclidean distance over the labelled cells $\mathcal{M}$ of a batch,
+\begin{equation}
+  \mathcal{L}(\theta)=\frac{1}{|\mathcal{M}|}\sum_{(k,\mathbf{u})\in\mathcal{M}}\left\|f_\theta(I_k)(\mathbf{u})-Y_k(\mathbf{u})\right\|_2 .
+  \label{eq:loss}
+\end{equation}
+The distance is not squared, so the gradient does not vanish as the error approaches the millimetre scale. One network is trained per room on all its room-scan frames with AdamW (learning rate $10^{-3}$ for the head and $10^{-4}$ for the encoder, weight decay $10^{-4}$, batch size 8) for 120 epochs, with a constant rate for 60\,\% of the steps and a cosine decay to zero; 40 epochs give the same accuracy (Sec.~\ref{sec:res_practical}). Augmentation is photometric only (brightness $\pm0.2$, contrast 0.8--1.2, per-channel gain 0.9--1.1).
+
+\subsection{Self-Mapping Without a Tracker}
+\label{sec:mapping}
+Self-mapping estimates all $T_k$ from the RGB-D room scan alone (Algorithm~\ref{alg:mapping}); several videos are mapped jointly into one frame.
+
+\emph{Seed.} The seed frame defines $W$. Frames within $\pm2$\,s of it are placed by frame-to-frame point-to-plane ICP on the depth \cite{chen1992icp,TODO-low2004} (points on a 4-pixel grid, inlier distance 10\,mm; accepted if $\ge50$\,\% inliers with RMS $\le6$\,mm). If ICP places less than 1\,s of the scan, e.g.\ because a hand covers the camera, the seed moves 1\,s later, up to 20 times; if no try succeeds, the best one is used.
+
+\emph{Rounds.} Each round trains the network on the placed frames (2000 steps in the first round, 1500 afterwards) and localises the others with it (Sec.~\ref{sec:pose}). A frame within 150 frames of a placed frame of the same video joins if it has $\ge60$ inliers and its implied motion is at most 500\,mm/s and $90^\circ$/s plus a margin \NUMQ{margin}; every 30th remaining frame joins if it has $\ge400$ inliers, which admits a second video. Depth ICP then extends each placed segment by up to 90 frames at both ends. Mapping stops when a round adds fewer than 0.5\,\% of the frames; a final pass relocalises every frame and keeps poses with $\ge400$ inliers as initial poses $T^0_k$.
+
+\emph{Pose graph.} Independently localised frames are individually plausible, but the map bends over seconds. The graph combines the network poses with ICP relative poses $Z_{ij}$: \emph{sequential} edges between frames 1, 5, 15 and 30 apart, and \emph{loop-closure} edges between frames more than 2\,s apart or from different videos that observe the same part of the room (for every third frame, up to three partners whose camera centres and points 1\,m ahead both lie within 150\,mm). Edges whose $Z_{ij}$ deviates from the map by more than 50\,mm are dropped. With $T_k=T^0_k\,\mathrm{Exp}(\boldsymbol{\delta}_k)$, four points $Q$ 1\,m in front of the camera, and $P=Q\cup\{\mathbf{0}\}$, the graph minimises
+\begin{equation}
+  \begin{aligned}
+  &\sum_{(i,j)}\sum_{\mathbf{p}\in P}\rho\!\left(\frac{\|Z_{ij}^{-1}T_i^{-1}T_j\mathbf{p}-\mathbf{p}\|^2}{\sigma_e^2}\right)\\
+  &\quad+\sum_{k}\sum_{\mathbf{q}\in Q}\rho\!\left(\frac{\|T_k\mathbf{q}-T^0_k\mathbf{q}\|^2}{\sigma_p^2}\right)
+  \end{aligned}
+  \label{eq:posegraph}
+\end{equation}
+over $\{\boldsymbol{\delta}_k\}$, with $\sigma_e=1$\,mm, $\sigma_p=10$\,mm and $\rho(z)=2(\sqrt{1+z}-1)$. Point residuals put all constraints in millimetres without a rotation weight, and the points ahead constrain orientation through what the camera sees. The prior fixes the gauge and keeps ICP failures from bending the map. The optimised poses label the final network (Sec.~\ref{sec:training}).
+
+\begin{algorithm}[t]
+  \caption{Self-mapping of a room scan}
+  \label{alg:mapping}
+  \small
+  \begin{algorithmic}[1]
+    \Require RGB-D room scan $\{(I_k,D_k)\}_{k=1}^{N}$
+    \Ensure poses $\{T_k\}$ in the map frame $W$
+    \State choose seed $k_0$; $T_{k_0}\gets I$; place frames within $\pm2$\,s by depth ICP
+    \If{less than 1\,s placed} move $k_0$ 1\,s later and repeat (max.\ 20 tries) \EndIf
+    \State $\mathcal{P}\gets$ placed frames; $n\gets2000$
+    \Repeat
+      \State train $f_\theta$ on $\mathcal{P}$ for $n$ steps (Eq.~\eqref{eq:loss}); $n\gets1500$
+      \State localise every $k\notin\mathcal{P}$ (Sec.~\ref{sec:pose})
+      \State add $k$ near $\mathcal{P}$ with $\ge60$ inliers and plausible motion
+      \State add every 30th remaining $k$ with $\ge400$ inliers
+      \State extend each segment of $\mathcal{P}$ by depth ICP (up to 90 frames)
+    \Until{fewer than 0.5\,\% of the frames added}
+    \State $T^0_k\gets$ relocalise all frames; keep if $\ge400$ inliers
+    \State build sequential and loop-closure ICP edges; drop edges off by $>50$\,mm
+    \State \Return $\{T_k\}\gets$ solution of Eq.~\eqref{eq:posegraph}
+  \end{algorithmic}
+\end{algorithm}
+
+\subsection{Per-Frame Pose Estimation}
+\label{sec:pose}
+Every cell $i$ with depth $d_i<2$\,m gives a camera point $\mathbf{x}_i=\pi^{-1}(\mathbf{u}_i,d_i)$ and a predicted room point $\hat{\mathbf{y}}_i=f_\theta(I)(\mathbf{u}_i)$; the correspondences are fixed by the cell grid, without keypoints or descriptors. For a set $\mathcal{S}$, the Kabsch fit \cite{kabsch1976}
+\begin{equation}
+  (R,\mathbf{t})=\arg\min_{R\in SO(3),\,\mathbf{t}}\ \sum_{i\in\mathcal{S}}\|R\mathbf{x}_i+\mathbf{t}-\hat{\mathbf{y}}_i\|^2
+  \label{eq:kabsch}
+\end{equation}
+has a closed-form solution by singular value decomposition. The inliers of a pose are $\mathcal{I}=\{i:\|R\mathbf{x}_i+\mathbf{t}-\hat{\mathbf{y}}_i\|<20\,\mathrm{mm}\}$. RANSAC \cite{fischler1981ransac} draws 256 samples of three correspondences, keeps the hypothesis with most inliers, and refits it three times on its inliers, giving the pose $\hat T_t$ and inlier count $n_t$. Frames with $n_t<400$ receive no pose. No earlier pose is used as a prior, so errors cannot accumulate over a sweep.
+
+\subsection{Temporal Smoothing}
+\label{sec:smoothing}
+For frame $t$ at time $s_t$, frames $j$ in a window with $\Delta_j=s_j-s_t$ are weighted by $w_j=n_j(1-|\Delta_j/h|^3)^3$ with $h=1$\,s. Translations $\mathbf{c}_j$ are fitted by a weighted quadratic,
+\begin{equation}
+  \min_{\mathbf{a}_0,\mathbf{a}_1,\mathbf{a}_2}\ \sum_j w_j\gamma_j\|\mathbf{c}_j-\mathbf{a}_0-\mathbf{a}_1\Delta_j-\mathbf{a}_2\Delta_j^2\|^2 ,
+  \label{eq:smooth}
+\end{equation}
+where the robustness weights $\gamma_j$ start at one and are updated twice with Tukey's biweight \NUMQ{Tukey constant and residual scale}. Rotations are expressed as rotation vectors $\mathbf{r}_j=\mathrm{Log}(\bar R^\top R_j)$ about the weighted mean rotation $\bar R$ and fitted in the same way, giving $\mathbf{b}_0$. The smoothed pose is $\bar T_t=(\bar R\,\mathrm{Exp}(\mathbf{b}_0),\mathbf{a}_0)$. Offline, the window is $|\Delta_j|\le1$\,s. In real time, the pose of frame $t$ is output 0.25\,s later from the last 1\,s of poses, $\Delta_j\in[-0.75,0.25]$\,s; the fully causal variant uses $\Delta_j\in[-1,0]$\,s \tbd{confirm window bounds}.
+
+\subsection{Probe Calibration}
+\label{sec:calib}
+With a tracker, the camera pose is measured through the hand--eye calibration, $T^{\mathrm{trk}}_k=T^{\mathrm{trk}}_M(k)\,T^M_C$, so an error of $T^M_C$ shifts the camera frame by a fixed transform. For a map built from tracker poses, this error cancels, because labels, ground truth and $T^C_U$ refer to the same displaced frame. A self-made map refers to the physical camera, so the error appears as a fixed offset between the map and $T^C_U$. We model it by $X$ and estimate it jointly with the alignment $A$ of $W$ to the tracker frame over the room-scan frames,
+\begin{equation}
+  (A,X)=\arg\min_{A,X}\sum_k\sum_{\mathbf{q}\in P}\rho\big(\|A\,T_k\,X\,\mathbf{q}-T^{\mathrm{trk}}_k\mathbf{q}\|\big)
+  \label{eq:calib}
+\end{equation}
+\tbd{robust loss and scale}. $X$ is a property of the probe: it is fitted once on the room scans of \Stest{} and reused unchanged on \Snew{} and \Sctrl{}. In deployment, a phantom calibration would replace the tracker. $A$ is used for evaluation only, because $W$ is arbitrary.
+
+\subsection{Room-Scan Protocol and Pre-Examination Checks}
+\label{sec:protocol}
+The experiments (Sec.~\ref{sec:res_coverage}--\ref{sec:res_changes}) motivate three steps of the procedure; they were not tuned as components. (a)~\emph{Exam-view scan:} the operator records the room scan with the probe held in the air along each planned sweep path, at sweep height and angle. (b)~\emph{Coverage check:} after the first sweep, the share of sweep frames with a room-scan pose within 30\,mm and $10^\circ$ is computed; the examination proceeds if it is at least 80\,\%. In this study the check uses the tracker; a tracker-free version, comparing the tracked poses with the self-mapped scan poses, is future work. (c)~\emph{Map-age check:} the median Kabsch inlier count over the frames of a session flags an outdated map, in which case the room is rescanned.
+
+\subsection{Design Choices}
+\label{sec:design}
+The pipeline combines learned correspondences with exact geometry rather than learning the pose end to end, because pose regression is about $8\times$ less accurate as a single-image localiser in our setting (Sec.~\ref{sec:res_compare}). End-to-end fine-tuning through the differentiable Kabsch fit, as in DSAC* \cite{brachmann2022dsac}, is possible but not used: the network reproduces its labels, and the map, not the solver, limits the accuracy (Sec.~\ref{sec:res_mapping}). No temporal model is learned: odometry did not improve accuracy once every frame has an absolute pose, and a fixed robust smoother reduces the jitter (Sec.~\ref{sec:res_tracking}). $X$ is not observable from the camera images, since it relates the camera frame to the tracker's hand--eye frame, so it cannot be learned by the network. Poses are refined by the pose graph only, not jointly with the network as in ACE0, because joint refinement made the self-made map less accurate in our experiments \NUMQ{camera error with vs.\ without joint refinement, final system}.
+
+\subsection{Implementation}
+\label{sec:implementation}
+The method is implemented in PyTorch on one NVIDIA RTX A4500 GPU. Self-mapping takes about 30\,min per room and training the final network about 40\,min for 120 epochs (13\,min for 40). Tracking takes 60--70\,ms per frame, dominated by an unoptimised NumPy RANSAC. \tbd{code availability}
+
+%======================================================================
+\section{Experiments}
+\label{sec:experiments}
+%======================================================================
+
+\subsection{Hardware and Data}
+\label{sec:data}
+A RealSense D435i (colour $1280\times720$ at about 30\,Hz, depth aligned to colour) was mounted on a linear probe \tbd{probe and scanner model}. The US image was grabbed from the scanner ($640\times480$, 0.23\,mm/px, 9\,cm depth, 19 frames/s). An NDI Polaris Vega tracked a marker on the probe; the hand--eye calibration has 3.5\,mm error at the calibration-board corners. Streams were synchronised offline; comparing the self-made map with the tracker showed no residual timing offset (best shift $+3$ to $+9$\,ms). Sweeps were acquired on the forearm of two subjects and on a phantom \tbd{phantom type; ethics approval}.
+
+\subsection{Sessions}
+\label{sec:sessions}
+All sessions were recorded in the same room (Table~\ref{tab:sessions}). \emph{\Sval{}} is used only for validation. \emph{\Stest{}}, later the same day with a few objects moved, is the test session. \emph{\Snew{}}, five days later, has five blocks: A new session, B small room change, C large room change, D second subject, E arm in view of the camera; its room scans are short and generic. \emph{\Sctrl{}} is a controlled session on a phantom, with five blocks: A reference, B large rearrangement, C very large rearrangement, D people moving in the background (C's layout and scans), E emptied room. Each \Sctrl{} block has two room scans: a \emph{generic} scan, walking the room, and an \emph{exam-view} scan, the probe held in the air along each of the four sweep paths (views) at sweep height and angle. In total, 65 sweeps are evaluated (2 validation, 63 test).
+
+\begin{table}[t]
+  \caption{Sessions, all in one room. Coverage: share of sweep frames with a room-scan pose within 30\,mm and $10^\circ$ (mean over sweeps).}
+  \label{tab:sessions}
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{2.5pt}
+  \begin{tabular}{@{}lllcll@{}}
+    \toprule
+    Session & Date & Subject & Sweeps & Room scans & Role / coverage\\
+    \midrule
+    \Sval & 9 Oct & forearm & 2 & 3.0\,min & validation\\
+    \Stest & 9 Oct & forearm & 5 & 2.0\,min & test; 93--96\,\%\\
+    \Snew & 14 Oct & forearm, 2 subj. & 26 (5 blocks) & 40--90\,s, generic & test; 0--14\,\%\\
+    \Sctrl & 5 Nov & phantom & 32 (5 blocks) & exam-view + generic & controlled test\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Protocol and Reporting Rules}
+All settings were chosen on \Sval{}; nothing was tuned on the test sessions. $X$ was fitted on \Stest{} and reused unchanged. Before the \Sctrl{} analysis we fixed that the exam-view scan is the protocol and gives each block's headline number, and that the generic scans and earlier blocks' scans are controlled tests. Each network is trained on its block's room scan only. As an additional test of maps that contain objects moved since, \Snew{} networks were also trained on all room scans of the day up to the block (\emph{pooled}); this variant was examined on the test blocks and is reported as an observation, not as part of the method.
+
+\subsection{Metrics}
+Errors are measured at the US image, about 16\,cm from the camera, at 5 points spanning the image; we report the median per sweep and the mean over sweeps. \emph{Absolute:} after one rigid alignment $A$ per session, never per sweep. \emph{Shape:} after the best rigid fit of each sweep; it measures the distortion of the reconstructed volume. \emph{Relative motion:} out-of-plane error of the relative pose between frames 8 or 30 rows apart. \emph{Jitter:} mean change of the error over 8 frames (0.27\,s). \emph{Anchors:} camera-position error of single-image localisation, once per second, used to compare localisers without smoothing or odometry. \emph{Posed:} share of sweep frames with a pose. \emph{Coverage:} as in Table~\ref{tab:sessions}. \emph{Map error:} camera-centre error of the room-scan poses against the tracker after one alignment; for \Stest{} also the points 1\,m in front of the camera, the orientation and the relative motion over 1\,s.
+
+\subsection{Compared Systems}
+\label{sec:baselines}
+\emph{Oracle map:} our network and tracking, trained on tracker poses of the room scan; it isolates mapping from tracking. \emph{Classical pipeline:} once per second, SIFT \cite{lowe2004sift} matches (4000 features, ratio 0.8) against the three room-scan keyframes nearest to the current pose, lifted to 3D with depth and solved by PnP-RANSAC \cite{lepetit2009epnp} (4\,px); SIFT RGB-D odometry in between and a pose graph combine them \cite{TODO-classical-pipeline}. Its keyframe poses come from the tracker; we also run it on our tracker-free map. \emph{Odometry only:} the same odometry with each segment start posed by the tracker. \emph{Hybrid:} our SCR poses used as the once-per-second anchors in the same odometry and pose graph, to test whether odometry adds to per-frame SCR localisation. \emph{Pose regression:} a network that regresses the pose between a keyframe and the query, with learned odometry \cite{TODO-own-pose-regression}. \emph{US only:} the method of Li et al.\ \cite{li2024longterm}. \emph{ORB-SLAM3} \cite{campos2021orbslam3} in RGB-D mode, off the shelf \tbd{version, vocabulary, parameters, localisation mode}: one sequence per session, room scan(s) followed by the sweeps; the alignment and its own probe calibration are fitted on the room-scan frames only, as for ours; its \Stest{} calibration is reused on the other sessions; poses are smoothed over 1\,s; frames it loses count as without a pose.
+
+\subsection{Ground Truth}
+In every session the probe marker was at the near edge of the tracker's measurement volume (median distance 0.93 / 0.88 / 0.90\,m for \Stest{} / \Snew{} / \Sctrl{}; the pyramid volume starts at about 0.95\,m). The tracker noise at the US image was 0.24 / 0.25 / 0.12\,mm. Our error shows no trend with marker distance (distance bands within about 1\,mm; rank correlation $-0.23$ to $+0.30$). The reference is the same in all sessions, so a bias common to all of them cannot be excluded.
+
+%======================================================================
+\section{Results}
+\label{sec:results}
+%======================================================================
+
+\subsection{Tracking With a Covering Room Scan}
+\label{sec:res_main}
+On \Stest{} (Table~\ref{tab:test}), the tracker-free system reaches 2.34\,mm absolute and 1.72\,mm shape error (three training seeds 2.22--2.34\,mm, mean 2.27\,mm). The same network on the oracle map reaches 1.85 / 1.57\,mm, so removing the tracker costs 0.49\,mm; for comparison, three training seeds of the oracle map give 1.85, 1.95 and 2.12\,mm. The classical pipeline, which needs tracker-made keyframes, reaches 3.11 / 2.47\,mm, and odometry alone 9.43 / 6.23\,mm. ORB-SLAM3 posed every frame and is more accurate than our system and than our oracle map, in placement (1.79\,mm) and in shape (1.34\,mm). Between nearby frames all systems agree (out-of-plane error over 8 rows 0.28--0.37\,mm); they differ in how these motions add up over a sweep. Our jitter (0.90\,mm) is lower than that of the oracle map (0.93\,mm) and the classical pipeline (1.09\,mm). Under the strict protocol, with the map built only from the scan recorded before the sweeps, our system gives 2.94\,mm (oracle 2.98, classical 3.0\,mm). On \Sctrl{} with the exam-view scans (Table~\ref{tab:ctrl}), blocks A, C and D give 2.28, 3.11 and 2.24\,mm (shape 1.70--1.90\,mm); in block A the oracle map gives 1.85\,mm, again a cost of about 0.4\,mm.
+
+\begin{table*}[t]
+  \caption{\Stest{} (5 sweeps), error at the US image (mm): absolute, shape, out-of-plane error of the relative pose over 8 / 30 rows, and jitter. Real time: 0.25\,s delay. Tracker: what each system takes from the tracker besides evaluation. Lower part: self-mapping ablations.}
+  \label{tab:test}
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{@{}llcccccc@{}}
+    \toprule
+    System & Tracker & Abs. & Shape & Out-of-pl.\ 8 / 30 & Jitter & Posed\\
+    \midrule
+    Ours, self-mapped & calib.\ $X$ & 2.34 & 1.72 & 0.37 / 0.62 & 0.90 & \NQ\\
+    \quad strict protocol & calib.\ $X$ & 2.94 & -- & -- & -- & \NQ\\
+    \quad real time / causal & calib.\ $X$ & 2.34 / 2.42 & -- & -- & -- & \NQ\\
+    ORB-SLAM3 (RGB-D) & own calib. & \textbf{1.79} & \textbf{1.34} & \OP & \OP & 100\,\%\\
+    Oracle map & map poses & 1.85 & 1.57 & 0.37 / 0.62 & 0.93 & \NQ\\
+    Classical anch.\ + odom. & keyframes & 3.11 & 2.47 & 0.29 / 0.62 & 1.09 & \NQ\\
+    Classical odom.\ only & seg.\ start & 9.43 & 6.23 & 0.28 / 0.54 & -- & \NQ\\
+    \midrule
+    \multicolumn{7}{@{}l}{\emph{Self-mapping ablations (mapped from scratch, one component removed)}}\\
+    Ours without loop closures & calib.\ $X$ & 5.77 & 3.18 & -- & -- & \NQ\\
+    Ours without calibration $X$ & none & 11.49 & 4.08 & -- & -- & \NQ\\
+    \bottomrule
+  \end{tabular}
+\end{table*}
+
+\subsection{Self-Mapping}
+\label{sec:res_mapping}
+Self-mapping placed all 3356 \Stest{} room-scan frames (92\,\% after the first round, 100\,\% after the second). Against the tracker, the map places points 1\,m in front of the camera with 2.6\,mm error, the camera centre with 2.0\,mm and its orientation with $0.19^\circ$; relative motion over 1\,s is off by 1.5\,mm. Removing one component and mapping from scratch shows that each is needed: without loop closures the error at the US image rises from 2.34 / 1.72 to 5.77 / 3.18\,mm, and without the probe calibration $X$ to 11.49 / 4.08\,mm (Table~\ref{tab:test}, lower part). Loop closures correct the slow bending of the map over the room scan; the calibration absorbs a fixed transform in the camera frame that is the same in all sweeps. Throughout, the network reproduces its labels: with oracle labels it reaches 1.85\,mm, so the map, not the network, sets the accuracy.
+
+\subsection{Probe Calibration}
+\label{sec:res_calib}
+$X$ fitted on the \Stest{} room scans has a translation of 31.7\,mm and a rotation of $1.51^\circ$. Fitted on each of the two \Stest{} scans alone, it gives 32.8 vs.\ 31.0\,mm and $1.52^\circ$ vs.\ $1.57^\circ$, and each fit is valid on the other scan (scene points 2.9\,mm), which supports treating $X$ as a property of the probe. Fitted on the \Snew{} scans, the translation is similar (30--34\,mm) but the rotation is about $0.5^\circ$ larger ($1.9^\circ$--$2.05^\circ$), which corresponds to up to 1.4\,mm at the US image (Sec.~\ref{sec:intro}). Refitting $X$ on \Snew{} C, as a diagnostic, lowers the error in C from 9.40 to 7.87\,mm and in D from 11.54 to 9.58\,mm (oracle map 9.63\,mm). Part of the placement error in \Snew{} therefore comes from transferring $X$ between sessions; \Sctrl{}, four weeks after \Stest{}, reaches 2.24--3.11\,mm in its covered blocks with the same $X$.
+
+\subsection{What Decides the Accuracy}
+\label{sec:res_coverage}
+\emph{Controlled coverage experiment.} In \Sctrl{} A, the same 8 sweeps were tracked with maps from the exam-view scan (96\,\% coverage) and from the generic scan (0\,\%) (Table~\ref{tab:ctrl}). With the exam-view scan, ours gives 2.28 / 1.90\,mm and the oracle map 1.85 / 1.67\,mm. With the generic scan, ours gives 13.57 / 3.79\,mm and the oracle map 10.95 / 3.93\,mm. Missing coverage thus costs about 9\,mm even with perfect labels, and the self-made map adds 2.6\,mm on top. The volume keeps its shape but is misplaced (Fig.~\ref{fig:volume}). Every frame passed the 400-inlier gate, so this failure is silent; the coverage check (Sec.~\ref{sec:protocol}) catches it. Combining both scans in one map gives 3.15 / 1.81\,mm: the generic footage makes the map worse (camera error 2.7 to 3.4\,mm), so more footage is not better footage.
+
+\emph{All \Sctrl{} maps.} Over all current maps (Table~\ref{tab:ctrl}), our shape error stays between 1.28 and 3.79\,mm. With at least 90\,\% coverage, the absolute error is about the map's camera error plus 1\,mm, and the exam-view scans give the better maps in every block but B, where the exam-view scan covered only 75\,\% and the generic scan 93\,\% (4.43 vs.\ 3.36\,mm); by the rule fixed in advance, the exam-view number is B's headline. The emptied room E gives the poorest maps (camera error 4.3 and 10.9\,mm), because little structure is left for depth alignment.
+
+\begin{table*}[t]
+  \caption{\Sctrl{}, current maps (upper part) and outdated maps (lower part). Error at the US image (mm), absolute / shape; coverage; camera error of the map (mm). Exam-view scans are the protocol (headline per block); generic scans are a controlled test. Outdated maps: views covered 84--96\,\% overall; median Kabsch inliers in Sec.~\ref{sec:res_changes}.}
+  \label{tab:ctrl}
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{6pt}
+  \begin{tabular}{@{}llccccc@{}}
+    \toprule
+    Block & Room scan & Cov. & Map & Ours & Oracle & ORB-SLAM3\\
+    \midrule
+    A reference & \textbf{exam-view} & 96\,\% & 2.7 & \textbf{2.28 / 1.90} & 1.85 / 1.67 & \OP\\
+     & exam-view, after sweeps & -- & 2.0 & 2.50 / 1.96 & -- & --\\
+     & generic & 0\,\% & 6.5 & 13.57 / 3.79 & 10.95 / 3.93 & \OP\\
+     & both in one map & \NQ & 3.4 & 3.15 / 1.81 & -- & --\\
+    B large change & \textbf{exam-view} & 75\,\% & 2.4 & \textbf{4.43 / 2.81} & -- & \OP\\
+     & generic & 93\,\% & 2.2 & 3.36 / 2.46 & -- & --\\
+    C very large & \textbf{exam-view} & 96\,\% & 2.2 & \textbf{3.11 / 1.76} & -- & \OP\\
+     & generic & 78\,\% & 5.2 & 6.35 / 1.76 & -- & --\\
+    D people moving & \textbf{exam-view} & 98\,\% & 2.2 & \textbf{2.24 / 1.70} & -- & \OP\\
+     & generic & 100\,\% & 5.2 & 5.07 / 1.28 & -- & --\\
+    E empty room & \textbf{exam-view} & 92\,\% & 4.3 & \textbf{5.85 / 3.04} & -- & \OP\\
+     & generic & 97\,\% & 10.9 & 13.03 / 2.83 & -- & --\\
+    \midrule
+    \multicolumn{7}{@{}l}{\emph{Outdated maps: an earlier block's exam-view map on a later block's sweeps}}\\
+    B large change & A's map & \NQ & -- & 4.28 / 3.00 & -- & \OP\\
+    C very large & A's map & \NQ & -- & 59.4 (21\,\% posed) & -- & \OP\\
+    C very large & B's map & \NQ & -- & 40.9 (96\,\% posed) & -- & \OP\\
+    E empty room & C's map & \NQ & -- & 13.9 (p90 46.6) & -- & \OP\\
+    \bottomrule
+  \end{tabular}
+\end{table*}
+
+\begin{figure}[t]
+  \centering
+  \figorplaceholder{fig_volume_coverage.png}{\linewidth}
+  \caption{One \Sctrl{} A sweep compounded with the exam-view map (left) and the generic map (right), against the tracked volume. With the generic map the volume is shifted (absolute error), but after a rigid fit its shape matches (shape error).}
+  \label{fig:volume}
+\end{figure}
+
+\emph{Coverage at the level of single frames.} With the oracle map, the anchor error depends on whether the room scan contains a nearby viewpoint: sweep frames with a room-scan pose within 30\,mm and $10^\circ$ have a median anchor error of 4.1\,mm, the others 13.4\,mm. Adding real views near the sweeps closes the gap: with earlier sweeps of the same block added to the map with tracker labels, the \Snew{} A anchor error drops from 5.6 to 2.0\,mm (classical 5.9 to 3.7\,mm) and D from 8.6 to 3.3\,mm. Labelling the same views with the system's own poses does not help (A 5.3 to 5.0\,mm), because the network learns the label errors. Where the scan goes matters more than its length: the first 20 / 40 / 60\,s of each \Stest{} scan give 3.00 / 2.03 / 1.85\,mm at the US image with the oracle map, while the longer \Snew{} A scan, which misses the sweep viewpoints, gives 5.14\,mm.
+
+\emph{\Snew{}, the uncontrolled case.} With short generic scans (0--14\,\% coverage) and $X$ from \Stest{} (Table~\ref{tab:snew}), ours gives 7.92 / 2.69\,mm, the oracle map 6.48 / 3.17\,mm and the classical pipeline 4.76 / 3.34\,mm; ORB-SLAM3 gives \ORBP. Self-mapping placed every room-scan frame in every block. Our shape error is the lowest of the three systems on every block but A (2.94 vs.\ 2.92\,mm for the oracle map) and the lowest on average, while placement is the worst, as in the controlled experiment (Fig.~\ref{fig:volume_snew}). A likely reason for the low shape error is that a map made from depth is geometrically consistent, while tracker labels carry the view-dependent hand--eye error. In block A, ours matches the oracle map (5.04 vs.\ 5.14\,mm); the gap is largest in C and D, where part of it comes from the calibration transfer (Sec.~\ref{sec:res_calib}).
+
+\begin{table}[t]
+  \caption{\Snew{} (26 sweeps), generic room scans, coverage 0--14\,\%. Error at the US image (mm), absolute / shape; $X$ from \Stest{}. Refit: $X$ refitted on \Snew{} C (diagnostic). D and E use C's room scans.}
+  \label{tab:snew}
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{2.5pt}
+  \begin{tabular}{@{}lccccc@{}}
+    \toprule
+    Block (sweeps) & Ours & Ours, refit & Oracle map & Classical & ORB-SLAM3\\
+    \midrule
+    A new session (8) & 5.04 / 2.94 & -- & 5.14 / 2.92 & 4.2 / 3.10 & \OP\\
+    B small change (4) & 6.55 / 2.40 & -- & 5.77 / 2.66 & 3.4 / 2.47 & \OP\\
+    C large change (4) & 9.40 / 2.05 & 7.87 & 5.63 / 2.96 & 4.9 / 3.36 & \OP\\
+    D second subject (6) & 11.54 / 3.10 & 9.58 & 9.63 / 3.16 & 6.3 / 3.61 & \OP\\
+    E arm in view (4) & 7.07 / 2.98 & -- & 6.25 / 4.16 & 5.0 / 4.15 & \OP\\
+    \midrule
+    Mean & 7.92 / \textbf{2.69} & -- & 6.48 / 3.17 & \textbf{4.76} / 3.34 & \OP\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \figorplaceholder{fig_volume_snew.png}{\linewidth}
+  \caption{\Stest{} and \Snew{} sweeps compounded with the tracker-free system, against the tracked volume. \tbd{panels and sweeps}. In \Snew{} the volume keeps its shape but is displaced.}
+  \label{fig:volume_snew}
+\end{figure}
+
+\subsection{Scene Changes and Failure Detection}
+\label{sec:res_changes}
+People moving in the background (D) did not affect the error (2.24\,mm), nor did scanning after instead of before the sweeps (A, 2.50\,mm). The lower part of Table~\ref{tab:ctrl} uses an earlier block's map on a later block's sweeps, with 84--96\,\% of the views covered. After a large rearrangement, A's map is tolerated on B (4.28 / 3.00\,mm, as good as B's own scans). After a very large rearrangement it fails: A's map on C gives 59.4\,mm with 21\,\% of frames posed, and B's map on C 40.9\,mm with 96\,\% posed; C's map on the emptied room E gives 13.9\,mm (90th percentile 46.6\,mm). Rescanning restores 3.11\,mm on C. The 400-inlier gate does not catch these failures, but the median inlier count separates them: 1371--2213 for current maps, 1126 for the outdated map that works, and 23--450 for the failing ones. A session-level threshold between these values would flag them; we did not tune it on independent data. Fig.~\ref{fig:volume_outdated} shows a \Sctrl{} C sweep with the current and with an outdated map. \Snew{} gave a related observation with the oracle map: training on all room scans of the day (pooled), although objects were moved between blocks, improved the B--E error from 6.82 to 5.53\,mm, whereas the classical pipeline broke on the same pooled keyframes (4.90 to 13.93\,mm), because SIFT confidently matches objects that have since moved, while RANSAC over dense SCR correspondences keeps what stayed in place.
+
+\begin{figure}[t]
+  \centering
+  \figorplaceholder{fig_volume_outdated.png}{\linewidth}
+  \caption{A \Sctrl{} C sweep (very large rearrangement) compounded with C's own map (left) and with an outdated map from an earlier block (right), against the tracked volume.}
+  \label{fig:volume_outdated}
+\end{figure} ORB-SLAM3 with the same outdated scans: \ORBP.
+
+\subsection{Comparison With Other Approaches}
+\label{sec:res_compare}
+Table~\ref{tab:compare} compares the methods with a tracker-made map for every system, so that only the method differs. As single-image localisers, SCR anchors are about $8\times$ more accurate than pose-regression anchors (\Stest{} 1.8 vs.\ 15.3\,mm, \Snew{} 6.0 vs.\ 49.0\,mm) and give a pose for every frame, whereas the pose-regression anchors were accepted for 37--93\,\% of frames; classical anchors reach 2.6 and 5.3\,mm. One SCR network on every frame replaces anchors plus odometry: it is more accurate than the hybrid on \Sval{} (3.35 vs.\ 4.2\,mm) and \Stest{} (1.85 vs.\ 2.6\,mm), within 0.15\,mm of it on every \Snew{} block, and slightly better on the \Snew{} mean (6.48 vs.\ 6.54\,mm), with lower jitter.
+
+Against the classical pipeline, SCR is more accurate where the room scan covers the sweep viewpoints (\Sval{} 3.35 vs.\ 4.2\,mm, \Stest{} 1.85 vs.\ 3.1\,mm), on par under the strict protocol (2.98 vs.\ 3.0\,mm), and behind in \Snew{} (6.48 vs.\ 4.76\,mm; pooled 5.45\,mm). Its shape error is lower on every split. The same holds without a tracker: on our tracker-free map, the classical pipeline gives 3.65 / 2.66\,mm on \Stest{}, against 2.35 / 1.73\,mm for ours on the same frames, but 5.78\,mm on \Snew{} against 7.92\,mm for ours. SIFT copes better with views the room scan does not cover.
+
+\begin{table*}[t]
+  \caption{Comparison with a tracker-made map for every system, so that only the method differs. Error at the US image (mm) and jitter (\Stest{} / \Snew{}, mm). Strict: \Stest{} using only the room scan recorded before the sweeps. Pooled: all room scans of the day up to the block. Bold: best per column.}
+  \label{tab:compare}
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}lcccccccccc@{}}
+    \toprule
+    System & \Sval & \Stest & Strict & \Snew{} A & B & C & D & E & \Snew{} mean & Jitter\\
+    \midrule
+    Classical odometry only & 37.0 & 9.4 & 9.8 & 15.1 & 11.3 & 8.9 & 12.7 & 12.9 & 12.2 & --\\
+    Pose regression (anchors + odometry) & -- & 8.5 & -- & 43.6 & 30.0 & 41.3 & 57.8 & 48.3 & 44.2 & --\\
+    Classical anchors + odometry & 4.2 & 3.1 & 3.0 & \textbf{4.2} & \textbf{3.4} & 4.9 & \textbf{6.3} & \textbf{5.0} & \textbf{4.76} & 1.09 / 1.28\\
+    \quad pooled scans & -- & -- & -- & -- & 5.5 & 21.1 & 18.9 & 10.2 & -- & --\\
+    Hybrid: SCR anchors + odometry & 4.2 & 2.6 & -- & 5.0 & 5.7 & 5.9 & 9.6 & 6.5 & 6.54 & 1.08 / 1.29\\
+    SCR network on every frame & 3.35 & \textbf{1.85} & 2.98 & 5.14 & 5.77 & 5.63 & 9.63 & 6.25 & 6.48 & \textbf{0.93} / 1.15\\
+    \quad pooled scans & -- & -- & -- & 5.14 & 3.76 & \textbf{3.98} & 8.46 & 5.92 & 5.45 & -- / \textbf{1.07}\\
+    \bottomrule
+  \end{tabular}
+\end{table*}
+
+\subsection{Tracking Design Choices}
+\label{sec:res_tracking}
+The tracking settings were chosen on \Sval{} with the oracle map, so that only the tracking changes. Training for 120 instead of 15 epochs reduced the anchor error from 15.8 to 5.1\,mm, and solving the pose with depth by Kabsch instead of PnP reduced it further to 3.4\,mm. Geometric augmentation (zoom, in-plane rotation) and full-resolution input made the anchors less accurate (3.4 to 6.5\,mm and 6.3 to 7.3\,mm) and are not used. On \Stest{}, temporal smoothing reduced the jitter from 1.67 to 0.93\,mm and the error at the US image from 2.03 to 1.85\,mm. Odometry adds nothing once every frame has an absolute pose: classical odometry with a pose graph on top gives the same \Snew{} error (6.54 vs.\ 6.48\,mm), and learned odometry is 0.3--0.6\,mm worse.
+
+\subsection{Ultrasound Images}
+\label{sec:res_us}
+The US images add no information to the camera pose in our setup (10 tests). In-plane registration of frames 10 rows apart is less accurate than assuming no in-plane motion (1.91 vs.\ 1.55\,mm). Speckle decorrelation estimates the out-of-plane distance with 0.27--0.43\,mm error, but the camera is more accurate between nearby frames (0.07 / 0.19 / 0.24\,mm vs.\ 0.19 / 0.78 / 1.83\,mm for speckle over 1 / 4 / 8 frames). Networks with US input, alone or fused with RGB, do not improve on RGB alone, and the best fusion weight of the US estimate is zero. The US-only method of Li et al.\ \cite{li2024longterm} reproduces its published accuracy on its own data (21.4 vs.\ 22.8\,mm published) but on our sweeps is no better than assuming no motion (zero-shot 129\,mm, fine-tuned 75--125\,mm, trained from scratch 49--56\,mm, vs.\ 49--58\,mm for zero motion).
+
+\subsection{Practical Aspects}
+\label{sec:res_practical}
+Training for 20 / 40 / 80 / 120 epochs on \Sctrl{} A gives 2.53 / 2.34 / 2.37 / 2.28\,mm, so 40 epochs (about 13 instead of 40\,min) suffice. Real-time smoothing with 0.25\,s delay matches offline smoothing on \Stest{} (2.34\,mm), and fully causal smoothing costs 0.08\,mm (2.42\,mm).
+
+%======================================================================
+\section{Discussion}
+\label{sec:discussion}
+%======================================================================
+
+\emph{What the system gives.} With a room scan along the examination views, the system reaches 2.2--3.1\,mm at the US image and 1.7--1.9\,mm volume shape error in two sessions, with nothing outside the probe during the examination. Removing the tracker from mapping costs 0.4--0.5\,mm relative to the same network on tracker labels.
+
+\emph{Coverage is the central requirement.} A network that learns the room from a scan can only be accurate near the viewpoints of that scan: with perfect labels, a scan missing the examination views still gives 10.95\,mm instead of 1.85\,mm. This is a property of learning a room from a scan, not of self-mapping, and it explains the gap in \Snew{}. For the operator, the consequence is concrete: scan along the planned sweep paths, which takes about 1--2\,min. More footage does not substitute for the right footage: adding a generic scan made the map worse (3.15 vs.\ 2.28\,mm).
+
+\emph{Where the error sits.} Between nearby frames all systems agree (out-of-plane error over 8 rows 0.28--0.37\,mm on \Stest{}). The tracker-free error is mostly a placement of the whole sweep in the room rather than a distortion of it: with poor coverage our shape error stays the lowest in \Snew{} while the absolute error is the largest. For volume measurements that need no registration to other images, shape is the relevant error; for navigation in a room frame, the absolute error is.
+
+\emph{Why scene coordinates work here.} Pose regression and SCR are both learned and both see the room scan, yet their anchor errors differ by about $8\times$. A pose-regression network merges the whole image into one pose, which moved objects or hands corrupt; SCR predicts 3600 independent correspondences, RANSAC keeps the consistent ones, and a rigid fit through thousands of them averages the noise. SCR is retrained per room, so memorising the room is its task, and the same property lets it map its own scan. Depth helps twice: for metric labels, and for a 3D--3D solve that is more accurate than PnP.
+
+\emph{Map quality is the second factor.} Once coverage is sufficient, the error follows the map's camera error plus about 1\,mm. An emptied room gives poor maps, because depth ICP has little structure to align. Better maps could come from a joint refinement with depth constraints, or from adding a few known objects to an empty room.
+
+\emph{Relation to RGB-D SLAM.} RGB-D SLAM is the established way to track a probe camera against the room \cite{busam2018insideout}, and ORB-SLAM3 is more accurate on the covered, unchanged \Stest{} session (1.79 vs.\ 2.34\,mm; shape 1.34 vs.\ 1.72\,mm), and we do not claim higher accuracy there. The two approaches make different trade-offs. ORB-SLAM3 tracks continuously and keeps mapping during the sweeps, so it can extend its map into views the room scan missed, but its result depends on tracking continuity and on keeping the map consistent while the examination runs. Our system localises every frame independently against a fixed map built before the examination, so it cannot lose track, and its failure modes are explicit and can be checked before the examination, but it cannot add views it was not given. Where each fails on uncovered and outdated scans: \ORBP. A hybrid, e.g.\ SCR relocalisation inside SLAM as in ACE-SLAM \cite{alzugaray2025aceslam}, could combine both.
+
+\emph{Failure modes and their detection.} Low coverage is silent: every frame passes the inlier gate, and only the coverage check catches it. An outdated map after a very large change fails with low inlier counts, which a session-level median-inlier check flags. An empty room gives a poor map, which the map error reveals only with a reference; this case calls for adding structure to the room.
+
+\emph{Clinical workflow.} Preparation per room takes about 30\,min of self-mapping and 13--40\,min of training, and tracking runs at 60--70\,ms per frame. The probe calibration $X$ is needed once per probe and would come from a phantom; across sessions, its transfer adds part of the placement error (\Snew{} C 9.40 vs.\ 7.87\,mm after refitting), so a periodic recalibration may be needed.
+
+\subsection{Limitations}
+ORB-SLAM3 is more accurate on \Stest{}. All data come from one room, two subjects and one phantom, and the test sets are small (5 + 26 + 32 sweeps). $X$ was fitted with the tracker, and the coverage check was computed with the tracker, so the workflow is not yet fully tracker-free. The ground truth was recorded at the near edge of the tracker volume; no trend with distance was found, but a common bias cannot be excluded, and the hand--eye error enters the ground truth. The median-inlier threshold was not tuned on independent data. The tracking ablations and the frame-level coverage analysis use the oracle map; their transfer to a self-made map is assumed. The pooled-scan variant was examined on \Snew{} test blocks. Real time was shown on recorded data, not live.
+
+%======================================================================
+\section{Conclusion}
+%======================================================================
+A probe-mounted RGB-D camera and one scene coordinate network that maps its own room scan give the pose of every freehand US frame without an external tracker. With a room scan along the examination views, the error at the US image is 2.2--3.1\,mm in two sessions, 0.4--0.5\,mm more than with tracker labels. Coverage of the examination views decides the accuracy, then map quality, then scene changes; a short exam-view scan, a coverage check and an inlier check make these conditions explicit before the examination. ORB-SLAM3 is more accurate on the well-covered test session, and combining per-frame relocalisation with SLAM is a direction for future work.
+
+\section*{Acknowledgment}
+\tbd{funding}
+
+\bibliographystyle{IEEEtran}
+\bibliography{sn-bibliography}
+
+\end{document}
