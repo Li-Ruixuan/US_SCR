@@ -277,8 +277,3 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
-git pull
-git rm -r -q --cached runs/slam-3XX/seq runs/slam-5XXA-generic/seq
-git rm -q runs/slam-*-loc*/CameraTrajectory.txt runs/slam-*-online/CameraTrajectory.txt runs/slam-*-reloc/CameraTrajectory.txt
-git commit -m "runs: untrack the seq image links; drop unused ORB-SLAM3 trajectories of the online/loc/reloc runs"
-git push
