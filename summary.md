@@ -577,6 +577,7 @@ Same protocol as 4.10 (alignment + calibration on the room scan, 1 s smoothing; 
 
 - **Ours degrades gracefully:** +0.4–0.9 mm at 30 %, +0.8 mm at 60 %, no sweep above 8.5 mm; the gate drops the frames it cannot place (87–100 % pass).
 - **ORB-SLAM3 is better on average but fails on single sweeps, in every mode:** 132 mm (B 30 %, localisation only), 38.6 (B 60 %, full SLAM), 39.7 (B 60 %, per frame), 12.9 (B 60 %, localisation only), each while reporting tracking OK (100 % of frames posed); per frame at 60 % on C it poses only 3 of 8 sweeps. Paired: at 60 % on B, ours is lower than full SLAM and per frame on average (+1.6 / +1.4 mm for ORB-SLAM3, intervals include 0); on C ORB-SLAM3 stays lower (−1.2 mm).
+- **Shape under occlusion** (`runs/shape-reloc-occ.md`, after a rigid fit per sweep): at 60 % on B ours keeps 3.88 mm, ORB-SLAM3 7.35–8.44 in every mode (30 %: 3.38 vs 1.44–1.59, localisation only 6.14); on C ORB-SLAM3 stays better or equal (60 %: ours 2.80, ORB-SLAM3 1.83 / 2.29 / 3.20). Without the occluder: ours 2.81 (B), 1.76 (C); ORB-SLAM3 per frame 1.20, 1.06.
 - Two blocks, one occluder; the failures are rare and random (three runs of the real occlusion block gave 81.5 / 4.65 / 28.2 mm on its occluded sweep). It supports "bounded error under occlusion" for ours, not "more accurate".
 
 **Our seeds on 5XX** (map fixed, network trained with seeds 0 / 1 / 2): A 2.26 ± 0.03, B 4.20 ± 0.23, C 3.17 ± 0.12, D 2.22 ± 0.03, E 6.00 ± 0.27 mm (3XX 2.27 ± 0.08). The single-seed numbers of 4.9 stand.
