@@ -284,7 +284,7 @@ A probe-mounted RGB-D camera and one scene coordinate network that maps its own 
 | Comparison with ORB-SLAM3 (new) | `figures/fig_orbslam_persweep.pdf` | done, from result files |
 | Controlled occlusion (new) | `figures/fig_occlusion.pdf` | done, from result files |
 | Error against coverage | `figures/fig_coverage_error.pdf` | present; check that it is referenced in the text |
-| System overview (fig:overview) | `figures/fig_overview.pdf` | missing; `fig_concept.pdf` and `fig_pipeline.pdf` are present, either can replace it |
+| System overview (fig:overview) | `figures/fig_overview.pdf` | compile `fig_overview.tex` (TikZ, restored) in Overleaf; its three thumbnails come from `make_thumbnails.py` on the training PC. `fig_pipeline.pdf` is styled for the webpage (title bar, script names) and does not suit the paper |
 | Network (fig:architecture) | `figures/fig_architecture.pdf` | present |
 | Volume, coverage (fig:volume) | `figures/fig_volume_coverage.png` | to make on the training PC with `make_fig_volumes.py` (S-ctrl A, one sweep: exam-view vs generic map) |
 | Volume, S-new (fig:volume_snew) | `figures/fig_volume_snew.png` | to make on the training PC (one S-test and one S-new sweep, as placed and after the rigid fit) |

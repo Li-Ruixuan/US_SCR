@@ -1,0 +1,135 @@
+% System overview (fig:overview in sn-article.tex), 7.16 in x 2.4 in, sans-serif 8 pt.
+% Overleaf: set this file as the main document, recompile, download the PDF, upload it as figures/fig_overview.pdf,
+% then set sn-article.tex as the main document again. Locally: pdflatex fig_overview.tex in paper/.
+% Thumbnails: figures/thumbs/thumb_{rgb,depth,coords}.png from make_thumbnails.py (training PC); until they exist
+% a framed placeholder is drawn, so the file always compiles.
+\documentclass[border=1pt]{standalone}
+\usepackage[T1]{fontenc}
+\usepackage[scaled=0.92]{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{amsmath,amssymb}
+\usepackage{sansmath}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,calc}
+
+\definecolor{learn}{HTML}{2A78D6}     % learned block (ours)
+\definecolor{geo}{HTML}{7F7F7F}       % geometry / reference grey
+\definecolor{scan}{HTML}{9ECAE1}      % room-scan poses
+\definecolor{sweep}{HTML}{08306B}     % sweep poses
+
+\newcommand{\thumb}[4]{% file, width, height, placeholder text
+  \IfFileExists{#1}{\includegraphics[width=#2,height=#3]{#1}}%
+  {{\setlength{\fboxsep}{0pt}\fbox{\parbox[c][#3][c]{#2}{\centering\fontsize{6}{7}\selectfont #4}}}}}
+
+\begin{document}
+\sansmath
+\begin{tikzpicture}[
+    x=1cm, y=1cm,
+    font=\fontsize{8}{9.5}\selectfont,
+    small/.style={font=\fontsize{7}{8.2}\selectfont},
+    arr/.style={-{Stealth[length=1.6mm,width=1.2mm]}, line width=0.6pt, draw=black!80},
+    darr/.style={arr, dashed},
+    geobox/.style={draw=geo, line width=0.6pt, rounded corners=1.5pt, fill=white, align=center, inner sep=2.5pt},
+    learnbox/.style={draw=learn, line width=0.8pt, rounded corners=1.5pt, fill=learn!12, align=center, inner sep=2.5pt},
+  ]
+  % canvas 18.19 cm x 6.1 cm
+  \path[use as bounding box] (0,0) rectangle (18.19,6.1);
+  \draw[geo!60, line width=0.4pt] (8.25,0.15) -- (8.25,5.95);
+
+  % ============================================================ (a) before the examination
+  \node[anchor=north west, inner sep=0] at (0.05,6.05) {\textbf{(a)}\enspace Before the examination --- once per room};
+
+  % (1) probe with the RGB-D camera, moved in the air along the sweep paths
+  \begin{scope}[shift={(1.05,3.55)}, rotate=-15]
+    \draw[line width=0.6pt, fill=black!8, rounded corners=2pt] (-0.22,-0.75) rectangle (0.22,0.55);   % handle
+    \draw[line width=0.6pt, fill=black!25] (-0.30,-0.95) rectangle (0.30,-0.75);                       % transducer face
+    \draw[line width=0.6pt, fill=white, rounded corners=1pt] (0.22,0.0) rectangle (0.62,0.32);         % camera
+    \draw[line width=0.5pt] (0.47,0.16) circle (0.07);
+  \end{scope}
+  \draw[darr, scan!70!black] (0.25,2.45) .. controls (0.6,2.0) and (1.5,2.0) .. (1.95,2.45);
+  \draw[darr, scan!70!black] (0.30,4.75) .. controls (0.8,5.15) and (1.5,5.1) .. (1.95,4.65);
+  \node[small, align=center, anchor=north] at (1.1,2.05) {room scan, 1--2\,min,\\along the exam views};
+
+  % (2) self-mapping: camera frusta along a path, one loop closure
+  \node[geobox, minimum width=2.05cm, minimum height=2.65cm] (map) at (3.45,3.35) {};
+  \node[small, anchor=north, align=center] at (map.north) {Self-mapping\\(Alg.~1)};
+  \foreach \x/\y/\a in {2.75/2.45/80, 3.15/2.75/60, 3.55/2.95/40, 3.95/2.95/20, 4.15/3.35/-10, 3.85/3.75/-40, 3.35/3.85/-70}{
+    \begin{scope}[shift={(\x,\y)}, rotate=\a]
+      \draw[scan!80!black, fill=scan, line width=0.4pt] (0,0) -- (0.17,0.09) -- (0.17,-0.09) -- cycle;
+    \end{scope}}
+  \draw[geo, line width=0.4pt] (2.75,2.45) -- (3.15,2.75) -- (3.55,2.95) -- (3.95,2.95) -- (4.15,3.35) -- (3.85,3.75) -- (3.35,3.85);
+  \draw[dashed, learn!0!black, line width=0.5pt] (3.35,3.85) .. controls (2.7,3.8) and (2.45,3.0) .. (2.75,2.45);
+  \node[small, anchor=south, text=black!70] at (3.45,2.05) {loop closure};
+  \draw[black!70, line width=0.3pt] (2.8,3.45) -- (2.95,2.3);
+
+  % (3) training on own labels
+  \node[geobox, minimum width=1.7cm, minimum height=1.35cm] (train) at (5.6,3.35)
+    {Train $f_\theta$ on\\own labels\\$Y_k(\mathbf{u})$};
+
+  % (4) learned room model
+  \begin{scope}[shift={(7.35,3.55)}]
+    \draw[learn, line width=0.7pt, fill=learn!15] (-0.55,0.35) -- (-0.05,0.18) -- (-0.05,-0.18) -- (-0.55,-0.35) -- cycle;
+    \draw[learn, line width=0.7pt, fill=learn!35] (0.0,0.18) rectangle (0.25,-0.18);
+    \draw[learn, line width=0.7pt, fill=learn!35] (0.3,0.18) rectangle (0.55,-0.18);
+    \foreach \px/\py in {-0.45/-0.75, -0.3/-0.62, -0.15/-0.8, 0.0/-0.68, 0.15/-0.85, 0.3/-0.7, 0.45/-0.78,
+                        -0.38/-0.92, -0.05/-0.95, 0.25/-0.98, 0.5/-0.9, -0.22/-0.58, 0.08/-0.56, 0.38/-0.6}
+      \fill[learn!70] (\px,\py) circle (0.028);
+  \end{scope}
+  \node[small, align=center, anchor=north] at (7.35,2.45) {learned room\\model $f_\theta$};
+
+  \draw[arr] (2.05,3.35) -- (map.west);
+  \draw[arr] (map.east) -- (train.west);
+  \draw[arr] (train.east) -- (6.75,3.55);
+
+  % ============================================================ (b) during the examination
+  \node[anchor=north west, inner sep=0] at (8.45,6.05) {\textbf{(b)}\enspace During the examination --- every frame};
+
+  % row 1: inputs -> network -> coordinates -> Kabsch
+  \node[inner sep=0, anchor=south west] (rgb) at (8.5,3.75) {\thumb{figures/thumbs/thumb_rgb.png}{1.55cm}{0.872cm}{RGB}};
+  \node[small, anchor=south] at (rgb.north) {RGB $I_t$};
+  \node[inner sep=0, anchor=north west] (dep) at (8.5,3.25) {\thumb{figures/thumbs/thumb_depth.png}{1.55cm}{0.872cm}{depth}};
+  \node[small, anchor=north] at (dep.south) {depth $D_t$};
+
+  \node[learnbox, minimum width=0.85cm, minimum height=0.75cm] (net) at (10.75,4.19) {$f_\theta$};
+  \node[inner sep=0] (coords) at (12.55,4.19) {\thumb{figures/thumbs/thumb_coords.png}{1.55cm}{0.872cm}{room coords}};
+  \node[small, anchor=south, align=center] at (coords.north) {room coordinate\\per cell};
+  \node[geobox, minimum width=1.75cm, minimum height=0.85cm] (kabsch) at (14.95,4.19) {Kabsch RANSAC\\with depth};
+  \node (That) at (16.6,4.19) {$\hat T_t$};
+
+  \draw[arr] (rgb.east) -- (net.west);
+  \draw[arr] (net.east) -- (coords.west);
+  \draw[arr] (coords.east) -- (kabsch.west);
+  \draw[arr] (kabsch.east) -- (That.west);
+  \draw[darr] (dep.east) -- (14.95,2.81) -- (kabsch.south);
+
+  % row 2 (right to left): smoothing -> US image pose -> compounding
+  \node[geobox, minimum width=1.6cm, minimum height=0.75cm] (smooth) at (16.6,1.65) {Temporal\\smoothing};
+  \node (Tbar) at (14.75,1.65) {$\bar T_t$};
+  \node[geobox, minimum width=1.2cm, minimum height=0.75cm] (calib) at (13.35,1.65) {$\times\, X\,T^{C}_{U}\,S$};
+  \node[align=center] (Tus) at (11.75,1.65) {$T^{W}_{U}(t)$\\[-1pt]{\fontsize{6.5}{7.5}\selectfont US image pose}};
+  % small compounded volume
+  \begin{scope}[shift={(9.65,1.65)}]
+    \foreach \i in {0,...,5}{
+      \draw[sweep, line width=0.4pt, fill=black!6] ($(-0.45,-0.35)+(\i*0.11,\i*0.05)$) -- ++(0,0.55) -- ++(0.35,0.12) -- ++(0,-0.55) -- cycle;}
+  \end{scope}
+  \node[small, anchor=north] at (9.85,1.05) {3D compounding};
+
+  \draw[arr] (That.south) -- (smooth.north);
+  \draw[arr] (smooth.west) -- (Tbar.east);
+  \draw[arr] (Tbar.west) -- (calib.east);
+  \draw[arr] (calib.west) -- (Tus.east);
+  \draw[arr] (Tus.west) -- (10.3,1.65);
+
+  \node[small, anchor=south east, font=\fontsize{7}{8.2}\selectfont\itshape, text=black!75] at (18.1,0.12)
+    {no tracker, no odometry, no keypoints};
+
+  % legend
+  \begin{scope}[shift={(13.1,0.32)}]
+    \node[learnbox, minimum width=0.32cm, minimum height=0.22cm, inner sep=0] at (-2.9,0) {};
+    \node[small, anchor=west] at (-2.7,0) {learned};
+    \node[geobox, minimum width=0.32cm, minimum height=0.22cm, inner sep=0] at (-1.45,0) {};
+    \node[small, anchor=west] at (-1.25,0) {geometry};
+  \end{scope}
+\end{tikzpicture}
+\end{document}
