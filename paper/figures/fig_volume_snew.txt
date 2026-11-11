@@ -1,0 +1,3 @@
+Figure 4
+  S-test run-317: absolute 2.38  shape 2.00  posed 100 %  view side  offset (lat, depth, elev) [0.  1.9 0. ] mm  outside the grid 0 %
+  S-new run-415: absolute 9.15  shape 2.43  posed 100 %  view B-mode plane  offset (lat, depth, elev) [ 9.  -1.9 -0.8] mm  outside the grid 0 %

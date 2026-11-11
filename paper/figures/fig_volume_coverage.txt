@@ -1,0 +1,5 @@
+Figure 3: run-501, view skin (projection along depth), slab 6.0 mm
+  exam-view map:  absolute 2.24  shape 1.95  posed 100 %  offset (lat, depth, elev) [-0.5  0.4 -0.7] mm
+  generic map:    absolute 13.50  shape 3.22  posed 100 %  offset (lat, depth, elev) [10.3  5.  -6.4] mm
+  pixels outside the grid: 0 %, 0 %, 0 %
+  block means (S-ctrl table): exam-view 2.28 / 1.90, generic 13.57 / 3.79

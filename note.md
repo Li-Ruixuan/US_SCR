@@ -277,11 +277,6 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
-
-git pull
-python paper/make_fig_volumes.py fig3 --exam runs/track-v2map-5XXA-exam/poses/fold0_run-501_scr-track.json --generic runs/track-v2map-5XXA-generic/poses/fold0_run-501_scr-track.json
-python paper/make_fig_volumes.py fig4 --test runs/repro/track-v2map-3XX/poses/fold0_run-317_scr-track.json --new runs/track-v2map-4XXC/poses/fold0_run-415_scr-track.json
-python paper/make_fig_volumes.py fig5 --current runs/track-v2map-5XXC-exam/poses/fold0_run-517_scr-track.json --outdated runs/track-v2map-5XXC-oldB/poses/fold0_run-517_scr-track.json --current-npz runs/track-v2map-5XXC-exam/poses.npz --outdated-npz runs/track-v2map-5XXC-oldB/poses.npz
 git add paper/figures/fig_volume_*
 git commit -m "Volume figures"
 git push
