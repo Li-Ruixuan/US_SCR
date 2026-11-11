@@ -1,6 +1,6 @@
 # Markerless US probe tracking with one scene coordinate regression (SCR) network: results
 
-Status 9 Nov 2026. Claims and their evidence: 1.1. Overview tables of all tests: 1.2. Data: 2.1. Builds on `rgbd-us` (`note_RPR.md` there). Run index: `runs/README.md`. Working notes and data guide: `note.md`. The earlier, chronological version of this summary (sections 3.1–3.20, all intermediate tables) is in git commit 870a144.
+Status 11 Nov 2026. Claims and their evidence: 1.1. Overview tables of all tests: 1.2. Data: 2.1. Builds on `rgbd-us` (`note_RPR.md` there). Run index: `runs/README.md`. Working notes and data guide: `note.md`. The earlier, chronological version of this summary (sections 3.1–3.20, all intermediate tables) is in git commit 870a144.
 
 ## 1. Bottom line
 
@@ -19,7 +19,7 @@ Status 9 Nov 2026. Claims and their evidence: 1.1. Overview tables of all tests:
 | Can the US images help? | **No.** In-plane registration is worse than assuming no motion; speckle measures out-of-plane distance (0.3–0.4 mm) but the camera is 2–5× better between nearby frames; Li et al. (reproduced on its own data: 21.4 vs 22.8 mm published) is no better than zero motion on ours, fine-tuned worse | 6 |
 | Without a tracker? | **Yes.** The network maps the room scan itself (`scr_map.py`: depth ICP, pose graph with loop closures, camera calibration), its poses label the training. 3XX: **2.34 mm** at the US image, shape **1.72** (three seeds 2.22–2.34), against 1.85 / 1.57 with Polaris labels and 3.11 / 2.47 for the Polaris-mapped classical system; strict protocol 2.94 (Polaris labels 2.98, classical 3.0). 4XX (3XX calibration): shape 2.69, better than classical, absolute 7.92 (Polaris labels 6.48, classical 4.76). 2XX validation map failed (8.06). The camera calibration (one camera-frame transform per probe) is fitted once with Polaris | Tables F, G |
 | Third session (5XX): what decides? | **Coverage, then the map.** With a scan along the exam views (the protocol) 2.28 mm in A (Polaris labels 1.85: removing the tracker costs 0.4 mm, as in 3XX), C 3.11, D 2.24; the same A sweeps with a generic scan that misses the exam views 13.57 mm, and still 10.95 with Polaris labels. With the views covered, the error follows the map (E, empty room: 5.85). People moving: no effect. An outdated map survives a large rearrangement (4.28) but not a very large one (41–59 mm); the inlier count flags it. 40 training epochs are enough | 4.9 |
-| vs RGB-D SLAM (ORB-SLAM3, no tracker either) | **ORB-SLAM3 is better, also like for like.** Map from the room scan only, then frozen (localisation only, patched to relocalise), poses as tracked: 3XX 1.84 / 1.30 vs our 2.34 / 1.72 (absolute / shape), 4XX A–D 4.45 vs 8.13, 5XX 2.36 / 1.27 vs 3.58 / 2.24; per sweep it is lower on 49 of 63 (p < 0.001). **It needs no coverage:** 5XX A generic scan 2.88 vs our 13.57. Ours better on 5XX A exam (2.28 vs 3.79) and in the occlusion block 4XX E (7.07 vs 24.03: one occluded sweep 81.5 mm while it reports tracking OK). Both fail after a very large rearrangement (C with B's scan: 19.2 on half the sweeps vs our 40.9). Still to test: per-frame relocalisation (no frame-to-frame tracking), controlled occlusion, repeats | 4.10 |
+| vs RGB-D SLAM (ORB-SLAM3, no tracker either) | **ORB-SLAM3 is better, also like for like.** Map from the room scan only, then frozen (localisation only, patched to relocalise), poses as tracked: 3XX 1.84 / 1.30 vs our 2.34 / 1.72 (absolute / shape), 4XX A–D 4.45 vs 8.13, 5XX 2.36 / 1.27 vs 3.58 / 2.24; per sweep it is lower on 49 of 63 (p < 0.001). **It needs no coverage:** 5XX A generic scan 2.88 vs our 13.57. Ours better on 5XX A exam (2.28 vs 3.79) and in the occlusion block 4XX E (7.07 vs 24.03: one occluded sweep 81.5 mm while it reports tracking OK). Both fail after a very large rearrangement (C with B's scan: 19.2 on half the sweeps vs our 40.9). **Its map, not its tracking, is the advantage:** relocalising every frame on its own (our task) keeps it ahead (5XX 2.33 vs 3.58, generic scan 2.76 vs 13.57; 52 of 63 sweeps). **Ours degrades gracefully, it does not:** under a synthetic occluder ours goes 4.43 → 5.28 (5XX B) with every sweep ≤ 8.5 mm; ORB-SLAM3 stays lower on average but fails on single sweeps by 13–132 mm while reporting tracking OK, in every mode (4.11) | 4.10, 4.11 |
 | Model variants | Big head + clean labels adopted (lower p90 and rotation); viewpoint augmentation, full resolution, refined pose fit, multi-frame anchors: neutral or worse | 4.5 |
 
 ## 1.1 Claims and evidence
@@ -47,7 +47,7 @@ What the data support, and how strongly. **Strong:** several splits, large effec
 - *Better than classical in new sessions with short room scans:* 4XX 5.45 vs 4.76 mm (1.15×).
 - *As accurate without a tracker as with Polaris labels:* 3XX 2.34 vs 1.85 mm, 4XX 7.92 vs 6.48 (Tables F, G); the camera calibration still needs Polaris once.
 - *Better than RGB-D SLAM, or the best shape of all systems:* ORB-SLAM3 RGB-D (no tracker either) is better, also like for like (map from the room scan only, then frozen): 49 of 63 sweeps, shape on every current split, and it needs no coverage (4.10).
-- *ORB-SLAM3 fails under occlusion:* one failure (4XX E run-426, localisation only, 81.5 mm while reporting OK) of two occluded sweeps; with full SLAM it handles both (2.7, 3.2 mm). Controlled occlusion test open.
+- *More accurate than ORB-SLAM3 under occlusion:* it is lower on average also with an occluder; what holds is that ours degrades gracefully (worst sweep 8.5 mm at 60 %) while ORB-SLAM3 fails on single sweeps by 13–132 mm while reporting tracking OK (4.11; two blocks, one occluder).
 - *One network trained end to end:* the system is one SCR network plus exact geometry (Kabsch, ICP, pose graph), by design (`note.md` 1).
 - *Generalises to new rooms:* the network is trained per room, by design.
 - *2 mm everywhere:* reached on the well-covered session only.
@@ -540,7 +540,48 @@ Bold: the better of localisation-only ORB-SLAM3 and ours (absolute). Paired by s
 - **ORB-SLAM3 needs no coverage, also with the map frozen:** 5XX A generic scan 2.88 mm, ours 13.57 (10.95 with Polaris labels); 4XX (0–14 % covered) 4.45 vs 8.13. The coverage limit (limitation 1) belongs to SCR, not to mapping first and localising afterwards. ORB map points are 3D points with local descriptors and match from new viewpoints; the network has to regress coordinates for views it never saw. Caveat: in localisation mode ORB-SLAM3 still tracks frame to frame (motion model, visual odometry on temporary depth points when few map points match); the per-frame relocalisation run (mode `reloc`) separates the map from the tracking.
 - **Where ours is better:** 5XX A exam-view scan (2.28 vs 3.79, every sweep), and 4XX E: on run-426 (an arm across the view 22–29 % of the time) localisation-only ORB-SLAM3 is 81.5 mm off for most of the sweep while reporting tracking OK (100 % posed); ours 6.9. The other occluded sweep (run-425) 4.03 vs 5.3; full SLAM handles both (3.15, 2.69). One case: a controlled occlusion test is open.
 - **Outdated scan after a very large rearrangement:** both fail live (localisation only 19.2 mm on the 4 sweeps it posed, SLAM as tracked 43.7, ours 40.9); only the merged trajectory at shutdown recovers (4.65), which a live system never shows. A general limit of a map made before the exam. E with C's scan (emptied room): ORB-SLAM3 4.19, ours 13.9.
-- **Run to run:** 4XX B and C SLAM as tracked lost the map or crashed in one run (B: room scan 29 % posed, sweeps 0 %; C: 2 of 4 sweeps) and ran cleanly in the next (3.31, 5.47 mm, but shape 4.26, 3.13). ORB-SLAM3 is multithreaded and not deterministic: repeats open.
+- **Run to run:** 4XX B and C SLAM as tracked lost the map or crashed in one run (B: room scan 29 % posed, sweeps 0 %; C: 2 of 4 sweeps) and ran cleanly in the next (3.31, 5.47 mm, but shape 4.26, 3.13). ORB-SLAM3 is multithreaded and not deterministic: repeats in 4.11.
+
+
+### 4.11 ORB-SLAM3 per frame, repeats, occlusion; seeds and a leakage check (10–11 Nov)
+
+Same protocol as 4.10 (alignment + calibration on the room scan, 1 s smoothing; ours smoothed 1 s in the paired statistics). `runs/stats-orbslam.md` (`tools/compare_stats.py`), `runs/slam-*-reloc/`, `-loc-r2/`, `-loc-r3/`, `runs/slam-5XX?-exam-occ*-*/`, `runs/track-v2map-5XX?-exam-occ*/`, `-seed*/`, `-gapfree/`.
+
+**Per-frame relocalisation** (`rgbd_online … reloc`: the map from the room scan, frozen; before every sweep frame the tracking state is set to RECENTLY_LOST, so ORB-SLAM3 relocalises the frame against the map with nothing from the previous frame: the task of our network):
+
+| split | ORB-SLAM3 per frame | ORB-SLAM3 localisation only (3 runs) | ours |
+|---|---|---|---|
+| 3XX | **1.72** | 1.84 / 1.63 / 1.74 | 2.36 |
+| 4XX A / B / C / D / E | **4.14 / 3.70 / 4.93 / 4.44 / 5.03** | A 4.47 / 4.03 / 4.97; E 24.03 / 5.00 / 10.87 | 5.02 / 6.54 / 9.43 / 11.51 / 7.06 |
+| **4XX mean (A–E)** | **4.45** | 8.37 / 4.33 / 5.64 | 7.91 |
+| 5XX A / B / C / D / E (exam-view scans) | 3.90 / **1.63 / 2.27 / 1.63 / 2.23** | 5XX mean 2.36 / 2.31 / 2.27 | **2.28** / 4.43 / 3.11 / 2.24 / 5.85 |
+| **5XX mean (A–E)** | **2.33** | | 3.58 |
+| 5XX A generic scan (0 % covered for us) | **2.76** | 2.88 | 13.57 |
+| 5XX C, outdated (B's room-504) | 19.97 on 3 of 8 sweeps (38 % of frames posed) | 19.19 on 4 of 8 | 40.85 |
+| 5XX E, outdated (C's room-507) | **6.73** | 4.19 | 13.88 |
+
+- **Its map is the advantage, not its tracking:** per frame, with nothing carried over from the previous frame, ORB-SLAM3 is as good as with tracking and better than ours on 52 of 63 sweeps (p < 0.001), and it still needs no coverage (generic scan 2.76 vs 13.57 mm). Its 3D map points with local descriptors match from viewpoints the room scan never had; the network does not extrapolate to them. Ours is better only on 5XX A exam (all 8 sweeps, 2.28 vs 3.90).
+- **The forced relocalisation took effect:** it behaves differently from localisation only (outdated scan C: 7 % of sweep frames tracked; run-426 no longer fails: 4.32 mm). 25–41 ms per frame on the CPU (median; p90 65–80 ms), ours 60–70 ms on the GPU.
+- **Run to run:** localisation only varies little except on the occluded sweep run-426: 81.5 / 4.65 / 28.2 mm over three runs, 4.32 per frame. The failure is real but random and comes from carrying a wrong pose from frame to frame.
+
+**Controlled occlusion** (`occlusion.py`: a textured band at 0.4 m over 30 or 60 % of the image width, 3 s every 10 s, alternating sides, the same frames for both systems; room scans clear; 5XX B and C, 8 sweeps each). Mean of per-sweep medians, worst sweep in brackets (mm):
+
+| block | occluded | **ours** | ORB-SLAM3 full SLAM, live | localisation only | per frame |
+|---|---|---|---|---|---|
+| B | none | 4.43 (6.3) | 1.79 | 1.70 | 1.63 |
+| B | 30 % | 5.16 (7.5) | 1.76 | **17.91 (132.2)** | 1.78 |
+| B | 60 % | 5.28 (8.5), 87 % of frames pass the gate | **6.88 (38.6)** | 3.32 (12.9) | **6.72 (39.7)** |
+| C | none | 3.11 (5.1) | 1.67 | 2.05 | 2.27 |
+| C | 30 % | 3.54 (6.1) | 2.12 | 2.48 | 2.01 |
+| C | 60 % | 3.89 (6.6), 98 % pass | 2.67 (p90 6.2) | 2.65 (p90 8.3) | 2.22 on 3 of 8 sweeps (38 % of frames posed) |
+
+- **Ours degrades gracefully:** +0.4–0.9 mm at 30 %, +0.8 mm at 60 %, no sweep above 8.5 mm; the gate drops the frames it cannot place (87–100 % pass).
+- **ORB-SLAM3 is better on average but fails on single sweeps, in every mode:** 132 mm (B 30 %, localisation only), 38.6 (B 60 %, full SLAM), 39.7 (B 60 %, per frame), 12.9 (B 60 %, localisation only), each while reporting tracking OK (100 % of frames posed); per frame at 60 % on C it poses only 3 of 8 sweeps. Paired: at 60 % on B, ours is lower than full SLAM and per frame on average (+1.6 / +1.4 mm for ORB-SLAM3, intervals include 0); on C ORB-SLAM3 stays lower (−1.2 mm).
+- Two blocks, one occluder; the failures are rare and random (three runs of the real occlusion block gave 81.5 / 4.65 / 28.2 mm on its occluded sweep). It supports "bounded error under occlusion" for ours, not "more accurate".
+
+**Our seeds on 5XX** (map fixed, network trained with seeds 0 / 1 / 2): A 2.26 ± 0.03, B 4.20 ± 0.23, C 3.17 ± 0.12, D 2.22 ± 0.03, E 6.00 ± 0.27 mm (3XX 2.27 ± 0.08). The single-seed numbers of 4.9 stand.
+
+**Leakage check:** smoothing each sweep as one piece (`track --smooth-across-gaps`) instead of restarting at the segment breaks, which Polaris dropouts decide: identical on all 11 splits to two decimals (most sweeps have one segment). Polaris does not reach the reported numbers through the smoothing.
 
 ## 5. Why SCR beats pose regression
 
@@ -576,7 +617,7 @@ The remaining error is long-range (sweep-scale), which speckle cannot see; a lea
 6. The inlier gate was chosen after seeing the test splits (no effect on system results).
 7. Hand–eye calibration (3.5 mm board-corner error) enters labels and ground truth.
 8. The probe marker was at the near edge of the Polaris volume (median 0.88–0.93 m) in every session; the error shows no trend with distance, but a bias common to all sessions cannot be excluded (4.9). Future recordings: Polaris 1.0–2.0 m from the probe (`tools/check_session.py` warns).
-9. **ORB-SLAM3 RGB-D is more accurate than our system, also like for like** (map from the room scan only, then frozen; poses as tracked): 49 of 63 sweeps, and it needs no coverage (4.10). Its localisation mode needed a one-line patch to relocalise after losing track. No accuracy claim against RGB-D SLAM; what our system offers instead (per-frame localisation, occlusion, RGB-only) is not yet shown.
+9. **ORB-SLAM3 RGB-D is more accurate than our system, also like for like** (map from the room scan only, then frozen; poses as tracked): 49 of 63 sweeps, and it needs no coverage (4.10). Its localisation mode needed a one-line patch to relocalise after losing track. Per-frame relocalisation keeps it ahead, so its map is better than ours, not just its tracking (4.11). No accuracy claim against RGB-D SLAM; what our system offers is bounded error under occlusion (two blocks, one synthetic occluder) and RGB-only coordinates (not tested).
 
 ## 8. Open tasks
 
@@ -595,11 +636,11 @@ Done (7 Nov): session 5XX recorded and run (4.9: coverage, map quality, scene ch
 | 9 | update an outdated map by fine-tuning on a short new scan instead of rescanning from scratch (C: B's network + room-507) | method | `train --init` (code) |
 | 10 | classical pipeline on 5XX (Polaris map and our map) | comparison | SIFT odometry caches + anchor pairs in rgbd-us |
 | 11 | error against coverage, all sweeps of 3XX–5XX in one plot | figure | `tools/coverage_error.py` on track outputs (code) |
-| 12 | ORB-SLAM3 per-frame relocalisation against the frozen room-scan map (no frame-to-frame tracking): is its map or its tracking the advantage? | comparison | `rgbd_online … reloc` (code done, `note.md` 5) |
-| 13 | ORB-SLAM3 repeats (3 runs of localisation only) | comparison | commands in `note.md` 5 |
-| 14 | controlled occlusion, both systems on the same frames (`occlusion.py`; 5XX B, C; 30 and 60 % of the width) | robustness | code done, `note.md` 5 |
-| 15 | smoothing without the Polaris segment breaks (`track --smooth-across-gaps`): ground truth must not decide where smoothing restarts | check | code done, `note.md` 5 |
-| 16 | three seeds on 5XX (seed spread so far on 3XX only) | statistics | `note.md` 5 |
+| 12 | ORB-SLAM3 per-frame relocalisation against the frozen room-scan map (no frame-to-frame tracking): is its map or its tracking the advantage? | comparison | **done 10 Nov (4.11):** the map: per frame it stays ahead (52 of 63 sweeps), no coverage needed |
+| 13 | ORB-SLAM3 repeats (3 runs of localisation only) | comparison | **done 10 Nov (4.11):** stable except the occluded sweep run-426 (81.5 / 4.65 / 28.2 mm) |
+| 14 | controlled occlusion, both systems on the same frames (`occlusion.py`; 5XX B, C; 30 and 60 % of the width) | robustness | **done 11 Nov (4.11):** ours degrades gracefully (worst sweep 8.5 mm), ORB-SLAM3 lower on average but fails on single sweeps by 13–132 mm |
+| 15 | smoothing without the Polaris segment breaks (`track --smooth-across-gaps`): ground truth must not decide where smoothing restarts | check | **done 10 Nov (4.11):** identical to two decimals |
+| 16 | three seeds on 5XX (seed spread so far on 3XX only) | statistics | **done 10 Nov (4.11):** sd 0.03–0.27 mm |
 | 17 | framing of the paper after 12 and 14: per-frame localiser / robustness, RGB-only, or a study of what decides tracker-free probe tracking | paper | decision |
 
 ### 8.1 History of the map without a tracker (2 Nov, earlier code)

@@ -13,7 +13,7 @@ exist are skipped. With seed folders (`<ours>-seed1`, `-seed2`, from the seed co
 reports our mean per seed.
 
   python tools/compare_stats.py --modes final online loc reloc --out runs/stats-orbslam.md
-  python tools/compare_stats.py --tag -occ30 --modes loc reloc --out runs/stats-occ30.md   # occlusion test
+  python tools/compare_stats.py --tag=-occ30 --modes loc reloc --out runs/stats-occ30.md   # occlusion test (--tag=..., the value starts with -)
 """
 
 import argparse
