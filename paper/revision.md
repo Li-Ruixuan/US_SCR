@@ -15,6 +15,47 @@ This file holds revised text for the draft, section by section, ready to paste i
 
 ---
 
+## Paper structure and length (target 10 pages, at most 11)
+
+**Where the draft is now.** The draft has about 8,900 words, four full-width tables, an algorithm and six to seven figures. With the new ORB-SLAM3 and occlusion subsections this comes to roughly 13–14 pages in the IEEE two-column journal format. Reaching 10–11 pages needs about a quarter of the text cut, not only in the introduction. The budget below is a guide; check it after the first compile in Overleaf.
+
+| Part | Now (approx.) | Target | How |
+|---|---|---|---|
+| Abstract | 250 words | 250 | TBME limit; the revised abstract below fits |
+| I. Introduction | 1,050 words | 750 | shortened version below (29 % shorter) |
+| II. Related work | 730 words | 550 | four subsections merged into three (below) |
+| III. Method | 2,600 words + algorithm + 2 figures | 2,100 | order below; "Design Choices" cut to three sentences, the rest moves to the Discussion; "Implementation" moves to Experiments |
+| IV. Experiments | 1,100 words + 1 table | 1,000 | "Compared Systems" split into Baselines and Ablations (below); "Ground Truth" shortened to two sentences, the rest to Limitations |
+| V. Results | 2,700 words + 3 wide tables + 4 figures | 2,100 | the US-image tests and the table "Comparison with a tracker-made map for every system" move to the supplementary material; "Probe Calibration" and "Practical Aspects" shortened |
+| VI. Discussion, VII. Conclusion | 900 words | 750 | the new paragraphs below replace three old ones |
+
+**Supplementary material.** TBME accepts supplementary files that do not count towards the page limit. Candidates: the ultrasound-image tests (Sec. V on US images), the full comparison table with pose regression and the hybrid system, the per-block S-ctrl table with generic scans, the strict-protocol and real-time variants, the training-length study, and the ground-truth check.
+
+**Method: order of the subsections.** Keep "Training Labels and Loss" before self-mapping: the mapping rounds train the network with this same loss, so it has to be defined first. What should move is "Per-Frame Pose Estimation": self-mapping also localises frames with the Kabsch RANSAC, so define it before self-mapping too. Suggested order:
+1. Problem statement and notation
+2. Scene coordinate network
+3. Training labels and loss
+4. Per-frame pose estimation (Kabsch RANSAC, inlier gate)
+5. Self-mapping without a tracker (uses 3 and 4; Algorithm 1)
+6. Probe calibration
+7. Temporal smoothing
+8. Room-scan protocol and checks
+
+This reads as "the learned part, how a pose is computed from it, how the map is built from both, and how it is used". "Design Choices" can shrink to three sentences at the end of the method (geometry instead of pose regression; no learned temporal model; X not learnable from images) with the evidence left to the Results.
+
+**Implementation.** Yes, move it to Experiments, as "Implementation Details", after the hardware: it describes the computing set-up and run times, not the method. The run times themselves (60–70 ms per frame; ORB-SLAM3 25–41 ms) are results and belong to the Results or Discussion.
+
+**Experiments: Baselines and Ablations instead of "Compared Systems".** The current subsection mixes two kinds of experiment. Split it:
+- *Baselines* (other methods, to compare with): the classical feature pipeline (SIFT anchors and odometry), pose regression, US-only motion estimation (Li et al.), and ORB-SLAM3 in its three modes.
+- *Ablations* (our system with one part changed, to explain it): the oracle map (tracker labels instead of self-mapping), self-mapping without loop closures or without the calibration, odometry added (the hybrid), odometry only, and the room-scan variants (exam-view vs. generic scan, both scans in one map, scan length).
+- The controlled occlusion is a third kind, a robustness test; keep it as its own subsection.
+
+The Results can then follow the same split: "Ablations" (what each part contributes, what the scan must contain) and "Comparison With Baselines" (with RGB-D SLAM as its own subsection), then "Robustness: scene changes and occlusion".
+
+**Related work: application first, then methods.** The current order, from the clinical problem (tracked and sensorless freehand 3D US, camera-based probe tracking) to the methods (visual relocalisation, SCR, SLAM), is the usual order for TBME, whose readers come for the application. The method sections then explain where the technique comes from. Keep it, and merge the last two subsections into one (text below).
+
+---
+
 ## Abstract (replace)
 
 *Objective:* Freehand three-dimensional (3D) ultrasound (US) needs the six-degree-of-freedom pose of every US image, which is usually measured by an external optical or electromagnetic tracker. We present a data-driven alternative that obtains these poses from a probe-mounted RGB-D camera alone, and we establish when it is accurate enough for 3D compounding. *Methods:* Before the examination, the operator scans the room with the probe camera for 1–2 min. One scene coordinate regression network maps this scan itself, is trained on its own labels, and then localises every examination frame independently by a Kabsch RANSAC fit to the measured depth. We evaluated 63 test sweeps in three sessions in one room, on two subjects and a phantom, against an optical tracker, and compared with ORB-SLAM3 under the same protocol. *Results:* With a room scan along the examination views, the error at the US image was 2.2–3.1 mm (volume shape 1.7–1.9 mm), 0.4–0.5 mm above the same network trained on tracker poses. A scan that missed the examination views raised the error on the same sweeps from 2.28 to 13.57 mm, and to 10.95 mm even with tracker labels. ORB-SLAM3 was more accurate, also with its map frozen after the room scan (2.33 vs. 3.58 mm), and did not need this coverage. Under a synthetic occluder covering 60 % of the image, our error rose by at most 0.9 mm on average with no sweep above 8.5 mm, whereas ORB-SLAM3 failed on single sweeps by 13–132 mm while reporting successful tracking. *Conclusion:* Per-frame localisation against a self-mapped, learned room model is a feasible tracker-free alternative for freehand 3D US when the room scan covers the examination views; it trades accuracy for a bounded error and detectable failures. *Significance:* The approach removes external tracking hardware, and the identified operating conditions translate into a short scanning protocol with checks before the examination.
@@ -25,46 +66,48 @@ Note: the old abstract said "65 sweeps in four sessions"; 2 of the 65 are valida
 
 ---
 
-## I. Introduction
+## I. Introduction (shortened: replace the whole section)
 
-### Paragraph 3, last four sentences (replace from "RGB-D simultaneous localisation and mapping ..." to the end of the paragraph)
+About 750 words instead of 1,050 (29 % shorter). The roadmap sentence at the end of the section is dropped (IEEE journals do not need it). Citation keys are those of the draft.
 
-RGB-D simultaneous localisation and mapping (SLAM), such as ORB-SLAM3 [campos2021orbslam3], meets all three properties: it builds a metric map from the probe camera alone, and inside-out SLAM from a probe-mounted RGB-D camera facing the room has been demonstrated for transrectal 3D US [busam2018insideout]. It represents the room by sparse keypoints with descriptors, tracks the camera from frame to frame, and relocalises by place recognition when tracking is lost. It is the natural reference for any tracker-free design, and we compare against it under the same protocol.
+Freehand three-dimensional (3D) ultrasound (US) reconstructs a volume from 2D images acquired while the operator sweeps a conventional probe, giving access to organ and lesion volumes, vessel courses and planes for needle guidance [TODO-3dus-clinical-applications]. Reconstruction needs the six-degree-of-freedom (6-DoF) pose of every image, which in practice comes from an optical or electromagnetic tracker [TODO-freehand-3dus-review]. Optical tracking needs a line of sight that the operator, the patient and staff interrupt; electromagnetic tracking needs a field generator next to the patient and is disturbed by metal [TODO-em-tracking-distortion]. Both must be installed and calibrated in each room, which rules them out where a volume would be useful at short notice: at the bedside, in the emergency department, or in a crowded operating room [TODO-point-of-care-3dus].
 
-### Paragraph 4 (keep, change the last sentence)
+A replacement does not have to match optical tracking; it has to be good enough for compounding, which we take as about 2–3 mm at the US image, of the order of the elevational beam width [TODO-elevational-beamwidth]. For a camera on the probe, rotation dominates this budget: the image lies about 16 cm from the camera, so 1° of rotation moves it by up to 2.8 mm.
 
-Replace "As a consequence, there is no tracking state to lose during the examination, and the accuracy is fixed by the map before the first sweep: the map, and how the room scan is recorded, become the object of study." with:
+A replacement must also give an absolute pose for every frame, need no preparation of the room or the patient, and keep everything on the probe. Sensorless methods estimate motion from the US images [prevost2018, guo2023tbme, li2024longterm, li2025tusrec], and probe-mounted cameras track skin features [sun2014skin] or use visual–inertial odometry [buchanan2024vio, he2024probemounted]; all integrate relative motion and drift. Absolute camera-based methods rely on something prepared in advance: a surface model of the anatomy [wang2017probesight], a marker-textured workspace [huang2025lightweight, zhang2026seeing] or a simulated replica of the scene [zhang2025servoing]; markerless tracking from an external camera [zhang2026mlrecon] brings back a line-of-sight constraint. RGB-D simultaneous localisation and mapping (SLAM), such as ORB-SLAM3 [campos2021orbslam3], meets all three requirements, and inside-out SLAM from a probe-mounted RGB-D camera has been shown for transrectal 3D US [busam2018insideout]. It represents the room by keypoints, tracks the camera from frame to frame and relocalises when tracking is lost, and it is the natural reference for any tracker-free design.
 
-As a consequence, there is no tracking state that can be lost or carry a wrong pose forward, and the accuracy is fixed by the map before the first sweep: the map, and how the room scan is recorded, become the object of study.
+We take a different, data-driven route: every frame is relocalised independently against a learned model of the room, built from a 1–2 min scan with the probe camera before the examination. A scene coordinate regression (SCR) network [shotton2013, brachmann2022dsac, brachmann2023ace] predicts, for every image cell, the 3D room point it observes, and the pose follows from an exact fit to the measured depth. The network only has to memorise one room; RANSAC over thousands of dense correspondences discards cells on moved objects or hands; and the network maps the room scan itself, as in ACE0 [brachmann2024ace0] but with the measured depth, so no tracker is needed to build the map. There is no tracking state that can be lost or carry a wrong pose forward, and the accuracy is fixed by the map before the first sweep: the map, and how the room scan is recorded, become the object of study.
 
-### Paragraph 5 (replace)
+We ask four questions on 63 test sweeps in three sessions: what removing the tracker from mapping costs, what decides the accuracy, how a learned per-frame localiser compares with RGB-D SLAM, and when it fails. With a room scan along the examination views, the error at the US image is 2.2–3.1 mm, 0.4–0.5 mm more than with tracker labels. A scan that misses these views costs about 9 mm even with perfect labels, because the network cannot place viewpoints it has not seen. ORB-SLAM3 is more accurate in every session, also with its map frozen after the room scan, and does not need this coverage; our approach instead keeps a bounded error under occlusion, where ORB-SLAM3 occasionally loses a whole sweep while reporting successful tracking.
 
-This design raises four questions that decide whether it is usable. How much accuracy is lost when the network labels its own map instead of a tracker? What decides the accuracy when the room scan and the examination differ? How does a learned per-frame localiser compare with feature-based RGB-D SLAM? And when does it fail, and can the failure be detected before it corrupts a volume? We answer them on 63 test sweeps in three sessions. With a room scan along the examination views, the error at the US image is 2.2–3.1 mm, 0.4–0.5 mm more than with tracker labels. A scan that misses these views costs about 9 mm even with perfect labels: the network cannot place viewpoints it has not seen, so coverage of the examination views sets the accuracy. ORB-SLAM3 is more accurate in every session, also when its map is frozen after the room scan and every frame is relocalised on its own, and its keypoint map does not need this coverage. Our approach differs in how it fails: under a synthetic occluder its error stays bounded, whereas ORB-SLAM3 occasionally fails on a whole sweep while reporting successful tracking; low coverage and outdated maps, the two failure modes we observe, can be flagged by simple checks.
+The contributions of this paper are:
+- A tracker-free probe-tracking approach for freehand 3D US: one SCR network maps a 1–2 min room scan by itself, with depth-aided self-mapping (ICP seeding, a pose graph with loop closures, a camera-frame probe calibration), and then localises every frame independently.
+- A validation against an optical tracker at the US image, on 63 test sweeps with two subjects and a phantom, that separates mapping from tracking and placement from volume shape, and compares with US-only motion estimation, a classical feature pipeline, pose regression and ORB-SLAM3 in three modes.
+- The operating conditions of the approach from controlled experiments (coverage of the examination views, map quality, scene changes and occlusion) and a resulting room-scan protocol with checks before the examination.
 
-Sources: [stats-orbslam.md](../runs/stats-orbslam.md) (sections "loc", "reloc"), [summary.md 4.11](../summary.md).
+The ablation numbers of the old second contribution (5.77 and 11.49 mm without loop closures or calibration) stay in the Results; they do not need to be in the introduction.
 
-### Contributions (replace the list)
-
-- A probe-tracking approach for freehand 3D US that needs no external tracker, neither during the examination nor to map the room: one scene coordinate network maps a 1–2 min room scan by itself and then localises every frame independently, giving the pose of every US image.
-- Depth-aided self-mapping: ICP seeding with an automatic seed check, a pose graph with loop closures and network-pose priors, and a camera-frame probe calibration. Each component is necessary: without loop closures the error at the US image rises from 2.34 to 5.77 mm, without the calibration to 11.49 mm.
-- A validation against an optical tracker, at the US image, on 63 test sweeps in three sessions on two subjects and a phantom, which separates mapping from tracking (oracle map) and placement from volume shape, and compares with US-only motion estimation, a classical feature pipeline, pose regression, and ORB-SLAM3 in three modes, including localisation against a frozen room-scan map.
-- The operating conditions of the approach, established by controlled experiments: coverage of the examination views (2.28 vs. 13.57 mm on the same sweeps; 10.95 mm with perfect labels), then map quality, then scene changes and occlusion; and a resulting room-scan protocol with checks before the examination for low coverage and outdated maps.
+Sources: as in the paragraphs of the earlier revision; [stats-orbslam.md](../runs/stats-orbslam.md), [summary.md 4.11](../summary.md).
 
 ---
 
 ## II. Related Work
 
-### D. RGB-D SLAM and Relocalisation in Medicine (replace the first two sentences)
+### A. Tracked and Sensorless Freehand 3D US: unchanged
 
-ORB-SLAM3 [campos2021orbslam3] represents the scene by keypoints with binary descriptors, tracks them from frame to frame with a motion model, optimises keyframes by bundle adjustment, keeps mapping during operation, and relocalises by place recognition when tracking is lost. Our system replaces the keypoint map by one learned model of the room, used both to map the room scan and to localise every frame without a pose prior.
+### B. Camera-Based Probe Tracking: delete the last sentence
 
-(The rest of the subsection stays.)
+Delete "Apart from inside-out SLAM, our setting differs from the methods above: ..." to the end of the subsection; the introduction already says it.
+
+### C and D merged: "Visual Relocalisation and SLAM" (replace both subsections)
+
+Absolute pose regression maps an image directly to a pose [TODO-posenet], but such networks behave more like image retrieval than geometric estimation, which limits their accuracy [sattler2019]. Scene coordinate regression instead predicts dense image-to-scene correspondences and solves the pose robustly. It was introduced with regression forests on RGB-D images [shotton2013], adapted to new scenes online [cavallari2017onthefly, cavallari2019online], trained end to end through a differentiable RANSAC in DSAC* [brachmann2022dsac], made fast to train by ACE [brachmann2023ace], and improved for viewpoints far from the mapping images by ACE-G [bruns2025aceg]. ACE0 removes the need for mapping poses by alternating between training the relocaliser on the images registered so far and registering further images with it [brachmann2024ace0]. Our self-mapping follows this scheme but uses the measured depth for metric labels, ICP seeding and extension and a 3D–3D solver, refines the poses by a pose graph with ICP loop closures instead of joint refinement, and adds a camera-frame probe calibration. Keypoint-based RGB-D SLAM, such as ORB-SLAM3 [campos2021orbslam3], tracks keypoints from frame to frame, optimises keyframes by bundle adjustment and relocalises by place recognition; ACE-SLAM uses SCR as the map of a real-time RGB-D SLAM system, training it online [alzugaray2025aceslam]. We instead map once before the examination and keep the network fixed. In medicine, relocalisation against a prior reconstruction has been studied mainly in endoscopy, where the map is of the anatomy [TODO-endoscopic-relocalisation]; to our knowledge, SCR has not been used for freehand 3D US.
 
 ---
 
 ## IV. Experiments
 
-### E. Compared Systems: the ORB-SLAM3 paragraph (replace the sentences on ORB-SLAM3)
+### E. Baselines (was "Compared Systems"): the ORB-SLAM3 paragraph (replace the sentences on ORB-SLAM3; the oracle map, hybrid and odometry-only systems move to the new "Ablations" subsection)
 
 *ORB-SLAM3* [campos2021orbslam3] in RGB-D mode with its default ORB vocabulary, 1250 ORB features on 8 pyramid levels (scale factor 1.2), viewer off, playing each sequence in real time. Each session is exported as one sequence: the room scan(s), then the sweeps. We run it in three modes. *Full SLAM:* it maps the room scan and keeps mapping during the sweeps, with loop closing. *Localisation only:* it maps the room scan, after which mapping is switched off, so the sweeps are tracked against a frozen room-scan map, the information our system has. *Each frame relocalised:* as localisation only, but before every sweep frame the tracking state is reset, so each frame is relocalised against the frozen map with nothing from the previous frame, the task our network solves. In localisation mode, ORB-SLAM3 relocalises only after it has declared the camera lost, which in this mode never happens; we changed one line so that it relocalises as soon as tracking fails. We score the poses as tracked, i.e. as a live system would show them, and for full SLAM also the trajectory refined at shutdown. The alignment and ORB-SLAM3's own probe calibration are fitted on the room-scan frames only, as for ours; its S-test calibration is reused on the other sessions; poses are smoothed over 1 s; frames not tracked count as without a pose.
 

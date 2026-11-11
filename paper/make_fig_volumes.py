@@ -204,7 +204,8 @@ def panel(ax, ref, est, axis, lo, hi, voxel, vmax, colour, args, label=None, not
         if args.depth_down and ya == 1:
             y0 = ext[3] - 0.06 * (ext[3] - ext[2])
         ax.plot([x0, x0 + 10], [y0, y0], color="black", lw=1.5, solid_capstyle="butt")
-        ax.text(x0 + 5, y0, "10 mm", ha="center", va="bottom" if not (args.depth_down and ya == 1) else "top", fontsize=6)
+        dy = 0.025 * (ext[3] - ext[2]) * (-1 if args.depth_down and ya == 1 else 1)     # clear of the bar
+        ax.text(x0 + 5, y0 + dy, "10 mm", ha="center", va="bottom" if dy > 0 else "top", fontsize=6)
     if label:                                            # inside the top-left corner, clear of the title
         ax.text(0.02, 0.98, label, transform=ax.transAxes, fontweight="bold", fontsize=8, ha="left", va="top",
                 bbox=dict(facecolor="white", edgecolor="none", pad=0.5))
@@ -262,7 +263,7 @@ def fig3(args):
         panel(ax, pr[0], est, axis, lo, hi, voxel, vmax, BLUE, args, f"({'abc'[k]})", note, bar=True)
         ax.set_title(t, fontsize=7, pad=2)
     legend(fig, [(GREY, "tracker (reference)"), (BLUE, "ours")])
-    fig.tight_layout(rect=(0, 0.1, 1, 0.95))
+    fig.tight_layout(rect=(0, 0.13, 1, 0.95))
     log = [f"Figure 3: {sw.run}, view {vname} (projection along {list(AXES)[axis]}), slab {args.slab} mm",
            f"  exam-view map:  absolute {me['absolute']:.2f}  shape {me['shape']:.2f}  posed {100 * me['posed']:.0f} %  "
            f"offset (lat, depth, elev) {np.round(sw.offset(Te, W), 1)} mm",
