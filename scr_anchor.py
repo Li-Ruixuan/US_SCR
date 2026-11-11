@@ -61,7 +61,7 @@ from torch.utils.data import ConcatDataset, DataLoader, Dataset          # noqa:
 from scipy.spatial.transform import Rotation                            # noqa: E402
 from tqdm import tqdm                                                   # noqa: E402
 
-from dataloader import RPRConfig, RPRDataset, load_hand_eye, load_us_roi, test_sweeps   # noqa: E402
+from dataloader import IMAGENET_MEAN, IMAGENET_STD, RPRConfig, RPRDataset, load_hand_eye, load_us_roi, test_sweeps   # noqa: E402
 from scr import STRIDE, SCRNet, coord_targets, grid_pixels, load_depth_mm, localize   # noqa: E402
 
 
