@@ -275,12 +275,7 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
-git pull
-python tools/compare_stats.py --tag=-occ30 --modes online loc reloc --out runs/stats-occ30.md
-python tools/compare_stats.py --tag=-occ60 --modes online loc reloc --out runs/stats-occ60.md
-python tools/compare_stats.py --modes final online loc loc-r2 loc-r3 reloc --out runs/stats-orbslam.md
-python tools/us_analysis.py shape --json runs/slam-*-reloc/poses/*.json runs/slam-*-occ*-*/poses/*.json runs/track-v2map-5XX?-exam-occ*/poses/*.json --out runs/shape-reloc-occ.md
-git add runs/stats-*.md
-git add runs/shape-reloc-occ.*
-git commit -m "Occlusion statistics and shape"
-git push
+
+
+
+
