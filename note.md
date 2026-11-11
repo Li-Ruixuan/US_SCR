@@ -275,20 +275,12 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
-
-NameError: name 'IMAGENET_STD' is not defined
-
-
 git pull
-export DATA=/data2/u0137815/rgbd-us/data
-for o in 30 60; do
-  python scr_anchor.py track --ckpt runs/v2map-5XXB-exam/best.pt --test-root $DATA/test_5XXB --every 2 --occlude 0.$o --out runs/track-v2map-5XXB-exam-occ$o
-  python scr_anchor.py track --ckpt runs/v2map-5XXC-exam/best.pt --test-root $DATA/test_5XXC --every 2 --occlude 0.$o --out runs/track-v2map-5XXC-exam-occ$o
-done
-python tools/compare_stats.py --tag -occ30 --modes online loc reloc --out runs/stats-occ30.md
-python tools/compare_stats.py --tag -occ60 --modes online loc reloc --out runs/stats-occ60.md
+python tools/compare_stats.py --tag=-occ30 --modes online loc reloc --out runs/stats-occ30.md
+python tools/compare_stats.py --tag=-occ60 --modes online loc reloc --out runs/stats-occ60.md
+python tools/compare_stats.py --modes final online loc loc-r2 loc-r3 reloc --out runs/stats-orbslam.md
 python tools/us_analysis.py shape --json runs/slam-*-reloc/poses/*.json runs/slam-*-occ*-*/poses/*.json runs/track-v2map-5XX?-exam-occ*/poses/*.json --out runs/shape-reloc-occ.md
-git add runs/track-v2map-5XX?-exam-occ??
-git add runs/stats-occ*.md runs/shape-reloc-occ.*
-git commit -m "Occlusion test: our system"
+git add runs/stats-*.md
+git add runs/shape-reloc-occ.*
+git commit -m "Occlusion statistics and shape"
 git push
