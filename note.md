@@ -278,22 +278,15 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
+export DATA=/data2/u0137815/rgbd-us/data US=/data2/u0137815/US_SCR ORB=/data2/u0137815/ORB_SLAM3
+ORBLIB=/data2/u0137815/conda/envs/orbslam/lib:$ORB/lib:$ORB/Thirdparty/DBoW2/lib:$ORB/Thirdparty/g2o/lib
+SCAL="--cam-calib-from runs/slam-3XX/slam_eval.json"
+conda activate free
+ls runs/slam-5XXC-exam-occ60/seq/camera.yaml; wc -l runs/slam-5XXC-exam-occ60/seq/associations.txt; df -h /data2
 
-
-
-
-    
-for m in online:slam  ; do
-  mkdir -p runs/slam-$s-${m%%:*}
-  LD_LIBRARY_PATH=$ORBLIB $ORB/Examples/RGB-D/rgbd_online $ORB/Vocabulary/ORBvoc.txt runs/slam-$s/seq/camera.yaml runs/slam-$s/seq runs/slam-$s/seq/associations.txt runs/slam-$s-${m%%:*} ${m##*:} $(grep -c ',room-' runs/slam-$s/seq/index.csv)
-done
-
-
-for o in 30 60; do
-  python scr_anchor.py track --ckpt runs/v2map-5XXB-exam/best.pt --test-root $DATA/test_5XXB --every 2 --occlude 0.$o --out runs/track-v2map-5XXB-exam-occ$o
-  python scr_anchor.py track --ckpt runs/v2map-5XXC-exam/best.pt --test-root $DATA/test_5XXC --every 2 --occlude 0.$o --out runs/track-v2map-5XXC-exam-occ$o
-done
-
+python tools/slam_baseline.py export --root $DATA/test_5XXC --scan-runs room-507 --occlude 0.60 --out runs/slam-5XXC-exam-occ60/seq
+s=5XXC-exam-occ60
+ 
 
 
 for o in 30 60; do
