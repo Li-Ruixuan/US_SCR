@@ -286,13 +286,10 @@ export DATA=/data2/u0137815/rgbd-us/data
 
 
 
-
- # 1. Thumbnails for the overview figure: RGB, depth and room coordinates of room-301, row 960
-python paper/make_thumbnails.py thumbs --root $DATA/train_3XX --run room-301 --row 960 --ckpt runs/repro/v2map-3XX/best.pt
-
-
-# 2. The ORB-SLAM3 version, for "\tbd{ORB-SLAM3 version (commit)}"
 git -C /data2/u0137815/ORB_SLAM3 log -1 --format='%h %cd' --date=short
+python: can't open file '/data2/u0137815/US_SCR/paper/make_thumbnails.py': [Errno 2] No such file or directory
+4452a3c 2022-02-10
+
 
 # 3. Push the thumbnails (each git add on its own line)
 git add paper/figures/thumbs/thumb_rgb.png
