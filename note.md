@@ -275,28 +275,14 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
-
-
-Step 1: get the script back and patch it for your newer matplotlib
-
-
-cd /data2/u0137815/US_SCR
-git pull
-git show 8d570109:paper/make_thumbnails.py > paper/make_thumbnails.py
-sed -i 's/from matplotlib import cm/import matplotlib/; s/cm\.get_cmap("viridis")/matplotlib.colormaps["viridis"]/' paper/make_thumbnails.py
-Step 2: make the thumbnails
-
-
-export DATA=<your data folder>
-python paper/make_thumbnails.py thumbs --root $DATA/train_3XX --run room-301 --row 960 --ckpt runs/repro/v2map-3XX/best.pt
-Check that it prints three -> lines (rgb, depth, coords) with no traceback. If it fails, stop and send me the error.
+ 
 
 Step 3: only after step 2 succeeded, push and clean up
 
 
 git add paper/figures/thumbs/thumb_depth.png
 git add paper/figures/thumbs/thumb_coords.png
-git add paper/figures/thumbs/thumb_rgb.png
+git add .
 git commit -m "Paper: overview thumbnails (depth, coords), room-301 row 960"
 git push
 rm paper/make_thumbnails.py
