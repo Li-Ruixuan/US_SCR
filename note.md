@@ -277,5 +277,3 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
  
 
-Step 3: only after step 2 succeeded, push and clean up
-
