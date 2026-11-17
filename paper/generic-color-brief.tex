@@ -65,8 +65,8 @@ RGB-D simultaneous localisation and mapping (SLAM) meets all three requirements.
 
 \begin{figure*}[t]
   \centering
-  \includegraphics[width=0.90 \linewidth]{fig_overview.pdf} 
-  \caption{System overview. (a)~Before the examination, once per room: the operator scans the room for 1--2\,min with the RGB-D camera on the probe, along the examination views; the scene coordinate network maps this room scan itself (Algorithm~\ref{alg:mapping}) and is trained on the resulting labels. (b)~During the examination, for every frame: the network predicts the room coordinate of every image cell from the RGB image, a Kabsch RANSAC fit with the measured depth gives the camera pose, temporal smoothing combines neighbouring poses, and the probe calibration gives the pose of the US image. The network is the only learned component.}
+  \includegraphics[width=\textwidth]{fig_overview.pdf}
+  \caption{System overview. (a)~Before the examination, once per room: the operator scans the room for 1--2\,min with the RGB-D camera on the probe, along the examination views; the scene coordinate network maps this room scan itself (Algorithm~\ref{alg:mapping}) and is trained on the resulting labels. (b)~During the examination, for every frame: the network predicts the room coordinate of every image cell from the RGB image, a Kabsch RANSAC fit with the measured depth gives the camera pose, temporal smoothing combines neighbouring poses, and the probe calibration gives the pose of the US image. (c)~Network, labels and loss: EfficientNet-B0 features at strides 8 and 16 pass through a head of $1\times1$ convolutions that outputs one room coordinate per $16\times16$-pixel cell; the label of a cell is its depth point placed in the room with the self-mapped pose $T_k$, and the loss is the mean 3D distance between prediction and label (Eq.~\eqref{eq:loss}). The network is the only learned component.}
   \label{fig:overview}
 \end{figure*}
 
@@ -99,14 +99,8 @@ where $T^W_C(t)$ is the estimated camera pose, $X$ the probe calibration in the 
 
 \subsection{Scene Coordinate Network}
 \label{sec:network}
-$f_\theta$ uses an ImageNet-pretrained EfficientNet-B0 encoder \cite{tan2019efficientnet} on the colour image resized to $360\times640$. The stride-8 features (40 channels) and the upsampled stride-16 features (112 channels) are concatenated and passed to a head of $1\times1$ convolutions (152 to 512 channels, four residual blocks, 512 to 3 channels), giving one room coordinate per cell ($3\times45\times80$, Fig.~\ref{fig:architecture}); the network has 3.0\,M parameters. It takes RGB only; depth enters only the labels and the pose solver. The head outputs each room coordinate in metres relative to a fixed scene centre, the mean camera position of the training frames, which is added back to give millimetres in the map frame $W$. The input is normalised with the ImageNet mean and standard deviation, and the head starts from PyTorch's default initialisation. The head runs in single precision, because half precision would quantise coordinates 1--2\,m from the origin in 1--2\,mm steps.
+$f_\theta$ uses an ImageNet-pretrained EfficientNet-B0 encoder \cite{tan2019efficientnet} on the colour image resized to $360\times640$. The stride-8 features (40 channels) and the upsampled stride-16 features (112 channels) are concatenated and passed to a head of $1\times1$ convolutions (152 to 512 channels, four residual blocks, 512 to 3 channels), giving one room coordinate per cell ($3\times45\times80$, Fig.~\ref{fig:overview}c); the network has 3.0\,M parameters. It takes RGB only; depth enters only the labels and the pose solver. The head outputs each room coordinate in metres relative to a fixed scene centre, the mean camera position of the training frames, which is added back to give millimetres in the map frame $W$. The input is normalised with the ImageNet mean and standard deviation, and the head starts from PyTorch's default initialisation. The head runs in single precision, because half precision would quantise coordinates 1--2\,m from the origin in 1--2\,mm steps.
 
-\begin{figure*}[t]
-  \centering
-  \includegraphics[width=0.90 \linewidth]{fig_architecture.pdf} 
-  \caption{Network, labels and pose solver. Training (once per room): each room-scan frame $I_k$ passes through the network; its depth $D_k$ and self-mapped pose $T_k$ give the label $Y_k(\mathbf{u})$ of every valid cell, and the loss is the mean 3D distance between prediction and label (Eq.~\eqref{eq:loss}). Pose estimation (every examination frame): the network gives a room point $\hat{\mathbf{y}}_i$ per cell and the measured depth the same cell in the camera frame, $\mathbf{x}_i$; these dense 3D--3D pairs, fixed by the cell grid, are aligned by Kabsch RANSAC (Eq.~\eqref{eq:kabsch}).}
-  \label{fig:architecture}
-\end{figure*}
 
 \subsection{Training Labels and Loss}
 \label{sec:training}
