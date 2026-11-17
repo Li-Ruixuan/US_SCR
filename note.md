@@ -279,10 +279,3 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 Step 3: only after step 2 succeeded, push and clean up
 
-
-git add paper/figures/thumbs/thumb_depth.png
-git add paper/figures/thumbs/thumb_coords.png
-git add .
-git commit -m "Paper: overview thumbnails (depth, coords), room-301 row 960"
-git push
-rm paper/make_thumbnails.py
