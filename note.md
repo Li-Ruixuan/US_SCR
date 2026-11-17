@@ -276,18 +276,19 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
-Already up to date.
-room-301 row 960: rgb/000960.png, 1280 x 720, depth scale 1 mm/unit
--> /data2/u0137815/US_SCR/paper/figures/thumbs/thumb_rgb.png (660 x 371)
-Traceback (most recent call last):
-  File "/data2/u0137815/US_SCR/paper/make_thumbnails.py", line 138, in <module>
-    main()
-  File "/data2/u0137815/US_SCR/paper/make_thumbnails.py", line 134, in main
-    sheet(args) if args.cmd == "sheet" else thumbs(args)
-                                            ^^^^^^^^^^^^
-  File "/data2/u0137815/US_SCR/paper/make_thumbnails.py", line 99, in thumbs
-    col = (cm.get_cmap("viridis")(np.clip((dep - lo) / (hi - lo), 0, 1))[..., :3] * 255).astype(np.uint8)
-           ^^^^^^^^^^^
-AttributeError: module 'matplotlib.cm' has no attribute 'get_cmap'
+
+The script is a temporary, untracked copy, so patch it in place there and rerun:
 
 
+cd /data2/u0137815/US_SCR
+sed -i 's/from matplotlib import cm/import matplotlib/; s/cm\.get_cmap("viridis")/matplotlib.colormaps["viridis"]/' paper/make_thumbnails.py
+python paper/make_thumbnails.py thumbs --root $DATA/train_3XX --run room-301 --row 960 --ckpt runs/repro/v2map-3XX/best.pt
+If it finishes, it prints three -> lines (rgb, depth, coords). Then push as before:
+
+
+git add paper/figures/thumbs/thumb_rgb.png
+git add paper/figures/thumbs/thumb_depth.png
+git add paper/figures/thumbs/thumb_coords.png
+git commit -m "Paper: overview thumbnails, room-301 row 960"
+git push
+rm paper/make_thumbnails.py
