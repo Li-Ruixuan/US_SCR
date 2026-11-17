@@ -286,11 +286,11 @@ A probe-mounted RGB-D camera and one scene coordinate network that maps its own 
 | Error against coverage | `figures/fig_coverage_error.pdf` | present; check that it is referenced in the text |
 | System overview (fig:overview) | `figures/fig_overview.pdf` | **done (13 Nov)**: compiled from `fig_overview.tex` with schematic icons for the RGB frame, depth map and coordinate grid. To use real frames later, run `make_thumbnails.py` on the training PC and recompile; files in `figures/thumbs/` replace the icons automatically. `fig_pipeline.pdf` is styled for the webpage (title bar, script names) and does not suit the paper |
 | Network (fig:architecture) | `figures/fig_architecture.pdf` | present |
-| Volume, coverage (fig:volume) | `figures/fig_volume_coverage.png` | to make on the training PC with `make_fig_volumes.py` (S-ctrl A, one sweep: exam-view vs generic map) |
-| Volume, S-new (fig:volume_snew) | `figures/fig_volume_snew.png` | to make on the training PC (one S-test and one S-new sweep, as placed and after the rigid fit) |
-| Volume, outdated map (fig:volume_outdated) | `figures/fig_volume_outdated.png` | to make on the training PC (S-ctrl C, current vs outdated map, with the inlier count over time) |
+| Volume, coverage (fig:volume) | `figures/fig_volume_coverage.png` | done (`make_fig_volumes.py fig3`, numbers in the `.txt`) |
+| Volume, S-new (fig:volume_snew) | `figures/fig_volume_snew.png` | done (`fig4`) |
+| Volume, outdated map (fig:volume_outdated) | `figures/fig_volume_outdated.png` | done (`fig5`) |
 
-The three volume figures need the US images, which are only on the training PC; `make_fig_volumes.py` (restored) draws them, and writes the numbers of the shown sweep next to each figure (`.txt`) for the captions.
+The three volume figures were drawn on the training PC by `make_fig_volumes.py`, which writes the numbers of the shown sweep next to each figure (`.txt`) for the captions.
 
 ## Open items in the draft (not changed by this revision)
 
@@ -405,3 +405,38 @@ Source: [summary.md 4.9](../summary.md), Table "S-ctrl" of the draft.
 4. Strict protocol, real time and causal variants, training length, seeds.
 5. Ground-truth check: marker distance, tracker noise, error against distance.
 6. ORB-SLAM3: the three repeats, the one-line change to localisation mode, and per-sweep results.
+
+
+
+
+
+
+
+
+
+
+On the training PC:
+
+
+cd <your US_SCR folder>
+git pull
+export DATA=<your data folder>
+
+# 1. Contact sheet of the room-301 scan, to choose a frame without people in view
+python paper/make_thumbnails.py sheet --root $DATA/train_3XX --run room-301 --step 60
+Open paper/figures/thumbs/sheet_room-301.jpg and pick a row number from a tile with a clear view of the room and no people.
+
+
+# 2. The three thumbnails (RGB, depth, room coordinates) for that frame
+python paper/make_thumbnails.py thumbs --root $DATA/train_3XX --run room-301 --row <ROW> --ckpt runs/repro/v2map-3XX/best.pt
+
+# 3. The ORB-SLAM3 version
+git -C /data2/u0137815/ORB_SLAM3 log -1 --format='%h %cd' --date=short
+
+# 4. Push only the three thumbnails (each git add on its own line)
+git add paper/figures/thumbs/thumb_rgb.png
+git add paper/figures/thumbs/thumb_depth.png
+git add paper/figures/thumbs/thumb_coords.png
+git commit -m "Paper: overview thumbnails from room-301"
+git push
+
