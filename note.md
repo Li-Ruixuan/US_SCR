@@ -277,12 +277,11 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
-The script is a temporary, untracked copy, so patch it in place there and rerun:
+sed: can't read paper/make_thumbnails.py: No such file or directory
+python: can't open file '/data2/u0137815/US_SCR/paper/make_thumbnails.py': [Errno 2] No such file or directory
 
 
-cd /data2/u0137815/US_SCR
-sed -i 's/from matplotlib import cm/import matplotlib/; s/cm\.get_cmap("viridis")/matplotlib.colormaps["viridis"]/' paper/make_thumbnails.py
-python paper/make_thumbnails.py thumbs --root $DATA/train_3XX --run room-301 --row 960 --ckpt runs/repro/v2map-3XX/best.pt
+
 If it finishes, it prints three -> lines (rgb, depth, coords). Then push as before:
 
 
