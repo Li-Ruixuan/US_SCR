@@ -1,4 +1,0 @@
-Figure 5: run-517, view skin, slab 6.0 mm
-  current   absolute 3.58  shape 2.17  median inliers 2321  frames passing the 400 gate 100 % (raw poses 100 %)  posed after smoothing 100 %  outside the grid 0 %
-  outdated  absolute 34.91  shape 33.86  median inliers 122  frames passing the 400 gate 20 % (raw poses 20 %)  posed after smoothing 100 %  outside the grid 0 %
-  the volume uses the rows every export has a pose for (after smoothing)

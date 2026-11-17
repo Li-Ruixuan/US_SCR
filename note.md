@@ -284,16 +284,19 @@ cd  /data2/u0137815/US_SCR
 git pull
 export DATA=/data2/u0137815/rgbd-us/data
 
-(free) u0137815@set-d-l626e10ns:/data2/u0137815/US_SCR$ python paper/make_thumbnails.py thumbs --root $DATA/train_3XX --run room-301 --row <ROW> --ckpt runs/repro/v2map-3XX/best.pt
-bash: ROW: No such file or directory
 
 
 
+ # 1. Thumbnails for the overview figure: RGB, depth and room coordinates of room-301, row 960
+python paper/make_thumbnails.py thumbs --root $DATA/train_3XX --run room-301 --row 960 --ckpt runs/repro/v2map-3XX/best.pt
 
 
-# 4. Push only the three thumbnails (each git add on its own line)
-git add .
+# 2. The ORB-SLAM3 version, for "\tbd{ORB-SLAM3 version (commit)}"
+git -C /data2/u0137815/ORB_SLAM3 log -1 --format='%h %cd' --date=short
+
+# 3. Push the thumbnails (each git add on its own line)
+git add paper/figures/thumbs/thumb_rgb.png
 git add paper/figures/thumbs/thumb_depth.png
 git add paper/figures/thumbs/thumb_coords.png
-git commit -m "Paper: overview thumbnails from room-301"
+git commit -m "Paper: overview thumbnails, room-301 row 960"
 git push
