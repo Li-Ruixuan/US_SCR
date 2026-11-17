@@ -284,7 +284,7 @@ A probe-mounted RGB-D camera and one scene coordinate network that maps its own 
 | Comparison with ORB-SLAM3 (new) | `figures/fig_orbslam_persweep.pdf` | done, from result files |
 | Controlled occlusion (new) | `figures/fig_occlusion.pdf` | done, from result files |
 | Error against coverage | `figures/fig_coverage_error.pdf` | present; check that it is referenced in the text |
-| System overview (fig:overview) | `figures/fig_overview.pdf` | compile `fig_overview.tex` (TikZ, restored) in Overleaf; its three thumbnails come from `make_thumbnails.py` on the training PC. `fig_pipeline.pdf` is styled for the webpage (title bar, script names) and does not suit the paper |
+| System overview (fig:overview) | `figures/fig_overview.pdf` | **done (13 Nov)**: compiled from `fig_overview.tex` with schematic icons for the RGB frame, depth map and coordinate grid. To use real frames later, run `make_thumbnails.py` on the training PC and recompile; files in `figures/thumbs/` replace the icons automatically. `fig_pipeline.pdf` is styled for the webpage (title bar, script names) and does not suit the paper |
 | Network (fig:architecture) | `figures/fig_architecture.pdf` | present |
 | Volume, coverage (fig:volume) | `figures/fig_volume_coverage.png` | to make on the training PC with `make_fig_volumes.py` (S-ctrl A, one sweep: exam-view vs generic map) |
 | Volume, S-new (fig:volume_snew) | `figures/fig_volume_snew.png` | to make on the training PC (one S-test and one S-new sweep, as placed and after the rigid fit) |
@@ -298,3 +298,110 @@ The three volume figures need the US images, which are only on the training PC; 
 - `\tbd`: funding, probe and scanner model, phantom type, ethics approval, code availability, smoothing window bounds, ORB-SLAM3 version.
 - "Posed" column in the S-test table for our rows.
 - Bibliography keys starting with `TODO-`.
+
+---
+
+# Part 2 (13 Nov): method, structure, captions, placeholders
+
+Written without the training PC: everything below comes from the code and the result files in the repository.
+
+## Placeholders in the draft, filled from the code
+
+| Placeholder in the draft | Value | Where it comes from |
+|---|---|---|
+| Self-mapping: "plus a margin \NUMQ{margin}" | plus 20 mm and 5° | [scr_map.py](../scr_map.py), function `plausible` |
+| Smoothing: "\NUMQ{Tukey constant and residual scale}" | Tukey biweight with scale 6 × the median residual; the residual adds translation (mm) and 0.16 mm per mrad of rotation | [scr_anchor.py](../scr_anchor.py), function `smooth_poses` |
+| Calibration: "\tbd{robust loss and scale}" | soft-L1 loss with a 5 mm scale, on the camera centre and four points 1 m in front of the camera; started from ten alternating steps (Kabsch for A, mean transform for X) | [scr_map.py](../scr_map.py), function `align_calib` |
+| Design choices: "\NUMQ{camera error with vs. without joint refinement}" | camera position of an S-test map 8.4 mm without, 8.9 mm with joint refinement (an intermediate map, before loop closures) | [summary.md](../summary.md), Table E "map" row |
+| Smoothing: "\tbd{confirm window bounds}" | see the corrected paragraph below: the causal window is the last 0.25 s, not 1 s | [summary.md 3.3](../summary.md), rule fixed on S-val |
+| S-test table, "Posed" column, our rows | 100 % for the self-mapped system and the oracle map (every frame passes the 400-inlier gate) | [repro/track-v2map-3XX/scr_track.md](../runs/repro/track-v2map-3XX/scr_track.md) |
+
+## III. Method
+
+**Order of the subsections** (from the structure plan in Part 1): notation; network; training labels and loss; per-frame pose estimation; self-mapping; probe calibration; temporal smoothing; room-scan protocol and checks. Moving "Per-Frame Pose Estimation" before "Self-Mapping" removes the forward reference in the mapping rounds ("localises the others with it"). "Implementation" moves to the Experiments.
+
+### Temporal Smoothing (replace the paragraph; corrects the windows)
+
+For frame $t$ at time $s_t$, the poses $j$ in a window with $\Delta_j=s_j-s_t$ are weighted by $w_j=n_j(1-|\Delta_j/h|^3)^3$, where $n_j$ is the inlier count and $h$ the half-width of the window. Translations are fitted by a weighted polynomial in $\Delta_j$, quadratic if at least five poses surround $s_t$, linear with three or four, constant otherwise, and rotations, as rotation vectors about the weighted mean rotation, in the same way. Two Tukey reweightings make the fit robust: a pose is down-weighted by $(1-(r_j/c)^2)^2$, where $r_j$ adds the translation residual in mm and 0.16 mm per mrad of rotation residual (the lever arm to the image), and $c$ is six times the median residual. Offline, the window is centred, $|\Delta_j|\le1$ s. In real time, the pose of frame $t$ is output 0.25 s later from the last 1 s of poses, $\Delta_j\in[-0.75,0.25]$ s, extrapolated linearly to $s_t$; the fully causal variant uses the last 0.25 s, $\Delta_j\in[-0.25,0]$ s. Both windows were chosen on S-val as the lowest error for their delay.
+
+(Keep the LaTeX equation of the quadratic fit if you want it; the text above describes it fully and saves about four lines.)
+
+### Probe Calibration: replace "\tbd{robust loss and scale}"
+
+with: "We minimise Eq. (6) with a soft-L1 loss of scale 5 mm, starting from ten alternating steps (A by a Kabsch fit, X as the mean transform), with $P$ the camera centre and the four points of Eq. (4)."
+
+### Design Choices (replace the subsection by three sentences, or move them to the end of the Discussion)
+
+The pose comes from exact geometry on learned correspondences rather than from a learned pose, because pose regression was about 8× less accurate in our setting (Sec. V). No temporal model is learned: odometry added nothing once every frame has an absolute pose, and a fixed robust smoother reduces the jitter. Poses are refined by the pose graph only, not jointly with the network as in ACE0, because joint refinement made an S-test map less accurate (camera position 8.4 to 8.9 mm).
+
+## IV. Experiments
+
+**Order:** hardware and data; sessions; implementation details; protocol and reporting rules; metrics; baselines; ablations; controlled occlusion; ground truth.
+
+### Implementation Details (moved from the Method; replace)
+
+The method is implemented in PyTorch and runs on one NVIDIA RTX A4500 GPU. Self-mapping takes about 30 min per room and training the final network about 40 min for 120 epochs (13 min for 40). ORB-SLAM3 runs on the CPU of the same computer. [Code availability.]
+
+### Ablations (new subsection, after Baselines)
+
+To explain the system we change one part at a time. *Mapping:* the oracle map, trained on tracker poses of the room scan, isolates mapping from tracking; self-mapping is also repeated from scratch without loop closures and without the probe calibration $X$. *Tracking:* the hybrid uses our per-frame poses once per second as anchors in a SIFT odometry with a pose graph, to test whether odometry adds to per-frame localisation; odometry alone, with each segment start posed by the tracker, shows how much an absolute pose is needed. *Room scan:* on S-ctrl, the same sweeps are tracked with the exam-view and the generic scan, with both scans in one map, and with an earlier block's map (outdated); on S-test, with the first 20, 40 and 60 s of the scans. *Training:* 20 to 120 epochs and three seeds.
+
+### Baselines (the rest of the old "Compared Systems")
+
+Keep the classical pipeline, pose regression and US-only sentences of the draft, and the ORB-SLAM3 paragraph from Part 1. Remove the oracle map, odometry-only and hybrid sentences (now in Ablations).
+
+### Ground Truth (shorten to two sentences; the details go to the supplementary material)
+
+In every session the probe marker was at the near edge of the tracker's measurement volume (median distance 0.88–0.93 m); the tracker noise at the US image was 0.12–0.25 mm, and our error showed no trend with the marker distance. The reference is the same in all sessions, so a bias common to all of them cannot be excluded.
+
+## V. Results: order and cuts
+
+| New subsection | Content | Change |
+|---|---|---|
+| A. Tracking with a covering room scan | S-test and S-ctrl headline, Table S-test | keep; move the real-time and training-length sentences here from "Practical Aspects" (one sentence each) |
+| B. Ablations | self-mapping (keep), tracking choices (one paragraph), probe calibration (two sentences, below) | "Self-Mapping", "Tracking Design Choices" and "Probe Calibration" merged |
+| C. What decides the accuracy | coverage experiment, Fig. coverage–error, S-new | keep; add the coverage–error figure (caption below) |
+| D. Scene changes and failure detection | outdated maps, inlier check, Fig. outdated | keep, with the ORB-SLAM3 sentence from Part 1 |
+| E. Comparison with baselines | classical, pose regression, hybrid | shorten to one paragraph (below); the full table goes to the supplementary material |
+| F. Comparison with RGB-D SLAM | from Part 1 | new |
+| G. Robustness to occlusion | from Part 1 | new |
+| – | Ultrasound images | one sentence in E (below); the ten tests go to the supplementary material |
+
+### B. Probe calibration (replace the subsection by two sentences inside "Ablations")
+
+$X$ is a property of the probe: fitted on each S-test scan alone it agrees within 1.8 mm and 0.05° and is valid on the other scan. Transferred to S-new, its rotation fits about 0.5° worse, which accounts for part of the S-new placement error (refitting it on S-new C, as a diagnostic, lowers C from 9.40 to 7.87 mm and D from 11.54 to 9.58 mm).
+
+### E. Comparison with baselines (replace "Comparison With Other Approaches" and "Ultrasound Images")
+
+As single-image localisers, SCR anchors are about 8× more accurate than pose regression (S-test 1.8 vs. 15.3 mm, S-new 6.0 vs. 49.0 mm). One SCR network on every frame replaces anchors plus odometry: adding SIFT odometry with a pose graph changes the S-new error by less than 0.1 mm (6.54 vs. 6.48 mm). Against the classical pipeline, SCR is more accurate where the room scan covers the sweeps (S-test 1.85 vs. 3.1 mm with tracker-made maps; 2.35 vs. 3.65 mm on our tracker-free map), on par under the strict protocol (2.98 vs. 3.0 mm), and behind in S-new (6.48 vs. 4.76 mm), where SIFT copes better with uncovered views; its volume shape is lower on every split. The US images add nothing to the camera pose in our set-up: the US-only method of Li et al. reproduces its published accuracy on its own data but is no better than assuming no motion on our sweeps, and networks fusing US with RGB do not improve on RGB alone (supplementary material).
+
+Sources: [summary.md 4.3–4.7 and Table A](../summary.md); numbers as in the draft's "Comparison With Other Approaches" and "Ultrasound Images".
+
+## Figure captions
+
+**fig:volume** (`figures/fig_volume_coverage.png`): One S-ctrl A sweep compounded with the tracker poses (grey) and with ours (blue), slab projection seen from the skin; outlines: footprint of each volume; multiply blend, so dark where both agree. (a) Exam-view map, as placed: 2.24 mm. (b) Generic map, which misses the examination views, as placed: 13.50 mm. (c) Generic map after the best rigid fit of the sweep: 3.22 mm. The generic map misplaces the volume but keeps its shape. Values for this sweep; block means 2.28 / 1.90 and 13.57 / 3.79 mm.
+
+Source: [fig_volume_coverage.txt](figures/fig_volume_coverage.txt).
+
+**fig:volume_snew** (`figures/fig_volume_snew.png`): Tracker-free volumes as placed (left) and after the best rigid fit of the sweep (right), tracker poses in grey, ours in blue. (a, b) An S-test sweep, with a room scan covering the sweeps: 2.38 mm absolute, 2.00 mm shape. (c, d) An S-new sweep, with a short generic scan: 9.15 mm absolute, 2.43 mm shape. Without coverage the volume is displaced but keeps its shape.
+
+Source: [fig_volume_snew.txt](figures/fig_volume_snew.txt). The two rows use different views (side; B-mode plane), chosen so that the displacement lies in the image; say so in the caption if a reviewer might compare the shapes.
+
+**fig:volume_outdated** (`figures/fig_volume_outdated.png`): An S-ctrl C sweep after a very large rearrangement, compounded with the block's own map (a) and with block B's outdated map (b); below, the Kabsch inlier count of every frame, with the 400-inlier gate dashed. Own map: 3.6 mm, every frame passes the gate, median 2321 inliers. Outdated map: 34.9 mm, 20 % of the frames pass, median 122 inliers. The median inlier count flags the outdated map without a tracker.
+
+Source: [fig_volume_outdated.txt](figures/fig_volume_outdated.txt).
+
+**fig:coverage_error** (`figures/fig_coverage_error.pdf`, new in the text; place it in Results C): S-ctrl maps, one point per block and room scan (filled: exam-view scan; open: generic scan). (a) Error at the US image against coverage of the sweep viewpoints by the room scan; shaded: the go region of the coverage check (at least 80 %). (b) For the maps with at least 90 % coverage, error against the camera error of the self-made map; dashed: map error + 1 mm. Coverage decides first, then the map.
+
+Source: [summary.md 4.9](../summary.md), Table "S-ctrl" of the draft.
+
+**fig:overview**: keep the draft caption; it matches `fig_overview.tex`.
+
+## Supplementary material (does not count towards the page limit)
+
+1. Full comparison table with a tracker-made map for every system (the draft's "Comparison" table), including pose regression, the hybrid and the pooled-scan variants.
+2. The ten tests with the US images, including the reproduction of Li et al.
+3. S-ctrl generic-scan rows and the "both scans in one map" variant, if the main table needs space.
+4. Strict protocol, real time and causal variants, training length, seeds.
+5. Ground-truth check: marker distance, tracker noise, error against distance.
+6. ORB-SLAM3: the three repeats, the one-line change to localisation mode, and per-sweep results.
