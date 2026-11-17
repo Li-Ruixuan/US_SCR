@@ -341,7 +341,7 @@ Fitted on each \Stest{} scan alone, $X$ agrees within 1.8\,mm and $0.05^\circ$, 
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.90 \linewidth]{fig_coverage_error.pdf}
+  \includegraphics[width=0.90 \linewidth]{fig_coverage_error.png}
   \caption{\Sctrl{} maps, one point per block and room scan (filled: exam-view scan; open: generic scan). (a)~Error at the US image against coverage of the sweep viewpoints by the room scan; shaded: the go region of the coverage check (at least 80\,\%). (b)~For the maps with at least 90\,\% coverage, error against the camera error of the self-made map; dashed: map error + 1\,mm. Coverage decides first, then the map.}
   \label{fig:coverage_error}
 \end{figure}
@@ -414,7 +414,7 @@ ORB-SLAM3 is more accurate than our system in every session and mode (Table~\ref
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.90 \linewidth]{fig_orbslam_persweep.pdf} 
+  \includegraphics[width=0.90 \linewidth]{fig_orbslam_persweep.png} 
   \caption{Every test sweep, our error against ORB-SLAM3 with each frame relocalised against its frozen room-scan map (log scales). Points below the diagonal: ORB-SLAM3 lower (52 of 63 sweeps with current maps). Diamonds: \Sctrl{} A with the generic scan that misses the examination views.}
   \label{fig:orbslam_persweep}
 \end{figure}
@@ -446,7 +446,7 @@ With the synthetic occluder (Table~\ref{tab:occlusion}, Fig.~\ref{fig:occlusion}
 
 \begin{figure*}[t]
   \centering
-  \includegraphics[width=0.90\textwidth]{fig_occlusion.pdf} 
+  \includegraphics[width=0.90\textwidth]{fig_occlusion.png} 
   \caption{Controlled occlusion on \Sctrl{} B and C: per-sweep error at the US image without the occluder and with 30\,\% or 60\,\% of the image width occluded (log scale). Each point is one sweep. Our error stays bounded; ORB-SLAM3 is lower in most settings but fails on single sweeps while reporting successful tracking.}
   \label{fig:occlusion}
 \end{figure*}
