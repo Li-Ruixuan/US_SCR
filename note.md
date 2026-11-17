@@ -275,26 +275,24 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
-On the training PC:
 
 
-cd <your US_SCR folder>
+
+
+
+cd  /data2/u0137815/US_SCR
 git pull
-export DATA=<your data folder>
+export DATA=/data2/u0137815/rgbd-us/data
 
-# 1. Contact sheet of the room-301 scan, to choose a frame without people in view
-python paper/make_thumbnails.py sheet --root $DATA/train_3XX --run room-301 --step 60
-Open paper/figures/thumbs/sheet_room-301.jpg and pick a row number from a tile with a clear view of the room and no people.
+(free) u0137815@set-d-l626e10ns:/data2/u0137815/US_SCR$ python paper/make_thumbnails.py thumbs --root $DATA/train_3XX --run room-301 --row <ROW> --ckpt runs/repro/v2map-3XX/best.pt
+bash: ROW: No such file or directory
 
 
-# 2. The three thumbnails (RGB, depth, room coordinates) for that frame
-python paper/make_thumbnails.py thumbs --root $DATA/train_3XX --run room-301 --row <ROW> --ckpt runs/repro/v2map-3XX/best.pt
 
-# 3. The ORB-SLAM3 version
-git -C /data2/u0137815/ORB_SLAM3 log -1 --format='%h %cd' --date=short
+
 
 # 4. Push only the three thumbnails (each git add on its own line)
-git add paper/figures/thumbs/thumb_rgb.png
+git add .
 git add paper/figures/thumbs/thumb_depth.png
 git add paper/figures/thumbs/thumb_coords.png
 git commit -m "Paper: overview thumbnails from room-301"
