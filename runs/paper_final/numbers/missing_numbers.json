@@ -1033,5 +1033,238 @@
     ],
     "latex": null,
     "note": ""
+  },
+  {
+    "id": "M11",
+    "values": {
+      "P-rearr1, none": {
+        "ours": {
+          "mean": 4.412881347380256,
+          "worst": 6.340747837424202,
+          "shape": 2.806622321555244,
+          "passed_gate_pct": 99.98595505617978
+        },
+        "online": {
+          "mean": 1.7856005530226182,
+          "worst": 2.996256961781126,
+          "shape": 1.223508453852243,
+          "sweeps_posed": "8 / 8",
+          "run": "slam-5XXB-exam-online"
+        },
+        "loc": {
+          "mean": 1.695210760044779,
+          "worst": 2.763070036164123,
+          "shape": 1.1821468326173465,
+          "sweeps_posed": "8 / 8",
+          "run": "slam-5XXB-exam-loc"
+        },
+        "reloc": {
+          "mean": 1.6206715490771346,
+          "worst": 2.689204107830341,
+          "shape": 1.1993256920533384,
+          "sweeps_posed": "8 / 8",
+          "run": "slam-5XXB-exam-reloc"
+        }
+      },
+      "P-rearr1, 30 %": {
+        "ours": {
+          "mean": 5.146355111764171,
+          "worst": 7.458385126755612,
+          "shape": 3.378459581605587,
+          "passed_gate_pct": 99.64887640449439
+        },
+        "online": {
+          "mean": 1.7626565417670326,
+          "worst": 2.8709890604479975,
+          "shape": 1.4481066238669889,
+          "sweeps_posed": "8 / 8",
+          "run": "slam-5XXB-exam-occ30-online"
+        },
+        "loc": {
+          "mean": 17.884210471202227,
+          "worst": 131.91867714193646,
+          "shape": 6.165953683621087,
+          "sweeps_posed": "8 / 8",
+          "run": "slam-5XXB-exam-occ30-loc"
+        },
+        "reloc": {
+          "mean": 1.7765520998158881,
+          "worst": 2.8728044706100695,
+          "shape": 1.5915046439560028,
+          "sweeps_posed": "8 / 8",
+          "run": "slam-5XXB-exam-occ30-reloc"
+        }
+      },
+      "P-rearr1, 60 %": {
+        "ours": {
+          "mean": 5.2502560379552214,
+          "worst": 8.378127695608491,
+          "shape": 3.876092053046096,
+          "passed_gate_pct": 86.53494616282764
+        },
+        "online": {
+          "mean": 6.8868415079570795,
+          "worst": 38.65474260749743,
+          "shape": 7.413492532863021,
+          "sweeps_posed": "8 / 8",
+          "run": "slam-5XXB-exam-occ60-online"
+        },
+        "loc": {
+          "mean": 3.335399784025487,
+          "worst": 13.022732670010159,
+          "shape": 8.412157324922049,
+          "sweeps_posed": "8 / 8",
+          "run": "slam-5XXB-exam-occ60-loc"
+        },
+        "reloc": {
+          "mean": 1.8311283945037764,
+          "worst": 2.92403335268126,
+          "shape": 1.5036236405429935,
+          "sweeps_posed": "8 / 8",
+          "run": "slam-5XXB-exam-occ60-reloc-r2"
+        }
+      },
+      "P-rearr2, none": {
+        "ours": {
+          "mean": 3.085765043383877,
+          "worst": 5.003709433159994,
+          "shape": 1.758278423078362,
+          "passed_gate_pct": 100.0
+        },
+        "online": {
+          "mean": 1.6564347124699097,
+          "worst": 2.01817088165076,
+          "shape": 1.0812576652014865,
+          "sweeps_posed": "8 / 8",
+          "run": "slam-5XXC-exam-online"
+        },
+        "loc": {
+          "mean": 2.0366991253777265,
+          "worst": 2.2233709492672733,
+          "shape": 1.0932048847992382,
+          "sweeps_posed": "8 / 8",
+          "run": "slam-5XXC-exam-loc"
+        },
+        "reloc": {
+          "mean": 2.266320357750721,
+          "worst": 2.6559867718602024,
+          "shape": 1.0428631109548812,
+          "sweeps_posed": "8 / 8",
+          "run": "slam-5XXC-exam-reloc"
+        }
+      },
+      "P-rearr2, 30 %": {
+        "ours": {
+          "mean": 3.5254341274146292,
+          "worst": 6.033387610371317,
+          "shape": 2.2728836488042967,
+          "passed_gate_pct": 100.0
+        },
+        "online": {
+          "mean": 2.1116112769941164,
+          "worst": 2.5681351833929247,
+          "shape": 1.145041578004118,
+          "sweeps_posed": "8 / 8",
+          "run": "slam-5XXC-exam-occ30-online"
+        },
+        "loc": {
+          "mean": 2.463306502633181,
+          "worst": 2.8957873065668274,
+          "shape": 1.3527365881753974,
+          "sweeps_posed": "8 / 8",
+          "run": "slam-5XXC-exam-occ30-loc"
+        },
+        "reloc": {
+          "mean": 2.003310256413832,
+          "worst": 2.2447783015722536,
+          "shape": 1.3042808704903637,
+          "sweeps_posed": "8 / 8",
+          "run": "slam-5XXC-exam-occ30-reloc"
+        }
+      },
+      "P-rearr2, 60 %": {
+        "ours": {
+          "mean": 3.863679764707286,
+          "worst": 6.577731808838021,
+          "shape": 2.80133273206036,
+          "passed_gate_pct": 97.61649921320601
+        },
+        "online": {
+          "mean": 2.658540779770232,
+          "worst": 3.2885066782843295,
+          "shape": 1.8237605750251076,
+          "sweeps_posed": "8 / 8",
+          "run": "slam-5XXC-exam-occ60-online"
+        },
+        "loc": {
+          "mean": 2.3968759494039045,
+          "worst": 2.744380315518513,
+          "shape": 2.2096546703739604,
+          "sweeps_posed": "8 / 8",
+          "run": "slam-5XXC-exam-occ60-loc-r4"
+        },
+        "reloc": {
+          "mean": 1.8127471434363684,
+          "worst": 2.198965192090312,
+          "shape": 1.349057225601697,
+          "sweeps_posed": "8 / 8",
+          "run": "slam-5XXC-exam-occ60-reloc-r2"
+        }
+      }
+    },
+    "n": 4,
+    "check_expected": {
+      "ours P-rearr1 30 %": 5.15,
+      "loc P-rearr1 30 %": 17.88,
+      "ours P-rearr1 60 %": 5.25,
+      "loc P-rearr1 60 %": 3.34,
+      "ours P-rearr2 30 %": 3.53,
+      "loc P-rearr2 30 %": 2.46,
+      "ours P-rearr2 60 %": 3.86
+    },
+    "check_got": {
+      "ours P-rearr1 30 %": 5.15,
+      "loc P-rearr1 30 %": 17.88,
+      "ours P-rearr1 60 %": 5.25,
+      "loc P-rearr1 60 %": 3.34,
+      "ours P-rearr2 30 %": 3.53,
+      "loc P-rearr2 30 %": 2.46,
+      "ours P-rearr2 60 %": 3.86
+    },
+    "check_ok": true,
+    "source_files": [
+      "runs/paper_final/shape-occ-ours.json",
+      "runs/paper_final/slam-5XXB-exam-loc/slam_eval.json",
+      "runs/paper_final/slam-5XXB-exam-occ30-loc/slam_eval.json",
+      "runs/paper_final/slam-5XXB-exam-occ30-online/slam_eval.json",
+      "runs/paper_final/slam-5XXB-exam-occ30-reloc/slam_eval.json",
+      "runs/paper_final/slam-5XXB-exam-occ60-loc/slam_eval.json",
+      "runs/paper_final/slam-5XXB-exam-occ60-online/slam_eval.json",
+      "runs/paper_final/slam-5XXB-exam-online/slam_eval.json",
+      "runs/paper_final/slam-5XXB-exam-reloc/slam_eval.json",
+      "runs/paper_final/slam-5XXC-exam-loc/slam_eval.json",
+      "runs/paper_final/slam-5XXC-exam-occ30-loc/slam_eval.json",
+      "runs/paper_final/slam-5XXC-exam-occ30-online/slam_eval.json",
+      "runs/paper_final/slam-5XXC-exam-occ30-reloc/slam_eval.json",
+      "runs/paper_final/slam-5XXC-exam-occ60-online/slam_eval.json",
+      "runs/paper_final/slam-5XXC-exam-online/slam_eval.json",
+      "runs/paper_final/slam-5XXC-exam-reloc/slam_eval.json",
+      "runs/slam-5XXB-exam-occ60-reloc-r2/slam_eval.json",
+      "runs/slam-5XXC-exam-occ60-loc-r4/slam_eval.json",
+      "runs/slam-5XXC-exam-occ60-reloc-r2/slam_eval.json",
+      "runs/track-v2map-5XXB-exam-occ30/scr_track.json",
+      "runs/track-v2map-5XXB-exam-occ60/scr_track.json",
+      "runs/track-v2map-5XXB-exam/scr_track.json",
+      "runs/track-v2map-5XXC-exam-occ30/scr_track.json",
+      "runs/track-v2map-5XXC-exam-occ60/scr_track.json",
+      "runs/track-v2map-5XXC-exam/scr_track.json"
+    ],
+    "latex": {
+      "ORB-SLAM3 localisation only lower mean": "3 of 4 occluded settings (P-rearr1, 60 %, P-rearr2, 30 %, P-rearr2, 60 %)",
+      "ours, increase over no occluder": "P-rearr1, 30 %: +0.73, P-rearr1, 60 %: +0.84, P-rearr2, 30 %: +0.44, P-rearr2, 60 %: +0.78",
+      "ours, worst sweep": "8.4",
+      "ours, passed the inlier gate": "86.5--100.0 %"
+    },
+    "note": "window 2 s; ORB-SLAM3 single runs; replaced: slam-5XXC-exam-occ60-loc-r4, slam-5XXC-exam-occ60-reloc-r2, slam-5XXB-exam-occ60-reloc-r2"
   }
 ]
