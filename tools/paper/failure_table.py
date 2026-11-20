@@ -1,0 +1,143 @@
+"""
+rerun_plan.md, section 5.7: sweeps by outcome, as n (%), for the proposed system and ORB-SLAM3 per mode.
+Read only: existing per-sweep errors at 2 s, nothing is run.
+
+Outcome of one sweep (its median error at the US image, absolute):
+  bounded       median <= threshold
+  large error   median >  threshold
+  no pose       no frame of the sweep has a pose (median is NaN)
+
+The threshold has no default: it must be fixed before counting and is not tuned on the test sets.
+
+Blocks:
+  test sweeps   the 63 test sweeps of the paired comparison (sets and folders as in missing_numbers.py),
+                ORB-SLAM3 from the re-scored runs in runs/paper_final/
+  occlusion     P-rearr1 and P-rearr2 (16 sweeps) without occluder, 30 % and 60 %; ORB-SLAM3 from the complete runs
+                of rerun_plan.md section 3 (the three stopped originals are replaced)
+
+  python tools/paper/failure_table.py --threshold <mm>
+  python tools/paper/failure_table.py --threshold <mm> --out runs/paper_final/numbers
+"""
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from missing_numbers import RUNS, SETS  # noqa: E402
+
+WINDOW = "smoothed 2 s"
+SLAM_DIR = RUNS / "paper_final"
+TEST_MODES = [("final", "ORB-SLAM3, full SLAM, refined at shutdown"), ("online", "ORB-SLAM3, full SLAM, as tracked"),
+              ("loc", "ORB-SLAM3, localisation only"), ("reloc", "ORB-SLAM3, each frame relocalised")]
+OCC_MODES = [("online", "ORB-SLAM3, full SLAM, as tracked"), ("loc", "ORB-SLAM3, localisation only"),
+             ("reloc", "ORB-SLAM3, each frame relocalised")]
+OCC_SETS = ["5XXB-exam", "5XXC-exam"]                 # P-rearr1, P-rearr2
+# rerun_plan.md section 3: the original runs stop early; these complete runs replace them
+REPLACED = {("5XXC-exam-occ60", "loc"): RUNS / "slam-5XXC-exam-occ60-loc-r4",
+            ("5XXC-exam-occ60", "reloc"): RUNS / "slam-5XXC-exam-occ60-reloc-r2",
+            ("5XXB-exam-occ60", "reloc"): RUNS / "slam-5XXB-exam-occ60-reloc-r2"}
+
+
+def ours(folder):
+    p = RUNS / folder / "scr_track.json"
+    d = json.load(open(p))["per_sweep"][WINDOW]
+    return [v["us_median"] for v in d.values()], str(p.relative_to(RUNS.parent))
+
+
+def orb(split, mode):
+    folder = REPLACED.get((split, mode), SLAM_DIR / (f"slam-{split}" + ("" if mode == "final" else f"-{mode}")))
+    p = folder / "slam_eval.json"
+    j = json.load(open(p))
+    if j["args"]["smooth"] != 2.0:
+        raise SystemExit(f"{p}: smoothing {j['args']['smooth']} s, expected 2 s")
+    return [v["us_median"] for v in j["sweeps"].values()], str(p.relative_to(RUNS.parent))
+
+
+def count(errors, thr):
+    e = np.asarray(errors, float)
+    none = int(np.sum(~np.isfinite(e)))
+    large = int(np.sum(np.isfinite(e) & (e > thr)))
+    return len(e) - none - large, large, none, len(e)
+
+
+def row(name, c):
+    b, l, z, n = c
+    pct = lambda k: f"{k} ({100 * k / n:.0f}\\,\\%)"
+    return name, n, f"{pct(b)} & {pct(l)} & {pct(z)}"
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--threshold", type=float, required=True, help="large error above this median per sweep (mm)")
+    ap.add_argument("--out", default=None, help="folder for failure_table.md and failure_table.tex")
+    args = ap.parse_args()
+    thr = args.threshold
+
+    blocks, sources = [], []
+
+    # ---- 63 test sweeps
+    rows = []
+    e, s = [], []
+    for name, (split, folder) in SETS.items():
+        v, src = ours(folder)
+        e += v
+        s.append(src)
+    rows.append(row("Proposed, self-mapped", count(e, thr)))
+    sources += s
+    for mode, label in TEST_MODES:
+        e = []
+        for name, (split, folder) in SETS.items():
+            v, src = orb(split, mode)
+            e += v
+            sources.append(src)
+        rows.append(row(label, count(e, thr)))
+    blocks.append(("Test sweeps (63)", rows))
+
+    # ---- occlusion
+    for occ in ["", "-occ30", "-occ60"]:
+        title = {"": "No occluder", "-occ30": "Occluder 30\\,\\% of the image width",
+                 "-occ60": "Occluder 60\\,\\% of the image width"}[occ]
+        rows, e = [], []
+        for sp in OCC_SETS:
+            v, src = ours(f"track-v2map-{sp}{occ}")
+            e += v
+            sources.append(src)
+        rows.append(row("Proposed, self-mapped", count(e, thr)))
+        for mode, label in OCC_MODES:
+            e = []
+            for sp in OCC_SETS:
+                v, src = orb(f"{sp}{occ}", mode)
+                e += v
+                sources.append(src)
+            rows.append(row(label, count(e, thr)))
+        blocks.append((f"{title} (P-rearr1, P-rearr2)", rows))
+
+    md = ["# Sweeps by outcome", "",
+          f"Median error per sweep at the US image, absolute, smoothing 2 s. Bounded: <= {thr:g} mm; large error: "
+          f"> {thr:g} mm; no pose: no frame of the sweep posed. ORB-SLAM3 occluded values are single runs.", ""]
+    tex = [f"% generated by tools/paper/failure_table.py --threshold {thr:g}",
+           f"% columns: system & bounded ($\\le${thr:g}\\,mm) & large error & no pose"]
+    for title, rows in blocks:
+        n = rows[0][1]
+        md += [f"## {title}, n = {n} sweeps", "", "| system | bounded | large error | no pose |", "|---|---|---|---|"]
+        md += [f"| {r[0]} | " + r[2].replace("\\,\\%", " %").replace(" & ", " | ") + " |" for r in rows]
+        md.append("")
+        tex.append(f"\\multicolumn{{4}}{{@{{}}l}}{{\\emph{{{title}, {n} sweeps}}}}\\\\")
+        tex += [f"{r[0]} & {r[2]}\\\\" for r in rows]
+    md += ["Sources:", ""] + [f"- `{x}`" for x in dict.fromkeys(sources)]
+    text = "\n".join(md) + "\n"
+    print(text)
+    print("\n".join(tex))
+    if args.out:
+        out = Path(args.out)
+        out.mkdir(parents=True, exist_ok=True)
+        open(out / "failure_table.md", "w").write(text)
+        open(out / "failure_table.tex", "w").write("\n".join(tex) + "\n")
+
+
+if __name__ == "__main__":
+    main()

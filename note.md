@@ -280,7 +280,23 @@ Pose regression (PoseNet, MapNet, VLocNet, our RPR) stays behind structure-based
 
 
 
+Commands for section 5.4, the same as last time. Checks 1 and 2 read the runs/ folder on the laptop. Check 3 needs the training PC.
 
 
+cd ~/Desktop/US_SCR
+# 1. ORB-SLAM3 jitter on F1-test, 1 s vs 2 s (gives 0.68 and 0.75)
+python -c "import json; [print(f, json.load(open(f))['args']['smooth'], round(sum(v['step_8rows'] for v in json.load(open(f))['sweeps'].values())/5, 2)) for f in ['runs/slam-3XX-loc/slam_eval.json', 'runs/paper_final/slam-3XX-loc/slam_eval.json']]"
+# 2. without loop closures / without correction, mean per window (gives 5.76 and 11.49 at 2 s)
+python -c "import json; [print(r, {w: round(sum(x['us_median'] for x in d.values())/len(d), 2) for w, d in json.load(open('runs/repro/track-v2map-3XX-'+r+'/scr_track.json'))['per_sweep'].items()}) for r in ['noloops', 'nocalib']]"
 
+cd /data2/u0137815/US_SCR
+# 3. smoothing window of the proposed 2.35 / 1.73 next to the classical pipeline on the self-made map
+python -c "import json,glob; f=sorted(glob.glob('runs/volume3d-classical-ourmap/3XX/poses/*scr-track.json'))[0]; print(f); print({k: v for k, v in json.load(open(f)).items() if not isinstance(v, (list, dict))})"
+
+Commands (laptop, read only):
+
+
+cd ~/Desktop/US_SCR
+python tools/paper/gap_check.py --out runs/paper_final/numbers/gap_check.md
+python tools/paper/failure_table.py --threshold <your value in mm> --out runs/paper_final/numbers
 
