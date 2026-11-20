@@ -87,9 +87,9 @@ All 1 s to 2 s replacements: phantom rows in Tables III and IV, seeds, epochs, s
 - State in the text that the anchors use Kabsch.
 
 ### 5.4 Open reads (read-only, no run)
-- Table V jitter of ORB-SLAM3 on F1-test: 0.68 at 1 s, 0.75 at 2 s. Replace after a check.
-- Table V "Classical, self-made map 3.65 / 2.66; proposed 2.35 / 1.73 on the same frames": window not audited. Read first.
-- Table III, "without loop closures": 5.77 in the table, 5.76 ± 1.42 from the per-sweep values at 2 s. Confirm the window of the old value, then use 5.76 ± 1.42, and add 11.49 ± 0.79 for "without correction". B3 with three seeds is **not** needed.
+- Table V jitter of ORB-SLAM3 on F1-test: **checked.** `runs/slam-3XX-loc` (1 s) gives 0.68, `runs/paper_final/slam-3XX-loc` (2 s) gives 0.75. Replace 0.68 by **0.75** (D1).
+- Table V "Classical, self-made map 3.65 / 2.66; proposed 2.35 / 1.73 on the same frames": **checked.** The proposed poses (`runs/volume3d-classical-ourmap/3XX/poses/*scr-track.json`) are "SCR alone on every frame, smoothed 2 s"; the classical rows use their pose graph. Already on one protocol: no change.
+- Table III, "without loop closures": **checked.** Track means (`runs/repro/track-v2map-3XX-noloops`): 5.84 at 1 s, **5.76 at 2 s**. The 5.77 in the table is not from another window (it comes from the shape script on the 2 s exports, `runs/repro/shape-3XX-ablations.md`). Use 5.76 ± 1.42. "Without correction": 11.49 at 2 s (`runs/repro/track-v2map-3XX-nocalib`), as in the table; add ± 0.79. B3 with three seeds is **not** needed.
 - Experiment 6, ORB-SLAM3: "Its poses are smoothed over 1 s" becomes **2 s**.
 - State the smoothing of the odometry, classical, hybrid and SCR rows of Table V (pose graph; oracle map at 2 s).
 - Extend `missing_numbers.py` to read the three complete runs above, then update the numbers in 5.2.
