@@ -238,45 +238,19 @@ runs/paper_final/
 
 
 
-(usrgbd) u0137815@set-d-l626e10ns:/data2/u0137815/US_SCR$ grep -c 'rgbd_online' runs/paper_final/b4_orbslam.sh
-34
-(usrgbd) u0137815@set-d-l626e10ns:/data2/u0137815/US_SCR$ grep SKIP runs/paper_final/b4_orbslam.sh
-if [ -e runs/slam-5XXC-exam-occ60-loc-r4 ]; then echo 'SKIP slam-5XXC-exam-occ60-loc-r4: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXC-exam-occ60-reloc-r2 ]; then echo 'SKIP slam-5XXC-exam-occ60-reloc-r2: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXB-exam-occ60-reloc-r2 ]; then echo 'SKIP slam-5XXB-exam-occ60-reloc-r2: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXB-exam-occ30-loc-r2 ]; then echo 'SKIP slam-5XXB-exam-occ30-loc-r2: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXB-exam-occ30-loc-r3 ]; then echo 'SKIP slam-5XXB-exam-occ30-loc-r3: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXB-exam-occ60-loc-r2 ]; then echo 'SKIP slam-5XXB-exam-occ60-loc-r2: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXB-exam-occ60-loc-r3 ]; then echo 'SKIP slam-5XXB-exam-occ60-loc-r3: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXC-exam-occ30-loc-r2 ]; then echo 'SKIP slam-5XXC-exam-occ30-loc-r2: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXC-exam-occ30-loc-r3 ]; then echo 'SKIP slam-5XXC-exam-occ30-loc-r3: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXC-exam-occ60-loc-r2 ]; then echo 'SKIP slam-5XXC-exam-occ60-loc-r2: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXC-exam-occ60-loc-r3 ]; then echo 'SKIP slam-5XXC-exam-occ60-loc-r3: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-3XX-reloc-r2 ]; then echo 'SKIP slam-3XX-reloc-r2: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-3XX-reloc-r3 ]; then echo 'SKIP slam-3XX-reloc-r3: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-4XXA-reloc-r2 ]; then echo 'SKIP slam-4XXA-reloc-r2: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-4XXA-reloc-r3 ]; then echo 'SKIP slam-4XXA-reloc-r3: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-4XXB-reloc-r2 ]; then echo 'SKIP slam-4XXB-reloc-r2: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-4XXB-reloc-r3 ]; then echo 'SKIP slam-4XXB-reloc-r3: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-4XXC-reloc-r2 ]; then echo 'SKIP slam-4XXC-reloc-r2: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-4XXC-reloc-r3 ]; then echo 'SKIP slam-4XXC-reloc-r3: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-4XXD-reloc-r2 ]; then echo 'SKIP slam-4XXD-reloc-r2: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-4XXD-reloc-r3 ]; then echo 'SKIP slam-4XXD-reloc-r3: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-4XXE-reloc-r2 ]; then echo 'SKIP slam-4XXE-reloc-r2: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-4XXE-reloc-r3 ]; then echo 'SKIP slam-4XXE-reloc-r3: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXA-exam-reloc-r2 ]; then echo 'SKIP slam-5XXA-exam-reloc-r2: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXA-exam-reloc-r3 ]; then echo 'SKIP slam-5XXA-exam-reloc-r3: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXB-exam-reloc-r2 ]; then echo 'SKIP slam-5XXB-exam-reloc-r2: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXB-exam-reloc-r3 ]; then echo 'SKIP slam-5XXB-exam-reloc-r3: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXC-exam-reloc-r2 ]; then echo 'SKIP slam-5XXC-exam-reloc-r2: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXC-exam-reloc-r3 ]; then echo 'SKIP slam-5XXC-exam-reloc-r3: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXD-exam-reloc-r2 ]; then echo 'SKIP slam-5XXD-exam-reloc-r2: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXD-exam-reloc-r3 ]; then echo 'SKIP slam-5XXD-exam-reloc-r3: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXE-exam-reloc-r2 ]; then echo 'SKIP slam-5XXE-exam-reloc-r2: exists'; skipped=$((skipped+1)); else
-if [ -e runs/slam-5XXE-exam-reloc-r3 ]; then echo 'SKIP slam-5XXE-exam-reloc-r3: exists'; skipped=$((skipped+1)); else
-(usrgbd) u0137815@set-d-l626e10ns:/data2/u0137815/US_SCR$ 
+
+On the training PC, in tmux:
+
+cd /data2/u0137815/US_SCR
+git pull
+python tools/paper/make_b4.py --first 11 > runs/paper_final/b4_orbslam.sh
+grep -c '^if \[ -e runs/slam' runs/paper_final/b4_orbslam.sh
+grep 'has no slam_eval' runs/paper_final/b4_orbslam.sh
+The first grep should print 11 and the second nothing.
+
+Run both, one after the other. Training load would disturb ORB-SLAM3's real-time playback, so they shouldn't overlap:
+
+mkdir -p runs/abl
+bash runs/paper_final/b4_orbslam.sh 2>&1 | tee runs/paper_final/b4_orbslam.log; bash tools/paper/ablations.sh 2>&1 | tee runs/abl/ablations.log
 
 
-
-
-   
