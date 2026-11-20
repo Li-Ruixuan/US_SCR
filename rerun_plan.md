@@ -1,6 +1,6 @@
 # Clean re-run plan for the paper numbers (v3)
 
-**Status (2026-11-20):** Tier 0 done on the analysis machine (re-scoring and reading only). Tier 1 not started. See section 0.
+**Status (2026-11-21):** Tier 0 done. Tier 1: B1 done, B2 done, B3 half done, B4 partly done and **paused (decision: no further ORB-SLAM3 runs now)**. See section 0.
 
 ## 0. Progress log (where to pick up)
 
@@ -19,6 +19,11 @@
 | B2 | No re-run needed (recipes do not mix) | section 5 |
 | B3 (half) | SD over sweeps: 5.76 ± 1.42 (no loop closures), 11.49 ± 0.79 (no camera correction) | section 5 |
 | Tier 2 decision | Not needed: largest headline change 0.05 mm (< 0.1 mm trigger) | – |
+| Check 2 (by end time) | Trajectory end of every ORB-SLAM3 run compared with the other modes of the same split: 86 / 89 end with the sequence. **Three stop early:** P-rearr2 60 % `loc` (268 of 579 s), P-rearr2 60 % `reloc` (261 of 579 s), P-rearr1 60 % `reloc` (504 of 549 s; its last sweep is the 39.7 mm worst sweep). The outdated-map runs (`5XXC-oldB`, `5XXE-oldC`) have fewer poses but run to the end (real tracking loss). | `runs/slam-*/online.txt` |
+| B1: near / far anchors, Kabsch (D4) | Done. Pooled over all evaluations: covered 2.8 mm, not covered 6.6 mm (median; old PnP 4.1 / 13.4). Same session (F1-val, F1-test, F2-new, F2-small): covered 3.5, 1.8, 2.9, 4.5 = **1.8–4.5**; not covered 2.7, 2.7, 5.6, 6.0 = **2.7–6.0** (old PnP 2.3–5.6 / 5.7–9.1). On F1-val and F1-test, not covered is not higher than covered (6 and 19 frames not covered) | `runs/paper_final/coverage_error.md`; new evals `runs/v2-4XXA/eval_test_4XX{B,C}_kabsch`, `runs/bigclean-2XX/eval_train_3XX_kabsch` |
+| "87–100 % posed" (occlusion) | Source found: share of frames passing the 400-inlier gate **before smoothing** (`per_sweep["raw"]["coverage_pct"]` of our occluded tracks): P-rearr1 30 % 99.6, 60 % 86.5; P-rearr2 30 % 100, 60 % 97.6. After smoothing 100 % at every window. Not window dependent. | `runs/track-v2map-5XX{B,C}-exam-occ{30,60}/scr_track.json` |
+| B4, part (5 of the planned runs complete, 2 s) | P-rearr2 60 % `loc-r4`: 8 / 8 sweeps posed, mean 2.40, worst 2.7. P-rearr2 60 % `reloc-r2`: 8 / 8 posed, mean 1.81, worst 2.2. P-rearr1 60 % `reloc-r2` (check-2 extra): 8 / 8 posed, mean 1.83, worst 2.9. P-rearr1 30 % `loc-r2`: mean 17.39, worst sweep 127.7 (the 132 mm failure repeats, same sweep position 4). | `runs/slam-5XXC-exam-occ60-{loc-r4,reloc-r2}`, `runs/slam-5XXB-exam-occ60-reloc-r2`, `runs/slam-5XXB-exam-occ30-loc-r2` |
+| B4, incomplete (stopped, not evaluated) | P-rearr1 30 % `loc-r3` stopped at 242 of 549 s; P-rearr1 60 % `loc-r2` stopped at 24 s. Per rule 3 not used; a later B4 run needs new names (`-r4`, `-r3`). | `runs/slam-5XXB-exam-occ30-loc-r3`, `runs/slam-5XXB-exam-occ60-loc-r2` |
 
 **Headline numbers at 2 s (details and all other rows in section 7.1):**
 
@@ -32,24 +37,21 @@
 
 | Value | Why |
 |---|---|
-| ORB-SLAM3 on P-rearr2, 60 % occluded (`slam-5XXC-exam-occ60-loc`, 2 s mean 3.46) | Trajectory on disk is incomplete: 5 of 8 sweeps unposed at 2 s but posed at 1 s (overwritten or crashed run). `-reloc` on the same setting has 3 of 8 sweeps at both windows. Replaced in B4. |
-| "ORB-SLAM3 lower in three of the four occluded settings" | Depends on the row above |
+| ORB-SLAM3 on P-rearr2, 60 % occluded, original `loc` and `reloc` runs (2.65 / 3.46; "3 of 8 sweeps") | Both trajectories stop early (check 2). The 1 s value 2.65 came from a trajectory that is no longer on disk. Complete replacements exist: `loc-r4` 2.40, `reloc-r2` 1.81 with 8 / 8 sweeps. **"Relocalised 3 of 8 sweeps" was a stopped run, not a relocalisation failure: remove the claim.** |
+| ORB-SLAM3 on P-rearr1, 60 % occluded, original `reloc` run (worst sweep 39.7) | Trajectory stops 45 s early, the 39.7 mm sweep is its last one. Complete replacement `reloc-r2`: worst 2.9. **Remove "39.7 mm" from Results and Discussion.** |
+| "ORB-SLAM3 lower in three of the four occluded settings" (localisation only) | Holds with every value on disk: ours 5.15, 5.25, 3.53, 3.86; ORB-SLAM3 17.88, 3.34, 2.46 and 2.65 / 3.46 / 2.40 (r4) on P-rearr2 60 %. Use `loc-r4` for that cell. |
 | ORB-SLAM3 jitter F1-test 0.68 → 0.75 | Rises with the longer window; check before replacing |
-| Near / far anchors 4.1 / 13.4 (and 2.3–5.6 / 5.7–9.1) | Old PnP networks; needs B1 (D4: Kabsch) |
-| "87–100 % of the frames were posed" (occlusion) | Tracks report 100 % at both windows; source of 87 % unknown |
+| Run-to-run spread under occlusion (D3) | Only P-rearr1 30 % has a second complete `loc` run; B4 paused. Report the occluded ORB-SLAM3 values as single runs, and say so. |
 
 ### 0.3 Waiting (in this order)
 
 | # | Task | Where | State |
 |---|---|---|---|
-| 1 | **Check 2**: compare every sweep of the 89 ORB-SLAM3 runs at 1 s and 2 s (posed share, > 0.5 mm change) to find other incomplete trajectories | analysis machine, read only, seconds | command given in the session, not run |
-| 2 | **B4**: 32 ORB-SLAM3 runs (reloc r2/r3 on 11 splits; loc r2/r3 on 4 occluded settings; P-rearr2 60 % loc-r4 and reloc-r2), plus any from check 2 via `--extra NEW=TEMPLATE` | analysis machine (ORB-SLAM3 build is here), 3–5 h, one run after the other | generator `tools/paper/make_b4.py` written; `python tools/paper/make_b4.py > runs/paper_final/b4_orbslam.sh`, check (32 targets, no SKIP), then `nohup bash runs/paper_final/b4_orbslam.sh > runs/paper_final/b4_orbslam.log 2>&1 &` |
-| 3 | After B4: extend `missing_numbers.py` to read the repeats (run-to-run spread) and update section 7.1 | analysis machine | not started |
-| 4 | **B1**: Kabsch evaluation of the final networks on F2-new → F2-small, F2-new → F2-large, F1-val → F1-test, then `coverage_error.py` | training PC (checkpoints) | commands not written |
-| 5 | Find the source of "87–100 % posed" (occlusion) | user | open |
-| 6 | Copy `content.tex` into `paper/` (section 9) | user | open |
-| 7 | Edit `main.tex` / `supp.tex` from section 7.1; old values to `content.tex` | after 5 and 6 | not started |
-| 8 | Optional: B3 with three seeds (training PC); M10 figure (analysis machine) | – | not started |
+| 1 | **B4, paused**: remaining ORB-SLAM3 repeats (occluded `loc` r2/r3 except P-rearr1 30 % r2; `reloc` r2/r3 on the 11 main splits). Generator `tools/paper/make_b4.py` (existing folders are skipped; the two stopped runs need new names) | training PC, one run after the other | paused by decision, 2026-11-21 |
+| 2 | Extend `missing_numbers.py` to read the complete replacement runs (`loc-r4`, the two `reloc-r2`) and update section 7.1 | training PC | not started |
+| 3 | Copy `content.tex` into `paper/` (section 9) | user | open |
+| 4 | Edit `main.tex` / `supp.tex` from section 7.1 and 0.2; old values to `content.tex` | after 3 | not started |
+| 5 | Optional: B3 with three seeds (training PC); M10 figure | – | not started |
 **Scope:** results and tables only. No change to the method code and to existing analysis scripts (`compare_stats.py`, `coverage_error.py`, `slam_baseline.py`), no new experiments, no tuning on test sets. **New analysis code is allowed only under `tools/paper/`** (this is `missing_numbers.py`).
 **Revision:** v3 after the second review: the paired comparison moves into `missing_numbers.py` (`compare_stats.py` hard-codes `runs/`), Tier 0 needs the raw data, D3 and B4 agree, B2 is done and B3 is half done.
 
@@ -175,7 +177,7 @@ Source of the 2 s values: `runs/paper_final/numbers/` (script, all checks passed
 | P-rearr2 none / 30 % / 60 % | 3.11 (5.1), 3.54 (6.1), 3.89 (6.6) | **3.09 (5.0), 3.53 (6.0), 3.86 (6.6)** |
 | Text: increase "0.4--0.9 mm" | 0.43--0.85 | **0.4--0.8 mm** (0.44--0.84) |
 | Text and abstract: "no sweep exceeded 8.5 mm" | 8.5 | **8.4** (claim still holds) |
-| Text: "87--100 % of the frames were posed" | ? | `coverage_pct` is 100 % for all four occluded tracks at both windows: find the source of 87 % before editing |
+| Text: "87--100 % of the frames were posed" | 87--100 % | **"87--100 % of the frames passed the inlier gate; after smoothing, every frame had a pose"** (raw share before smoothing, section 0.1) |
 
 **Unchanged (already 2 s):** F1-test 2.34 / 1.72 (± 0.47); F2 rows and F2 mean 7.92 / 2.69 (± 2.56); F2 oracle rows and 6.48 / 3.17; self-mapped seeds 2.34 / 2.22 / 2.25; oracle seeds 1.85 / 1.95 / 2.12; P-ref exam vs. generic Wilcoxon p = 0.0078 (8 of 8).
 
@@ -207,7 +209,19 @@ Source of the 2 s values: `runs/paper_final/numbers/` (script, all checks passed
 | Other modes, worst sweeps (P-rearr1, 60 %: online / relocalised) | 38.6 / 39.7 | **38.7 / 39.7** |
 | Means, P-rearr1 30 % / 60 %; P-rearr2 30 % / 60 % | – | 17.88 / 3.34; 2.46 / **3.46** |
 | "lower mean in three of the four occluded settings" | 3 of 4 | **3 of 4** (ours 5.15, 5.25, 3.53, 3.86): claim holds |
-| **Check before use:** P-rearr2 60 %, localisation only, mean 2.65 → 3.46 | | Too large for a window change. The 1 s shape file also had only 3 sweeps for P-rearr2 60 % relocalised. Compare per sweep at 1 s and 2 s (unposed frames or gaps near the smoothing window?). |
+| P-rearr2 60 %, localisation only, mean | 2.65 (stopped run) | **2.40** (`loc-r4`, complete, worst 2.7); shape from `runs/slam-5XXC-exam-occ60-loc-r4/shape.md` |
+| P-rearr2 60 %, each frame relocalised | 2.22, "3 of 8 sweeps" (stopped run) | **1.81, 8 of 8 sweeps** (`reloc-r2`); remove "3 of 8" |
+| P-rearr1 60 %, each frame relocalised, worst sweep | 39.7 (stopped run) | **2.9** (`reloc-r2`, mean 1.83); remove "39.7 mm" from Results and Discussion; other modes' worst sweep at 60 %: 38.7 (full SLAM), 13.0 (localisation only) |
+
+**Added after Tier 1 (2026-11-21)**
+
+| Statement | Old | New |
+|---|---|---|
+| Experiments, ORB-SLAM3 paragraph: "Its poses are smoothed over 1\,s." | 1 s | **2 s** (D1) |
+| Results, coverage: same-session anchor error, covered / not covered | 2.3--5.6 / 5.7--9.1 (PnP, earlier networks) | **1.8--4.5 / 2.7--6.0** (Kabsch, final oracle networks; B1) |
+| Supplement: pooled anchor error, covered / not covered | 4.1 / 13.4 (PnP) | **2.8 / 6.6** (Kabsch; B1) |
+| Discussion, coverage: "anchor error was higher away from the room-scan poses (5.7--9.1 vs. 2.3--5.6 mm)" | | Holds pooled (6.6 vs. 2.8) and across sessions, but **not within F1-val and F1-test** (few uncovered frames). Rule 7.5: state it pooled, not per session. |
+| `tab:baselines`, "Classical, self-made map 3.65 / 2.66; proposed 2.35 / 1.73 on the same frames" | | Window not in the audit: read before editing |
 
 **Not changed by the window:** `tab:baselines` rows for odometry, classical, hybrid (own smoothing: pose graph) and SCR with the oracle map (2 s). State their smoothing in the text.
 
@@ -234,11 +248,3 @@ runs/paper_final/
   numbers/               missing_numbers.json, missing_numbers_report.md
   coverage_error.md
 ```
-
-
-
-
-cd /data2/u0137815/US_SCR
-git pull
-mkdir -p runs/abl
-bash tools/paper/ablations.sh 2>&1 | tee runs/abl/ablations.log
