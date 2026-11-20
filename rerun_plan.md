@@ -56,8 +56,9 @@ No new ORB-SLAM3 runs. The claims use only complete runs that are already on dis
 | P-rearr2, 60 %, each frame relocalised | stops at 261 of 579 s ("3 of 8 sweeps") | `reloc-r2`: 8 / 8, mean 1.81, worst 2.2 |
 | P-rearr1, 60 %, each frame relocalised | stops at 504 of 549 s (39.7 mm is its last sweep) | `reloc-r2`: 8 / 8, mean 1.83, worst 2.9 |
 
-- **Stopped runs, not used:** P-rearr1 30 % `loc-r3` (242 of 549 s) and P-rearr1 60 % `loc-r2` (24 s). They are not repeated. If the folders get in the way, delete or rename them.
-- **`runs/abl/`:** no usable result, and nothing in the paper depends on it.
+- **Stopped runs, not used:** P-rearr1 30 % `loc-r3` (242 of 549 s) and P-rearr1 60 % `loc-r2` (24 s). They are not repeated. **Removed** from `runs/` (still in git history).
+- **`runs/abl/`:** no usable result, and nothing in the paper depends on it. **Removed** from `runs/` (still in git history).
+- **Kept for now (decision open):** the three stopped originals in the table above and their re-scored copies in `runs/paper_final/`; `runs/paper_final/b4_orbslam.{sh,log}`.
 
 ## 4. Rules
 
@@ -92,7 +93,8 @@ All 1 s to 2 s replacements: phantom rows in Tables III and IV, seeds, epochs, s
 - Table III, "without loop closures": **checked.** Track means (`runs/repro/track-v2map-3XX-noloops`): 5.84 at 1 s, **5.76 at 2 s**. The 5.77 in the table is not from another window (it comes from the shape script on the 2 s exports, `runs/repro/shape-3XX-ablations.md`). Use 5.76 ± 1.42. "Without correction": 11.49 at 2 s (`runs/repro/track-v2map-3XX-nocalib`), as in the table; add ± 0.79. B3 with three seeds is **not** needed.
 - Experiment 6, ORB-SLAM3: "Its poses are smoothed over 1 s" becomes **2 s**.
 - State the smoothing of the odometry, classical, hybrid and SCR rows of Table V (pose graph; oracle map at 2 s).
-- Extend `missing_numbers.py` to read the three complete runs above, then update the numbers in 5.2.
+- Extend `missing_numbers.py` to read the three complete runs above: **done** (item M11, training PC, all checks ok, `runs/paper_final/numbers/missing_numbers_report.md`). M11 confirms every number in 5.2: 3 of 4 settings, ours +0.44--0.84 mm, worst sweep 8.4 mm, 86.5--100 % passed the gate; ORB-SLAM3 at 60 % on P-rearr1: worst 38.7 (full SLAM), 13.0 (localisation only), 2.9 (each frame relocalised, `reloc-r2`); 8 / 8 sweeps posed in every ORB-SLAM3 setting.
+- **Note:** M4 in the same report is still the old PnP lookup (pooled 4.1 / 13.4). The Kabsch values of 5.3 are in `runs/paper_final/coverage_error.md`, not in the report. Decision open: update M4 or use `coverage_error.md`.
 
 ### 5.5 Files
 - Copy `content.tex` into `paper/` (it is not in the repository yet).
@@ -118,6 +120,13 @@ About 60 cells are `--`. They fall into three groups. No group needs an ORB-SLAM
 
 Step: write `tools/paper/gap_check.py`. It lists every `--` cell and says whether its source file exists. Then fill the cells that exist.
 
+**Done:** `tools/paper/gap_check.py` written and run on the `main.tex` in the repository (`runs/paper_final/numbers/gap_check.md`). 86 cells: A 40, B 10, C 27, no rule 9.
+- B, values found: Table IV Map err. of the F2 rows 4.8 (F2-new), 3.0 (F2-small), 3.4 (F2-large; F2-subj2 and F2-arm use its scans), mean 3.6 (`runs/map-4XX{A,B,C}/map_report.md`, pose graph, camera position, the same measure as P-ref's 2.7). Table V jitter on F2: proposed 1.09, ORB-SLAM3 localisation only 0.82 (step over 8 rows, 2 s, mean of the 5 sets). Table V proposed on F1-val: 8.06 (`runs/track-v2map-2XX`, 2 s).
+- B, not yet: Cov. of "P-ref, scanned after the sweeps": poses exist, the coverage needs the coverage script (`rgbd-us/tools/check_coverage.py`, not in this repository).
+- Answers to the checks in the table above: the F2 map errors were logged. F1-val is **not** among the ORB-SLAM3 splits (no `runs/slam-2XX*`): those cells are group C, dropped under D3.
+- C: only P-ref has oracle networks (`v2-5XXA-exam`, `v2-5XXA-generic`). The oracle cells of the other phantom sets would need training, not only inference.
+- No rule (9 cells, Table V): odometry jitter; pose regression F1-val, shape, strict, jitter (`runs/sys-learned-2XX` exists, not checked); hybrid shape, strict; classical self-made map strict, jitter.
+
 **C. Real gaps (a run is needed, never ORB-SLAM3).**
 | Gap | Run | Decision |
 |---|---|---|
@@ -128,6 +137,8 @@ Step: write `tools/paper/gap_check.py`. It lists every `--` cell and says whethe
 ### 5.7 New failure table (no run)
 
 Sweeps by outcome for the proposed system and ORB-SLAM3 per mode, as `n (%)`: bounded, large error, no pose. Source: existing per-sweep errors, including the 89 re-scored runs. The threshold for "large error" is fixed before counting and is not tuned on the test sets. Script: `tools/paper/failure_table.py`, which writes the LaTeX rows. Keep the total at 5 tables, so it replaces rows of Table V rather than adding a sixth table.
+
+**State:** `tools/paper/failure_table.py` written; tested only with a meaningless threshold and the counts hidden. **Waiting for the threshold** (no default; `--threshold` is required). Blocks: the 63 test sweeps (ours; ORB-SLAM3 full SLAM refined and as tracked, localisation only, each frame relocalised) and occlusion (P-rearr1 + P-rearr2, none / 30 % / 60 %, with the complete runs of section 3). Command: `python tools/paper/failure_table.py --threshold <mm> --out runs/paper_final/numbers`.
 
 ## 6. Where to run
 
