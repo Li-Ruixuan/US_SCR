@@ -238,45 +238,45 @@ runs/paper_final/
 
 
 
+(usrgbd) u0137815@set-d-l626e10ns:/data2/u0137815/US_SCR$ grep -c 'rgbd_online' runs/paper_final/b4_orbslam.sh
+34
+(usrgbd) u0137815@set-d-l626e10ns:/data2/u0137815/US_SCR$ grep SKIP runs/paper_final/b4_orbslam.sh
+if [ -e runs/slam-5XXC-exam-occ60-loc-r4 ]; then echo 'SKIP slam-5XXC-exam-occ60-loc-r4: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXC-exam-occ60-reloc-r2 ]; then echo 'SKIP slam-5XXC-exam-occ60-reloc-r2: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXB-exam-occ60-reloc-r2 ]; then echo 'SKIP slam-5XXB-exam-occ60-reloc-r2: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXB-exam-occ30-loc-r2 ]; then echo 'SKIP slam-5XXB-exam-occ30-loc-r2: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXB-exam-occ30-loc-r3 ]; then echo 'SKIP slam-5XXB-exam-occ30-loc-r3: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXB-exam-occ60-loc-r2 ]; then echo 'SKIP slam-5XXB-exam-occ60-loc-r2: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXB-exam-occ60-loc-r3 ]; then echo 'SKIP slam-5XXB-exam-occ60-loc-r3: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXC-exam-occ30-loc-r2 ]; then echo 'SKIP slam-5XXC-exam-occ30-loc-r2: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXC-exam-occ30-loc-r3 ]; then echo 'SKIP slam-5XXC-exam-occ30-loc-r3: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXC-exam-occ60-loc-r2 ]; then echo 'SKIP slam-5XXC-exam-occ60-loc-r2: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXC-exam-occ60-loc-r3 ]; then echo 'SKIP slam-5XXC-exam-occ60-loc-r3: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-3XX-reloc-r2 ]; then echo 'SKIP slam-3XX-reloc-r2: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-3XX-reloc-r3 ]; then echo 'SKIP slam-3XX-reloc-r3: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-4XXA-reloc-r2 ]; then echo 'SKIP slam-4XXA-reloc-r2: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-4XXA-reloc-r3 ]; then echo 'SKIP slam-4XXA-reloc-r3: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-4XXB-reloc-r2 ]; then echo 'SKIP slam-4XXB-reloc-r2: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-4XXB-reloc-r3 ]; then echo 'SKIP slam-4XXB-reloc-r3: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-4XXC-reloc-r2 ]; then echo 'SKIP slam-4XXC-reloc-r2: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-4XXC-reloc-r3 ]; then echo 'SKIP slam-4XXC-reloc-r3: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-4XXD-reloc-r2 ]; then echo 'SKIP slam-4XXD-reloc-r2: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-4XXD-reloc-r3 ]; then echo 'SKIP slam-4XXD-reloc-r3: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-4XXE-reloc-r2 ]; then echo 'SKIP slam-4XXE-reloc-r2: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-4XXE-reloc-r3 ]; then echo 'SKIP slam-4XXE-reloc-r3: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXA-exam-reloc-r2 ]; then echo 'SKIP slam-5XXA-exam-reloc-r2: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXA-exam-reloc-r3 ]; then echo 'SKIP slam-5XXA-exam-reloc-r3: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXB-exam-reloc-r2 ]; then echo 'SKIP slam-5XXB-exam-reloc-r2: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXB-exam-reloc-r3 ]; then echo 'SKIP slam-5XXB-exam-reloc-r3: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXC-exam-reloc-r2 ]; then echo 'SKIP slam-5XXC-exam-reloc-r2: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXC-exam-reloc-r3 ]; then echo 'SKIP slam-5XXC-exam-reloc-r3: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXD-exam-reloc-r2 ]; then echo 'SKIP slam-5XXD-exam-reloc-r2: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXD-exam-reloc-r3 ]; then echo 'SKIP slam-5XXD-exam-reloc-r3: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXE-exam-reloc-r2 ]; then echo 'SKIP slam-5XXE-exam-reloc-r2: exists'; skipped=$((skipped+1)); else
+if [ -e runs/slam-5XXE-exam-reloc-r3 ]; then echo 'SKIP slam-5XXE-exam-reloc-r3: exists'; skipped=$((skipped+1)); else
+(usrgbd) u0137815@set-d-l626e10ns:/data2/u0137815/US_SCR$ 
 
 
-2. On the training PC: update the repo and start a tmux session, because step 4 takes 4–5 h.
 
 
-tmux new -s b4
-cd /data2/u0137815/US_SCR
-conda activate usrgbd
-git pull
-3. B1: near/far anchors with Kabsch (GPU, minutes). These finish before ORB-SLAM3 starts, so they don't compete for the CPU. They write new eval_*_kabsch folders and overwrite nothing. bigclean-2XX is the F1-val oracle network behind the 3.35 mm value in the paper.
-
-
-python scr_anchor.py eval --ckpt runs/v2-4XXA/best.pt --test-root /data2/u0137815/rgbd-us/data/test_4XXB --solver kabsch
-python scr_anchor.py eval --ckpt runs/v2-4XXA/best.pt --test-root /data2/u0137815/rgbd-us/data/test_4XXC --solver kabsch
-python scr_anchor.py eval --ckpt runs/bigclean-2XX/best.pt --test-root /data2/u0137815/rgbd-us/data/train_3XX --solver kabsch
-python tools/coverage_error.py runs/v2-3XX/eval_train_3XX_kabsch/scr_eval.json runs/v2-4XX?/eval_test_4XX?_kabsch/scr_eval.json runs/bigclean-2XX/eval_*_kabsch/scr_eval.json --out runs/paper_final/coverage_error.md
-4. B4: generate the ORB-SLAM3 script and check it.
-
-
-python tools/paper/make_b4.py > runs/paper_final/b4_orbslam.sh
-grep -c 'rgbd_online' runs/paper_final/b4_orbslam.sh
-grep SKIP runs/paper_final/b4_orbslam.sh
-The first grep should print 33 and the second should print nothing. If not, stop and send me the output.
-
-5. Run it.
-
-
-bash runs/paper_final/b4_orbslam.sh 2>&1 | tee runs/paper_final/b4_orbslam.log
-The runs play in real time, one after the other, so don't start other CPU-heavy work on that machine meanwhile. Detach with Ctrl-b d and come back with tmux attach -t b4. The script checks every run for completeness, flags a run that stops early as INCOMPLETE and doesn't repeat it.
-
-6. When it finishes, send me:
-
-
-tail -40 runs/paper_final/b4_orbslam.log
-grep -E 'INCOMPLETE|SKIP' runs/paper_final/b4_orbslam.log
-cat runs/paper_final/coverage_error.md
-
-
-
-
-
-
+   

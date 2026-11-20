@@ -1,0 +1,13 @@
+slam-5XXC-exam-occ60-reloc-r2 run-517 orbslam3: absolute 1.59, shape 1.01, in_1 0.03, out_1 0.06, true_out_1 0.19, in_8 0.19, out_8 0.20, true_out_8 1.49, in_30 0.40, out_30 0.38, true_out_30 5.47
+slam-5XXC-exam-occ60-reloc-r2 run-518 orbslam3: absolute 1.67, shape 0.82, in_1 0.03, out_1 0.06, true_out_1 0.15, in_8 0.17, out_8 0.19, true_out_8 1.28, in_30 0.41, out_30 0.39, true_out_30 4.82
+slam-5XXC-exam-occ60-reloc-r2 run-519 orbslam3: absolute 1.51, shape 1.21, in_1 0.04, out_1 0.06, true_out_1 0.21, in_8 0.22, out_8 0.21, true_out_8 1.66, in_30 0.55, out_30 0.43, true_out_30 6.40
+slam-5XXC-exam-occ60-reloc-r2 run-520 orbslam3: absolute 1.88, shape 1.60, in_1 0.05, out_1 0.07, true_out_1 0.24, in_8 0.34, out_8 0.29, true_out_8 1.92, in_30 0.89, out_30 0.74, true_out_30 7.03
+slam-5XXC-exam-occ60-reloc-r2 run-521 orbslam3: absolute 1.84, shape 1.11, in_1 0.04, out_1 0.06, true_out_1 0.20, in_8 0.20, out_8 0.22, true_out_8 1.61, in_30 0.50, out_30 0.48, true_out_30 5.98
+slam-5XXC-exam-occ60-reloc-r2 run-522 orbslam3: absolute 1.69, shape 1.15, in_1 0.04, out_1 0.07, true_out_1 0.27, in_8 0.18, out_8 0.24, true_out_8 2.11, in_30 0.44, out_30 0.46, true_out_30 7.88
+slam-5XXC-exam-occ60-reloc-r2 run-523 orbslam3: absolute 2.20, shape 2.17, in_1 0.06, out_1 0.08, true_out_1 0.22, in_8 0.33, out_8 0.42, true_out_8 1.71, in_30 0.89, out_30 1.14, true_out_30 6.43
+slam-5XXC-exam-occ60-reloc-r2 run-524 orbslam3: absolute 2.11, shape 1.73, in_1 0.04, out_1 0.06, true_out_1 0.23, in_8 0.23, out_8 0.22, true_out_8 2.04, in_30 0.58, out_30 0.44, true_out_30 7.76
+
+| split | source | sweeps | absolute | **shape** | k = 1: in / **out** (true) | k = 8: in / **out** (true) | k = 30: in / **out** (true) |
+|---|---|---|---|---|---|---|---|
+| slam-5XXC-exam-occ60-reloc-r2 | orbslam3 | 8 | 1.81 | **1.35** | 0.04 / **0.06** (0.2) | 0.23 / **0.25** (1.7) | 0.58 / **0.56** (6.5) |
+-> runs/slam-5XXC-exam-occ60-reloc-r2/shape.md

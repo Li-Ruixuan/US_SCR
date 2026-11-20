@@ -1,0 +1,40 @@
+  room-507: 2649 rows, 2649 usable (0 skipped), 1 segments (0 time jumps, 0 spikes > 6.71 mm)
+  run-517: 1773 rows, 1771 usable (2 skipped), 1 segments (0 time jumps, 0 spikes > 4.12 mm)
+  run-518: 1782 rows, 1780 usable (2 skipped), 1 segments (0 time jumps, 0 spikes > 2.94 mm)
+  run-519: 1782 rows, 1771 usable (11 skipped), 1 segments (0 time jumps, 0 spikes > 3.31 mm)
+  run-520: 1779 rows, 1773 usable (6 skipped), 1 segments (0 time jumps, 0 spikes > 4.58 mm)
+  run-521: 1782 rows, 1773 usable (9 skipped), 1 segments (0 time jumps, 0 spikes > 4.65 mm)
+  run-522: 1775 rows, 1769 usable (6 skipped), 1 segments (0 time jumps, 0 spikes > 3.40 mm)
+  run-523: 1781 rows, 1774 usable (7 skipped), 2 segments (1 time jumps, 0 spikes > 8.22 mm)
+  run-524: 1777 rows, 1771 usable (6 skipped), 1 segments (0 time jumps, 0 spikes > 5.00 mm)
+16873 poses in runs/slam-5XXC-exam-occ60-loc-r4/online.txt, 16873 matched to the sequence's frames
+  run-517: US median 2.30 mm, 100 % of frames with a pose
+  run-518: US median 2.39 mm, 100 % of frames with a pose
+  run-519: US median 2.52 mm, 100 % of frames with a pose
+  run-520: US median 2.31 mm, 100 % of frames with a pose
+  run-521: US median 2.74 mm, 100 % of frames with a pose
+  run-522: US median 2.29 mm, 100 % of frames with a pose
+  run-523: US median 2.32 mm, 100 % of frames with a pose
+  run-524: US median 2.30 mm, 100 % of frames with a pose
+# RGB-D SLAM baseline: test_5XXC (`runs/slam-5XXC-exam-occ60-loc-r4/online.txt`)
+
+One alignment of the session and the camera calibration (fixed from `runs/slam-3XX/slam_eval.json`) from the room-scan frames (room-507) against Polaris; the sweeps are not used for the fit. Smoothing: 2 s.
+
+| room scan: frames with a pose | scene points at 1 m (median / p90) | camera position | rotation | 1 s motion (median / p90) |
+|---|---|---|---|---|
+| 100 % | 3.3 / 6.3 | 1.6 | 0.23 | 1.2 / 3.3 |
+
+| sweep | US image median | p90 | frames with a pose | step, 8 rows |
+|---|---|---|---|---|
+| run-517 | 2.30 | 6.00 | 100 % | 0.58 |
+| run-518 | 2.39 | 4.88 | 100 % | 0.41 |
+| run-519 | 2.52 | 41.69 | 100 % | 1.16 |
+| run-520 | 2.31 | 7.48 | 100 % | 1.00 |
+| run-521 | 2.74 | 7.19 | 100 % | 0.65 |
+| run-522 | 2.29 | 5.52 | 100 % | 0.56 |
+| run-523 | 2.32 | 5.62 | 100 % | 0.94 |
+| run-524 | 2.30 | 5.52 | 100 % | 0.74 |
+| **mean** | **2.40** | 10.49 | 100 % | 0.76 |
+
+Shape: `python tools/us_analysis.py shape --json runs/slam-5XXC-exam-occ60-loc-r4/poses/*.json --out runs/slam-5XXC-exam-occ60-loc-r4/shape.md`
+-> runs/slam-5XXC-exam-occ60-loc-r4/slam_eval.md
