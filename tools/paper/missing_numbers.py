@@ -401,6 +401,78 @@ def m9():
         "lookup done by hand on 2026-11-20 (missing_numbers.md, 5.1)")
 
 
+OCC_SETS = {"P-rearr1": "5XXB-exam", "P-rearr2": "5XXC-exam"}
+OCC_LEVELS = {"none": "", "30 %": "-occ30", "60 %": "-occ60"}
+OCC_MODES = ["online", "loc", "reloc"]
+# rerun_plan.md section 3: these original runs stop before the end of the sequence; complete runs replace them
+OCC_REPLACED = {("5XXC-exam-occ60", "loc"): "slam-5XXC-exam-occ60-loc-r4",
+                ("5XXC-exam-occ60", "reloc"): "slam-5XXC-exam-occ60-reloc-r2",
+                ("5XXB-exam-occ60", "reloc"): "slam-5XXB-exam-occ60-reloc-r2"}
+# 2 s values of rerun_plan.md (section 7.1 of v3) that the item must reproduce before it reports
+OCC_CHECK_OURS = {("P-rearr1", "30 %"): 5.15, ("P-rearr1", "60 %"): 5.25,
+                  ("P-rearr2", "30 %"): 3.53, ("P-rearr2", "60 %"): 3.86}
+OCC_CHECK_ORB_LOC = {("P-rearr1", "30 %"): 17.88, ("P-rearr1", "60 %"): 3.34, ("P-rearr2", "30 %"): 2.46}
+
+
+def occ_shape(path, key):
+    d = json.load(open(path))["sweeps"].get(key)
+    return None if d is None else float(np.mean([v["shape"] for v in d.values()]))
+
+
+def m11(window, slam_dir):
+    """Occlusion, P-rearr1 and P-rearr2: ours and ORB-SLAM3 (full SLAM as tracked, localisation only, each frame
+    relocalised) per occluder width; mean of per-sweep medians, worst sweep, shape, sweeps posed. ORB-SLAM3 values
+    are single runs; the three stopped originals are replaced by the complete runs of rerun_plan.md section 3."""
+    files, vals_, exp, got = [], {}, {}, {}
+    ours_shape = RUNS / "paper_final" / "shape-occ-ours.json"
+    files.append(rel(ours_shape))
+    for name, sp in OCC_SETS.items():
+        for lev, suf in OCC_LEVELS.items():
+            folder = f"track-v2map-{sp}{suf}"
+            files.append(f"runs/{folder}/scr_track.json")
+            e = vals(track(folder, window))
+            raw = json.load(open(RUNS / folder / "scr_track.json"))["per_sweep"]["raw"]
+            rec = {"ours": {"mean": float(np.nanmean(e)), "worst": float(np.nanmax(e)),
+                            "shape": occ_shape(ours_shape, f"{folder}|scr-track"),
+                            "passed_gate_pct": float(np.mean([v["coverage_pct"] for v in raw.values()]))}}
+            if (name, lev) in OCC_CHECK_OURS:
+                exp[f"ours {name} {lev}"] = OCC_CHECK_OURS[(name, lev)]
+                got[f"ours {name} {lev}"] = round(float(np.mean(vals(track(folder, 2.0)))), 2)
+            for mode in OCC_MODES:
+                split = f"{sp}{suf}"
+                sub = OCC_REPLACED.get((split, mode))
+                d = (RUNS / sub) if sub else (slam_dir / f"slam-{split}-{mode}")
+                p = d / "slam_eval.json"
+                files.append(rel(p))
+                j = json.load(open(p))
+                if j["args"]["smooth"] != window:
+                    return failed("M11", f"smoothing {window:g} s", f"{rel(p)}: {j['args']['smooth']} s", files)
+                s = np.array([v["us_median"] for v in j["sweeps"].values()], float)
+                posed = int(np.sum(np.isfinite(s)))
+                if sub and posed != len(s):
+                    return failed("M11", "replacement run with every sweep posed", f"{sub}: {posed} / {len(s)}", files)
+                rec[mode] = {"mean": float(np.nanmean(s)) if posed else None,
+                             "worst": float(np.nanmax(s)) if posed else None,
+                             "shape": occ_shape(d / "shape.json", f"{d.name}|orbslam3") if (d / "shape.json").exists() else None,
+                             "sweeps_posed": f"{posed} / {len(s)}", "run": d.name}
+                if mode == "loc" and (name, lev) in OCC_CHECK_ORB_LOC:
+                    exp[f"loc {name} {lev}"] = OCC_CHECK_ORB_LOC[(name, lev)]
+                    got[f"loc {name} {lev}"] = round(rec[mode]["mean"], 2)
+            vals_[f"{name}, {lev}"] = rec
+    if any(abs(got[k] - exp[k]) > 0.005 for k in exp):
+        return failed("M11", exp, got, files)
+    occluded = [k for k in vals_ if not k.endswith("none")]
+    lower = [k for k in occluded if vals_[k]["loc"]["mean"] is not None and vals_[k]["loc"]["mean"] < vals_[k]["ours"]["mean"]]
+    latex = {"ORB-SLAM3 localisation only lower mean": f"{len(lower)} of {len(occluded)} occluded settings ({', '.join(lower)})",
+             "ours, increase over no occluder": ", ".join(
+                 f"{k}: +{vals_[k]['ours']['mean'] - vals_[k.split(',')[0] + ', none']['ours']['mean']:.2f}" for k in occluded),
+             "ours, worst sweep": f"{max(vals_[k]['ours']['worst'] for k in occluded):.1f}",
+             "ours, passed the inlier gate": f"{min(vals_[k]['ours']['passed_gate_pct'] for k in occluded):.1f}--"
+                                             f"{max(vals_[k]['ours']['passed_gate_pct'] for k in occluded):.1f} %"}
+    return entry("M11", vals_, len(occluded), exp, got, True, sorted(set(files)), latex,
+                 f"window {window:g} s; ORB-SLAM3 single runs; replaced: {', '.join(OCC_REPLACED.values())}")
+
+
 # ---------------------------------------------------------------- report
 
 def fmt(x):
@@ -432,6 +504,7 @@ def main():
     items.append(m8(args.window, slam_dir, out))
     items.append(m9())
     items.append(entry("M10", "not run (optional)", None, None, None, None, ["runs/polaris-track.md"], None))
+    items.append(m11(args.window, slam_dir))
 
     (out / "missing_numbers.json").write_text(json.dumps(items, indent=2, default=float) + "\n")
     md = [f"# Missing numbers (window {args.window:g} s, ORB-SLAM3 from `{rel(slam_dir)}`)", "",

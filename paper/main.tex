@@ -59,7 +59,7 @@
 \maketitle
 
 \begin{abstract}
-\textcolor{cyan}{Objective:} Freehand three-dimensional (3D) ultrasound (US) requires the six-degree-of-freedom pose of every image, usually from an external tracker. This paper investigates whether a probe-mounted RGB-D camera alone can track the probe, and when it suffices for 3D compounding. \textcolor{cyan}{Methods:} The operator first scans the room with the probe camera (1--2\,min). One scene coordinate regression network learns the room from this scan without a tracker: it labels its own training data and localises each frame by a Kabsch RANSAC fit to the measured depth. Experiments used 63 test sweeps in one room, 32 on a phantom with controlled room changes and 31 on the forearms of two volunteers, against an optical tracker. \textcolor{cyan}{Results:} With a room scan covering the examination views in a furnished room, the error was 2.2--3.1\,mm (shape 1.7--1.9\,mm), 0.3--0.5\,mm above the same network trained on tracker poses; in an emptied room it was 5.85\,mm. A scan missing these views raised the error on the same sweeps from 2.28 to 13.57\,mm. With an occluder covering 30--60\,\% of the image width, the mean error rose by at most 0.9\,mm (no sweep above 8.5\,mm), whereas ORB-SLAM3, more accurate on most sweeps, lost single sweeps by 13--132\,mm while reporting tracking. \textcolor{cyan}{Conclusion:} Self-mapped per-frame localisation is a feasible tracker-free alternative when the room scan covers the examination views, with a bounded error and detectable failures. \textcolor{cyan}{Significance:} It removes external tracking hardware; its operating conditions give a scanning protocol with pre-examination checks.
+\textcolor{cyan}{Objective:} Freehand three-dimensional (3D) ultrasound (US) requires the six-degree-of-freedom pose of every image, usually from an external tracker. This paper investigates whether a probe-mounted RGB-D camera alone can track the probe, and when it suffices for 3D compounding. \textcolor{cyan}{Methods:} The operator first scans the room with the probe camera (1--2\,min). One scene coordinate regression network learns the room from this scan without a tracker: it labels its own training data and localises each frame by a Kabsch RANSAC fit to the measured depth. Experiments used 63 test sweeps in one room, 32 on a phantom with controlled room changes and 31 on the forearms of two volunteers, against an optical tracker. \textcolor{cyan}{Results:} With a room scan covering the examination views in a furnished room, the error was 2.2--3.1\,mm (shape 1.7--1.9\,mm), 0.3--0.5\,mm above the same network trained on tracker poses; in an emptied room it was 5.86\,mm. A scan missing these views raised the error on the same sweeps from 2.26 to 13.57\,mm. With an occluder covering 30--60\,\% of the image width, the mean error rose by at most 0.8\,mm (no sweep above 8.4\,mm), whereas ORB-SLAM3, more accurate on most sweeps, lost single sweeps by 13--132\,mm while reporting tracking. \textcolor{cyan}{Conclusion:} Self-mapped per-frame localisation is a feasible tracker-free alternative when the room scan covers the examination views, with a bounded error and detectable failures. \textcolor{cyan}{Significance:} It removes external tracking hardware; its operating conditions give a scanning protocol with pre-examination checks.
 \end{abstract}
 
 
@@ -414,17 +414,17 @@ The absolute and shape errors are used in all experiments, and metrics 3--6 in e
     Configuration & Data & $n$ & Metric & Value & Ref. & Map err. & Seeds\\
     \midrule
     \multicolumn{8}{@{}l}{\emph{Accuracy, covering room scans}}\\
-    Proposed, exam-view scan & \Pref{}    & 8 & abs./shape & 2.28 $\pm$ 0.38 / 1.90 & 1.85 / 1.67 & 2.7 & 2.26 $\pm$ 0.03\\
-     & \Prearra{} & 8 & abs./shape & 4.43 $\pm$ 0.92 / 2.81 & -- & 2.4 & 4.20 $\pm$ 0.23\\
-     & \Prearrb{} & 8 & abs./shape & 3.11 $\pm$ 0.96 / 1.76 & -- & 2.2 & 3.17 $\pm$ 0.12\\
-     & \Ppeople{} & 4 & abs./shape & 2.24 $\pm$ 0.25 / 1.70 & -- & 2.2 & 2.22 $\pm$ 0.03\\
-     & \Pempty{}  & 4 & abs./shape & 5.85 $\pm$ 1.06 / 3.04 & -- & 4.3 & 6.00 $\pm$ 0.27\\
+    Proposed, exam-view scan & \Pref{}    & 8 & abs./shape & 2.26 $\pm$ 0.38 / 1.90 & 1.81 / 1.67 & 2.7 & 2.23 $\pm$ 0.03\\
+     & \Prearra{} & 8 & abs./shape & 4.41 $\pm$ 0.92 / 2.81 & -- & 2.4 & 4.19 $\pm$ 0.22\\
+     & \Prearrb{} & 8 & abs./shape & 3.09 $\pm$ 0.93 / 1.76 & -- & 2.2 & 3.14 $\pm$ 0.12\\
+     & \Ppeople{} & 4 & abs./shape & 2.19 $\pm$ 0.25 / 1.70 & -- & 2.2 & 2.19 $\pm$ 0.03\\
+     & \Pempty{}  & 4 & abs./shape & 5.86 $\pm$ 1.06 / 3.04 & -- & 4.3 & 6.00 $\pm$ 0.25\\
     Proposed, own scans & \Ftest{} & 5 & abs./shape & 2.34 $\pm$ 0.47 / 1.72 & 1.85 / 1.57 & 2.0 & 2.27\\
     \quad strict protocol & \Ftest{} & 5 & abs. & 2.94 & 2.98 & -- & --\\
     \quad real time / causal & \Ftest{} & 5 & abs. & 2.34 / 2.42 & -- & -- & --\\
     \midrule
     \multicolumn{8}{@{}l}{\emph{Ablations, one component changed at a time}}\\
-    Epochs 20/40/80/120 & \Pref{} & 8 & abs. & 2.53/2.34/2.37/2.28 & -- & -- & --\\
+    Epochs 20/40/80/120 & \Pref{} & 8 & abs. & 2.53/2.31/2.34/2.26 & -- & -- & --\\
     Without loop closures & \Ftest{} & 5 & abs./shape & 5.77 / 3.18 & 2.34 / 1.72 & -- & --\\
     Without correction $\Tcorr$ & \Ftest{} & 5 & abs./shape & 11.49 / 4.08 & 2.34 / 1.72 & -- & --\\
     $\Tcorr$ refitted per session & \Ftwo{}$^{c}$ & 4, 6 & abs. & 7.87, 9.58 & 9.40, 11.54 & -- & --\\
@@ -449,9 +449,9 @@ Headline errors are given as mean $\pm$ standard deviation (SD) over sweeps, or 
 
 \subsection{Accuracy With Covering Room Scans}
 \label{sec:res_main}\label{sec:res_phantom}\label{sec:res_forearm}
-The upper part of Table~\ref{tab:test} summarises the accuracy with room scans that cover the examination views. On the phantom, with the exam-view scans, the absolute error was $2.28\pm0.38$, $4.43\pm0.92$, $3.11\pm0.96$, $2.24\pm0.25$ and $5.85\pm1.06$\,mm on \Pref{}, \Prearra{}, \Prearrb{}, \Ppeople{} and \Pempty{}, and the shape error ranged from 1.70 to 3.04\,mm. The two largest errors occurred on \Prearra{}, whose exam-view scan covered only 75\,\% of the sweep viewpoints, and on the emptied room \Pempty{}. On \Pref{}, the oracle map reached 1.85 / 1.67\,mm. On the forearm, \Ftest{}, the proposed system reached 2.34 / 1.72\,mm (absolute $2.34\pm0.47$\,mm) and the oracle map 1.85 / 1.57\,mm. Every frame was posed. Between nearby frames, the self-made and the oracle map gave the same out-of-plane error (0.37 / 0.62\,mm over 8 / 30 rows). Fig.~\ref{fig:volume_snew}a,b shows an \Ftest{} sweep. Thus, with a covering scan in a furnished room (\Pref{}, \Prearrb{}, \Ppeople{} and \Ftest{}), the error was 2.2--3.1\,mm, and self-mapping cost 0.3--0.5\,mm over the oracle map.
+The upper part of Table~\ref{tab:test} summarises the accuracy with room scans that cover the examination views. On the phantom, with the exam-view scans, the absolute error was $2.26\pm0.38$, $4.41\pm0.92$, $3.09\pm0.93$, $2.19\pm0.25$ and $5.86\pm1.06$\,mm on \Pref{}, \Prearra{}, \Prearrb{}, \Ppeople{} and \Pempty{}, and the shape error ranged from 1.70 to 3.04\,mm. The two largest errors occurred on \Prearra{}, whose exam-view scan covered only 75\,\% of the sweep viewpoints, and on the emptied room \Pempty{}. On \Pref{}, the oracle map reached 1.81 / 1.67\,mm. On the forearm, \Ftest{}, the proposed system reached 2.34 / 1.72\,mm (absolute $2.34\pm0.47$\,mm) and the oracle map 1.85 / 1.57\,mm. Every frame was posed. Between nearby frames, the self-made and the oracle map gave the same out-of-plane error (0.37 / 0.62\,mm over 8 / 30 rows). Fig.~\ref{fig:volume_snew}a,b shows an \Ftest{} sweep. Thus, with a covering scan in a furnished room (\Pref{}, \Prearrb{}, \Ppeople{} and \Ftest{}), the error was 2.2--3.1\,mm, and self-mapping cost 0.3--0.5\,mm over the oracle map.
 
-Three training seeds gave $2.26\pm0.03$, $4.20\pm0.23$, $3.17\pm0.12$, $2.22\pm0.03$ and $6.00\pm0.27$\,mm on the five phantom sets. On \Ftest{}, three seeds gave 2.34, 2.22 and 2.25\,mm (mean 2.27\,mm) with the self-made map and 1.85, 1.95 and 2.12\,mm (mean 1.97\,mm) with the oracle map, a gap of 0.30\,mm (0.13--0.49\,mm per seed). On \Pref{}, training for 20, 40, 80 and 120 epochs gave 2.53, 2.34, 2.37 and 2.28\,mm, respectively. The seed spread was at most 0.27\,mm on the phantom.
+Three training seeds gave $2.23\pm0.03$, $4.19\pm0.22$, $3.14\pm0.12$, $2.19\pm0.03$ and $6.00\pm0.25$\,mm on the five phantom sets. On \Ftest{}, three seeds gave 2.34, 2.22 and 2.25\,mm (mean 2.27\,mm) with the self-made map and 1.85, 1.95 and 2.12\,mm (mean 1.98\,mm) with the oracle map, a gap of 0.29\,mm (0.13--0.48\,mm per seed). On \Pref{}, training for 20, 40, 80 and 120 epochs gave 2.53, 2.31, 2.34 and 2.26\,mm, respectively. The seed spread was at most 0.25\,mm on the phantom.
 
 Under the strict protocol, the \Ftest{} error was 2.94\,mm, compared with 2.98\,mm for the oracle map and 3.0\,mm for the classical pipeline. Real-time smoothing with a delay of 0.25\,s gave the same error as offline smoothing (2.34\,mm), and fully causal smoothing gave 2.42\,mm; with a 1\,s instead of a 2\,s window, the error was 2.36\,mm. Localising one frame took 60--70\,ms on the GPU.
 
@@ -481,17 +481,17 @@ The lower part of Table~\ref{tab:test} summarises the ablations.
     Sweeps & Map & Cov. & Map err. & Proposed & Oracle\\
     \midrule
     \multicolumn{6}{@{}l}{\emph{Coverage: exam-view, generic and both scans (phantom); short generic scans (\Ftwo{})}}\\
-    \Pref{} & \textbf{exam-view scan} & 96\,\% & 2.7 & \textbf{2.28 / 1.90} & 1.85 / 1.67\\
-     & generic scan & 0\,\% & 6.5 & 13.57 / 3.79 & 10.95 / 3.93\\
-     & both scans in one map & 96\,\% & 3.4 & 3.15 / 1.81 & --\\
-    \Prearra{} & \textbf{exam-view scan} & 75\,\% & 2.4 & \textbf{4.43 / 2.81} & --\\
-     & generic scan & 93\,\% & 2.2 & 3.36 / 2.46 & --\\
-    \Prearrb{} & \textbf{exam-view scan} & 96\,\% & 2.2 & \textbf{3.11 / 1.76} & --\\
-     & generic scan & 78\,\% & 5.2 & 6.35 / 1.76 & --\\
-    \Ppeople{} & \textbf{exam-view scan} & 98\,\% & 2.2 & \textbf{2.24 / 1.70} & --\\
-     & generic scan & 100\,\% & 5.2 & 5.07 / 1.28 & --\\
-    \Pempty{} & \textbf{exam-view scan} & 92\,\% & 4.3 & \textbf{5.85 / 3.04} & --\\
-     & generic scan & 97\,\% & 10.9 & 13.03 / 2.83 & --\\
+    \Pref{} & \textbf{exam-view scan} & 96\,\% & 2.7 & \textbf{2.26 / 1.90} & 1.81 / 1.67\\
+     & generic scan & 0\,\% & 6.5 & 13.57 / 3.79 & 10.93 / 3.93\\
+     & both scans in one map & 96\,\% & 3.4 & 3.11 / 1.81 & --\\
+    \Prearra{} & \textbf{exam-view scan} & 75\,\% & 2.4 & \textbf{4.41 / 2.81} & --\\
+     & generic scan & 93\,\% & 2.2 & 3.35 / 2.46 & --\\
+    \Prearrb{} & \textbf{exam-view scan} & 96\,\% & 2.2 & \textbf{3.09 / 1.76} & --\\
+     & generic scan & 78\,\% & 5.2 & 6.32 / 1.76 & --\\
+    \Ppeople{} & \textbf{exam-view scan} & 98\,\% & 2.2 & \textbf{2.19 / 1.70} & --\\
+     & generic scan & 100\,\% & 5.2 & 5.09 / 1.28 & --\\
+    \Pempty{} & \textbf{exam-view scan} & 92\,\% & 4.3 & \textbf{5.86 / 3.04} & --\\
+     & generic scan & 97\,\% & 10.9 & 13.08 / 2.83 & --\\
     \Fnew{} (8) & own generic scans & $\le$14\,\% & -- & 5.04 / 2.94 & 5.14 / 2.92\\
     \Fsmall{} (4) & own generic scans & $\le$14\,\% & -- & 6.55 / 2.40 & 5.77 / 2.66\\
     \Flarge{} (4) & own generic scans & $\le$14\,\% & -- & 9.40 / 2.05 & 5.63 / 2.96\\
@@ -500,28 +500,28 @@ The lower part of Table~\ref{tab:test} summarises the ablations.
     \Ftwo{} mean (26) & & 0--14\,\% & -- & 7.92 / 2.69 & 6.48 / 3.17\\
     \midrule
     \multicolumn{6}{@{}l}{\emph{Scene changes: scan after the sweeps, outdated map (phantom)}}\\
-    \Pref{} & own, scanned after the sweeps & -- & 2.0 & 2.50 / 1.96 & --\\
-    \Prearra{} & \Pref{}'s map & 91\,\% & -- & 4.28 / 3.00 & --\\
-    \Prearrb{} & \Pref{}'s map & 84\,\% & -- & 59.4 (21\,\% posed) & --\\
-    \Prearrb{} & \Prearra{}'s map & 94\,\% & -- & 40.9 (96\,\% posed) & --\\
-    \Pempty{} & \Prearrb{}'s map & 96\,\% & -- & 13.9 (p90 46.6) & --\\
+    \Pref{} & own, scanned after the sweeps & -- & 2.0 & 2.48 / 1.96 & --\\
+    \Prearra{} & \Pref{}'s map & 91\,\% & -- & 4.23 / 3.00 & --\\
+    \Prearrb{} & \Pref{}'s map & 84\,\% & -- & 58.7 (21\,\% posed) & --\\
+    \Prearrb{} & \Prearra{}'s map & 94\,\% & -- & 40.7 (96\,\% posed) & --\\
+    \Pempty{} & \Prearrb{}'s map & 96\,\% & -- & 13.6 (p90 46.4) & --\\
     \midrule
     \multicolumn{6}{@{}l}{\emph{Occlusion: synthetic occluder, share of the image width (phantom, exam-view scan)}}\\
-    \Prearra{} & none & -- & -- & 4.43 (6.3) / 2.81 & --\\
-     & 30\,\% & -- & -- & 5.16 (7.5) / 3.38 & --\\
-     & 60\,\% & -- & -- & 5.28 (8.5) / 3.88 & --\\
-    \Prearrb{} & none & -- & -- & 3.11 (5.1) / 1.76 & --\\
-     & 30\,\% & -- & -- & 3.54 (6.1) / 2.27 & --\\
-     & 60\,\% & -- & -- & 3.89 (6.6) / 2.80 & --\\
+    \Prearra{} & none & -- & -- & 4.41 (6.3) / 2.81 & --\\
+     & 30\,\% & -- & -- & 5.15 (7.5) / 3.38 & --\\
+     & 60\,\% & -- & -- & 5.25 (8.4) / 3.88 & --\\
+    \Prearrb{} & none & -- & -- & 3.09 (5.0) / 1.76 & --\\
+     & 30\,\% & -- & -- & 3.53 (6.0) / 2.27 & --\\
+     & 60\,\% & -- & -- & 3.86 (6.6) / 2.80 & --\\
     \bottomrule
   \end{tabular}
 \end{table*}
 
 \subsection{Coverage of the Examination Views}
 \label{sec:res_coverage}
-\subsubsection{Controlled Coverage} Fig.~\ref{fig:coverage_error} shows the error of every phantom map against the coverage of the sweep viewpoints, and the upper part of Table~\ref{tab:ctrl} gives the values. On the same 8 \Pref{} sweeps, the exam-view scan covered 96\,\% of the sweep viewpoints and gave 2.28 / 1.90\,mm with the self-made map and 1.85 / 1.67\,mm with the oracle map. The generic scan covered 0\,\% and gave 13.57 / 3.79\,mm with the self-made map and 10.95 / 3.93\,mm with the oracle map (the exam-view map was lower on all 8 sweeps; Wilcoxon $p=0.0078$). As shown in Fig.~\ref{fig:volume}, the volume from the generic map was displaced but kept its shape, and every frame passed the inlier gate. With both scans in one map, the error was 3.15 / 1.81\,mm, and the camera error of the map increased from 2.7 to 3.4\,mm.
+\subsubsection{Controlled Coverage} Fig.~\ref{fig:coverage_error} shows the error of every phantom map against the coverage of the sweep viewpoints, and the upper part of Table~\ref{tab:ctrl} gives the values. On the same 8 \Pref{} sweeps, the exam-view scan covered 96\,\% of the sweep viewpoints and gave 2.26 / 1.90\,mm with the self-made map and 1.81 / 1.67\,mm with the oracle map. The generic scan covered 0\,\% and gave 13.57 / 3.79\,mm with the self-made map and 10.93 / 3.93\,mm with the oracle map (the exam-view map was lower on all 8 sweeps; Wilcoxon $p=0.0078$). As shown in Fig.~\ref{fig:volume}, the volume from the generic map was displaced but kept its shape, and every frame passed the inlier gate. With both scans in one map, the error was 3.11 / 1.81\,mm, and the camera error of the map increased from 2.7 to 3.4\,mm.
 
-Over all current phantom maps, the shape error ranged from 1.28 to 3.79\,mm. With at least 90\,\% coverage, the absolute error was about the camera error of the map plus 1\,mm (Fig.~\ref{fig:coverage_error}b). The exam-view scan gave the lower error in every set except \Prearra{}, where it covered 75\,\% and the generic scan 93\,\% (4.43 vs.\ 3.36\,mm). The emptied room \Pempty{} gave the largest map errors, 4.3\,mm with the exam-view scan and 10.9\,mm with the generic scan. At the frame level, with the oracle map of an earlier network version, the median anchor error within the same session was 2.3--5.6\,mm for sweep frames within 30\,mm and $10^\circ$ of a room-scan pose, and 5.7--9.1\,mm for the other frames (\Fval{}, \Ftest{}, \Fnew{} and \Fsmall{}). Using only the first 20, 40 and 60\,s of each \Ftest{} scan gave 3.00, 2.03 and 1.85\,mm, respectively (further views in the supplementary material). Thus, coverage rather than mapping sets the error: with perfect labels, the generic scan still gave 10.95\,mm.
+Over all current phantom maps, the shape error ranged from 1.28 to 3.79\,mm. With at least 90\,\% coverage, the absolute error was about the camera error of the map plus 1\,mm (Fig.~\ref{fig:coverage_error}b). The exam-view scan gave the lower error in every set except \Prearra{}, where it covered 75\,\% and the generic scan 93\,\% (4.41 vs.\ 3.35\,mm). The emptied room \Pempty{} gave the largest map errors, 4.3\,mm with the exam-view scan and 10.9\,mm with the generic scan. At the frame level, with the oracle map of an earlier network version, the median anchor error within the same session was 2.3--5.6\,mm for sweep frames within 30\,mm and $10^\circ$ of a room-scan pose, and 5.7--9.1\,mm for the other frames (\Fval{}, \Ftest{}, \Fnew{} and \Fsmall{}). Using only the first 20, 40 and 60\,s of each \Ftest{} scan gave 3.00, 2.03 and 1.85\,mm, respectively (further views in the supplementary material). Thus, coverage rather than mapping sets the error: with perfect labels, the generic scan still gave 10.93\,mm.
 
 \begin{figure}[t]
   \centering
@@ -541,7 +541,7 @@ Over all current phantom maps, the shape error ranged from 1.28 to 3.79\,mm. Wit
 
 \subsection{Scene Changes}
 \label{sec:res_changes}
-People moving in the background (\Ppeople{}, 2.24\,mm) and recording the room scan after instead of before the sweeps (\Pref{}, 2.50\,mm, map error 2.0\,mm) did not increase the error. The maps of earlier sets covered 84--96\,\% of the views of later sets (Table~\ref{tab:ctrl}, middle part). \Pref{}'s map on \Prearra{} gave 4.28 / 3.00\,mm, similar to \Prearra{}'s own scans. \Pref{}'s map on \Prearrb{} gave 59.4\,mm with 21\,\% of the frames posed, and \Prearra{}'s map on \Prearrb{} gave 40.9\,mm with 96\,\% posed. \Prearrb{}'s map on \Pempty{} gave 13.9\,mm, with a 90th percentile of 46.6\,mm. Rescanning restored the error on \Prearrb{} to 3.11\,mm. The 400-inlier gate did not catch these failures, but the median inlier count separated them: it ranged from 1371 to 2213 for current maps, was 1126 for \Pref{}'s map on \Prearra{}, and ranged from 23 to 450 for the failing cases (Fig.~\ref{fig:volume_outdated}). Thus, a very large change makes a map outdated, and the median inlier count detects it where the inlier gate does not.
+People moving in the background (\Ppeople{}, 2.19\,mm) and recording the room scan after instead of before the sweeps (\Pref{}, 2.48\,mm, map error 2.0\,mm) did not increase the error. The maps of earlier sets covered 84--96\,\% of the views of later sets (Table~\ref{tab:ctrl}, middle part). \Pref{}'s map on \Prearra{} gave 4.23 / 3.00\,mm, similar to \Prearra{}'s own scans. \Pref{}'s map on \Prearrb{} gave 58.7\,mm with 21\,\% of the frames posed, and \Prearra{}'s map on \Prearrb{} gave 40.7\,mm with 96\,\% posed. \Prearrb{}'s map on \Pempty{} gave 13.6\,mm, with a 90th percentile of 46.4\,mm. Rescanning restored the error on \Prearrb{} to 3.09\,mm. The 400-inlier gate did not catch these failures, but the median inlier count separated them: it ranged from 1371 to 2213 for current maps, was 1126 for \Pref{}'s map on \Prearra{}, and ranged from 23 to 450 for the failing cases (Fig.~\ref{fig:volume_outdated}). Thus, a very large change makes a map outdated, and the median inlier count detects it where the inlier gate does not.
 
 \begin{figure}[t]
   \centering
@@ -552,7 +552,7 @@ People moving in the background (\Ppeople{}, 2.24\,mm) and recording the room sc
 
 \subsection{Occlusion}
 \label{sec:res_occlusion}
-With the synthetic occluder (Table~\ref{tab:ctrl}, lower part), the mean error of the proposed system increased by 0.4--0.9\,mm, no sweep exceeded 8.5\,mm, and 87--100\,\% of the frames were posed. ORB-SLAM3 in localisation only, given the same frames, had the lower mean error in three of the four occluded settings, but it failed on single sweeps while reporting every frame as tracked: on \Prearra{}, its worst sweep was 132.2\,mm off with 30\,\% of the image width occluded and 12.9\,mm off with 60\,\%. With 60\,\% occluded on \Prearra{}, the shape error was 3.88\,mm for the proposed system and 8.44\,mm for ORB-SLAM3. The other ORB-SLAM3 modes also failed on single sweeps, with worst sweeps of 38.6 and 39.7\,mm (supplementary material).
+With the synthetic occluder (Table~\ref{tab:ctrl}, lower part), the mean error of the proposed system increased by 0.4--0.8\,mm, no sweep exceeded 8.4\,mm, and \NUMQ{share of frames posed: tracks report 100\,\%, source of 87--100\,\% unknown}. ORB-SLAM3 in localisation only, given the same frames, had the lower mean error in three of the four occluded settings, but it failed on single sweeps while reporting every frame as tracked: on \Prearra{}, its worst sweep was 131.9\,mm off with 30\,\% of the image width occluded and 13.0\,mm off with 60\,\%. With 60\,\% occluded on \Prearra{}, the shape error was 3.88\,mm for the proposed system and 8.41\,mm for ORB-SLAM3. The other ORB-SLAM3 modes also failed on single sweeps, with worst sweeps of 38.7 and 39.7\,mm (supplementary material).
 
 On \Farm{}, a real arm crossed the view in two sweeps. On one of these sweeps, ORB-SLAM3 was 81.5\,mm off in one run and 28.2\,mm in another, while the proposed system was 6.9\,mm off. Thus, under occlusion the proposed system stayed within a bounded error, whereas ORB-SLAM3, with the lower mean error, lost single sweeps while reporting tracking.
 
@@ -576,7 +576,7 @@ On \Farm{}, a real arm crossed the view in two sweeps. On one of these sweeps, O
     \multicolumn{7}{@{}l}{\emph{No tracker-made map}}\\
     Proposed, self-mapped & -- & 2.34 & 1.72 & \textbf{2.94} & 7.92 & 0.90 / --\\
     Classical, self-made map & -- & 3.65$^{a}$ & 2.66$^{a}$ & -- & \textbf{5.78} & --\\
-    ORB-SLAM3, localisation only & -- & \textbf{1.84} & \textbf{1.30} & -- & 8.37 & \textbf{0.68} / --\\
+    ORB-SLAM3, localisation only & -- & \textbf{1.85} & \textbf{1.29} & -- & 8.37 & \textbf{0.68} / --\\
     \bottomrule
   \end{tabular}\\[2pt]
   \raggedright\footnotesize $^{a}$Proposed system 2.35 / 1.73\,mm on the same frames.
@@ -592,7 +592,7 @@ Compared with the classical pipeline, SCR was more accurate on \Fval{} (3.35 vs.
 
 \subsubsection{US-Only Motion Estimation} The US-only method of Li et al.\ \cite{li2024longterm} reproduced its published accuracy on its own data (21.4 vs.\ 22.8\,mm). On the sweeps of this study, it was no more accurate than assuming no motion: it gave 129\,mm zero-shot, 75--125\,mm fine-tuned and 49--56\,mm trained from scratch, compared with 49--58\,mm for zero motion. Networks with US input, alone or fused with RGB, did not improve on RGB alone, and the best fusion weight of the US estimate was zero. Between nearby frames, the camera was more accurate than speckle decorrelation (0.07 / 0.19 / 0.24\,mm vs.\ 0.19 / 0.78 / 1.83\,mm over 1 / 4 / 8 frames).
 
-\subsubsection{SLAM Reference} ORB-SLAM3 in localisation only reached 1.84, 8.37 and 2.36\,mm on \Ftest{}, \Ftwo{} and the phantom, compared with 2.34, 7.92 and 3.58\,mm for the proposed system; on \Ftwo{} without \Farm{}, it reached 4.45\,mm. With each frame relocalised, it was lower on 52 of 63 sweeps, on average by 1.96\,mm (95\,\% bootstrap interval 1.30--2.61\,mm; Wilcoxon $p<0.001$). With the generic \Pref{} scan, it gave 2.88\,mm, compared with 13.57\,mm. Relocalising one frame took it 25--41\,ms on the CPU (median). Thus, its advantage lies in the map rather than in tracking over time.
+\subsubsection{SLAM Reference} ORB-SLAM3 in localisation only reached 1.85, 8.37 and 2.35\,mm on \Ftest{}, \Ftwo{} and the phantom, compared with 2.34, 7.92 and 3.56\,mm for the proposed system; on \Ftwo{} without \Farm{}, it reached 4.46\,mm. With each frame relocalised, it was lower on 51 of 63 sweeps, on average by 1.95\,mm (95\,\% bootstrap interval 1.28--2.61\,mm; Wilcoxon $p<0.001$). With the generic \Pref{} scan, it gave 2.88\,mm, compared with 13.57\,mm. Relocalising one frame took it 25--41\,ms on the CPU (median). Thus, its advantage lies in the map rather than in tracking over time.
 
 
 %======================================================================
@@ -606,12 +606,12 @@ Compared with the classical pipeline, SCR was more accurate on \Fval{} (3.35 vs.
 Loop closures and the camera correction $\Tcorr$ were both essential: without them the error rose to 5.77 and 11.49\,mm. End-to-end training through the Kabsch fit, as in DSAC* \cite{brachmann2022dsac}, was not needed, because the map rather than the solver limits the accuracy. No temporal model is learned: odometry added nothing once every frame has an absolute pose, and a fixed robust smoother reduces the jitter. Poses are refined by the pose graph only, not jointly with the network as in ACE0 \cite{brachmann2024ace0}, because joint refinement made an \Ftest{} map less accurate (camera position 8.4 to 8.9\,mm). $\Tcorr$ is needed once per probe; its transfer across sessions adds part of the placement error (\Flarge{}, 9.40 vs.\ 7.87\,mm after refitting).
 
 \subsection{Coverage Sets the Accuracy}
-A network that learns the room from a scan is accurate only near the viewpoints of that scan. With perfect labels, a scan that missed the examination views still gave 10.95\,mm instead of 1.85\,mm, and at the frame level the anchor error was higher away from the room-scan poses (5.7--9.1 vs.\ 2.3--5.6\,mm). This is a limit of regressing scene coordinates, not of self-mapping, and it is consistent with the larger errors on \Ftwo{}, whose short generic scans covered at most 14\,\% of the views. For the operator, the consequence is concrete: the room scan should follow the planned sweep paths, which takes 1--2\,min. More footage did not substitute for the right footage: adding a generic scan made the map worse (3.15 vs.\ 2.28\,mm). Once coverage is sufficient, the error follows the camera error of the map plus about 1\,mm, so an emptied room, where depth ICP has little structure to align, gave a poorer map (5.85\,mm). Training that lets scene coordinate networks extrapolate to new viewpoints, as ACE-G does for RGB \cite{bruns2025aceg}, is the most direct way to relax the coverage requirement.
+A network that learns the room from a scan is accurate only near the viewpoints of that scan. With perfect labels, a scan that missed the examination views still gave 10.93\,mm instead of 1.81\,mm, and at the frame level the anchor error was higher away from the room-scan poses (5.7--9.1 vs.\ 2.3--5.6\,mm). This is a limit of regressing scene coordinates, not of self-mapping, and it is consistent with the larger errors on \Ftwo{}, whose short generic scans covered at most 14\,\% of the views. For the operator, the consequence is concrete: the room scan should follow the planned sweep paths, which takes 1--2\,min. More footage did not substitute for the right footage: adding a generic scan made the map worse (3.11 vs.\ 2.26\,mm). Once coverage is sufficient, the error follows the camera error of the map plus about 1\,mm, so an emptied room, where depth ICP has little structure to align, gave a poorer map (5.86\,mm). Training that lets scene coordinate networks extrapolate to new viewpoints, as ACE-G does for RGB \cite{bruns2025aceg}, is the most direct way to relax the coverage requirement.
 
 Without coverage, the error is mostly a placement of the whole sweep rather than a distortion of it: on \Ftwo{}, the proposed system had the lowest shape error of the three map-based systems but the largest absolute error, and between nearby frames all systems agreed (0.28--0.37\,mm). For volume measurements that need no registration to other images, shape is the relevant error; for navigation in a room frame, the absolute error is.
 
 \subsection{Bounded and Detectable Failures}
-Because every frame is localised on its own, a wrong pose is not carried into the next frame. Under occlusion, the mean error of the proposed system rose by at most 0.9\,mm and no sweep exceeded 8.5\,mm; with a real arm in view on \Farm{}, the error stayed at 6.9\,mm on the sweep where ORB-SLAM3 failed. People moving in the background, a scan recorded after the sweeps and an earlier map after a large change (\Pref{}'s map on \Prearra{}) did not increase the error notably. The failures that remain have causes that can be checked. An outdated map after a very large change gave low inlier counts (median 23--450, against 1371--2213 for current maps), which the map-age check flags without a tracker. Low coverage, in contrast, is silent: every frame passed the inlier gate, so the coverage check is needed.
+Because every frame is localised on its own, a wrong pose is not carried into the next frame. Under occlusion, the mean error of the proposed system rose by at most 0.8\,mm and no sweep exceeded 8.4\,mm; with a real arm in view on \Farm{}, the error stayed at 6.9\,mm on the sweep where ORB-SLAM3 failed. People moving in the background, a scan recorded after the sweeps and an earlier map after a large change (\Pref{}'s map on \Prearra{}) did not increase the error notably. The failures that remain have causes that can be checked. An outdated map after a very large change gave low inlier counts (median 23--450, against 1371--2213 for current maps), which the map-age check flags without a tracker. Low coverage, in contrast, is silent: every frame passed the inlier gate, so the coverage check is needed.
 
 \subsection{Comparison With Other Trackers}
 Among the learned options, SCR was clearly the most accurate: its anchors were about $8\times$ more accurate than those of pose regression. A pose-regression network merges the whole image into one pose, which moved objects or hands corrupt, whereas SCR predicts 3600 independent correspondences, RANSAC keeps the consistent ones, and a rigid fit through thousands of them averages the noise. The US images added no information to the camera pose in this set-up: between nearby frames the camera was already more accurate than speckle decorrelation, and over a sweep a US-only estimate was no better than assuming no motion. The classical pipeline and SCR fail in different ways. SIFT copes better with views the room scan does not cover (\Ftwo{}, 4.76 vs.\ 6.48\,mm with tracker-made maps), but it confidently matches objects that have since moved, so with pooled room scans it broke, whereas the SCR network improved (supplementary material). With covered views and a self-made map, SCR was more accurate (2.35 vs.\ 3.65\,mm on \Ftest{}).
