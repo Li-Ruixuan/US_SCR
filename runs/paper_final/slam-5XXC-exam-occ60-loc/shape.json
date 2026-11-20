@@ -1,0 +1,63 @@
+{
+ "args": {
+  "json": [
+   "runs/paper_final/slam-5XXC-exam-occ60-loc/poses/fold0_run-517_orbslam3.json",
+   "runs/paper_final/slam-5XXC-exam-occ60-loc/poses/fold0_run-518_orbslam3.json",
+   "runs/paper_final/slam-5XXC-exam-occ60-loc/poses/fold0_run-519_orbslam3.json",
+   "runs/paper_final/slam-5XXC-exam-occ60-loc/poses/fold0_run-520_orbslam3.json",
+   "runs/paper_final/slam-5XXC-exam-occ60-loc/poses/fold0_run-521_orbslam3.json",
+   "runs/paper_final/slam-5XXC-exam-occ60-loc/poses/fold0_run-522_orbslam3.json",
+   "runs/paper_final/slam-5XXC-exam-occ60-loc/poses/fold0_run-523_orbslam3.json",
+   "runs/paper_final/slam-5XXC-exam-occ60-loc/poses/fold0_run-524_orbslam3.json"
+  ],
+  "gaps": [
+   1,
+   8,
+   30
+  ],
+  "out": "runs/paper_final/slam-5XXC-exam-occ60-loc/shape.md"
+ },
+ "sweeps": {
+  "slam-5XXC-exam-occ60-loc|orbslam3": {
+   "run-517": {
+    "absolute": 3.375436795735196,
+    "shape": 1.4766855046954674,
+    "in_1": 0.03801126330652342,
+    "out_1": 0.06539460829795761,
+    "true_out_1": 0.18586569153920074,
+    "in_8": 0.20180571293851662,
+    "out_8": 0.2390246331149049,
+    "true_out_8": 1.48640184889778,
+    "in_30": 0.438285488461267,
+    "out_30": 0.540318824695714,
+    "true_out_30": 5.471046295213452
+   },
+   "run-518": {
+    "absolute": 3.4105695949399712,
+    "shape": 1.027109028772223,
+    "in_1": 0.0337823418947052,
+    "out_1": 0.05537627091160622,
+    "true_out_1": 0.15395849690265137,
+    "in_8": 0.17194134969266878,
+    "out_8": 0.1889880840599703,
+    "true_out_8": 1.284860858078271,
+    "in_30": 0.4405246969623658,
+    "out_30": 0.43331582434648613,
+    "true_out_30": 4.819322297765233
+   },
+   "run-519": {
+    "absolute": 3.594290449631791,
+    "shape": 11.885479879233843,
+    "in_1": 0.04751230847522758,
+    "out_1": 0.06571406988810552,
+    "true_out_1": 0.21198350240145858,
+    "in_8": 0.27545260695805895,
+    "out_8": 0.275040744863909,
+    "true_out_8": 1.6642994567577776,
+    "in_30": 0.8074041114190976,
+    "out_30": 0.740897997382354,
+    "true_out_30": 6.395603906935993
+   }
+  }
+ }
+}

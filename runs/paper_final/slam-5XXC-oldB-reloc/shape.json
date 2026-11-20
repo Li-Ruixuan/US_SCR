@@ -1,0 +1,63 @@
+{
+ "args": {
+  "json": [
+   "runs/paper_final/slam-5XXC-oldB-reloc/poses/fold0_run-517_orbslam3.json",
+   "runs/paper_final/slam-5XXC-oldB-reloc/poses/fold0_run-518_orbslam3.json",
+   "runs/paper_final/slam-5XXC-oldB-reloc/poses/fold0_run-519_orbslam3.json",
+   "runs/paper_final/slam-5XXC-oldB-reloc/poses/fold0_run-520_orbslam3.json",
+   "runs/paper_final/slam-5XXC-oldB-reloc/poses/fold0_run-521_orbslam3.json",
+   "runs/paper_final/slam-5XXC-oldB-reloc/poses/fold0_run-522_orbslam3.json",
+   "runs/paper_final/slam-5XXC-oldB-reloc/poses/fold0_run-523_orbslam3.json",
+   "runs/paper_final/slam-5XXC-oldB-reloc/poses/fold0_run-524_orbslam3.json"
+  ],
+  "gaps": [
+   1,
+   8,
+   30
+  ],
+  "out": "runs/paper_final/slam-5XXC-oldB-reloc/shape.md"
+ },
+ "sweeps": {
+  "slam-5XXC-oldB-reloc|orbslam3": {
+   "run-521": {
+    "absolute": 37.24353136738511,
+    "shape": 26.497087562813267,
+    "in_1": 0.06737984728372898,
+    "out_1": 0.20218906191121327,
+    "true_out_1": 0.19924100479373147,
+    "in_8": 0.4936719171990175,
+    "out_8": 1.610434575415025,
+    "true_out_8": 1.6110980514473627,
+    "in_30": 1.6806896578383062,
+    "out_30": 5.9261096763456065,
+    "true_out_30": 5.978851795509645
+   },
+   "run-523": {
+    "absolute": 13.868429782387551,
+    "shape": 11.165818417364765,
+    "in_1": 0.08259961564277934,
+    "out_1": 0.21154019265348828,
+    "true_out_1": 0.21664774680750604,
+    "in_8": 0.5830344770406715,
+    "out_8": 1.6917809871365184,
+    "true_out_8": 1.706864191253941,
+    "in_30": 1.7955358976429356,
+    "out_30": 5.768438969508281,
+    "true_out_30": 6.425601714056567
+   },
+   "run-524": {
+    "absolute": 8.54257932483643,
+    "shape": 7.115898061951645,
+    "in_1": 0.08764853620194621,
+    "out_1": 0.13843780152055327,
+    "true_out_1": 0.2332287085055431,
+    "in_8": 0.663509797801866,
+    "out_8": 0.9343375196526862,
+    "true_out_8": 2.0435606279664134,
+    "in_30": 2.00298161301376,
+    "out_30": 2.835078696065647,
+    "true_out_30": 7.758414092828869
+   }
+  }
+ }
+}

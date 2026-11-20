@@ -1,0 +1,1037 @@
+[
+  {
+    "id": "M1",
+    "values": {
+      "P-ref": 8,
+      "P-rearr1": 8,
+      "P-rearr2": 8,
+      "P-people": 4,
+      "P-empty": 4
+    },
+    "n": 32,
+    "check_expected": {
+      "P-ref": 8,
+      "P-rearr1": 8,
+      "P-rearr2": 8,
+      "total": 32
+    },
+    "check_got": {
+      "P-ref": 8,
+      "P-rearr1": 8,
+      "P-rearr2": 8,
+      "total": 32
+    },
+    "check_ok": true,
+    "source_files": [
+      "runs/track-v2map-5XXA-exam/scr_track.json",
+      "runs/track-v2map-5XXB-exam/scr_track.json",
+      "runs/track-v2map-5XXC-exam/scr_track.json",
+      "runs/track-v2map-5XXD-exam/scr_track.json",
+      "runs/track-v2map-5XXE-exam/scr_track.json"
+    ],
+    "latex": {
+      "P-people": "4",
+      "P-empty": "4"
+    },
+    "note": ""
+  },
+  {
+    "id": "M2",
+    "values": {
+      "F1-test": {
+        "mean": 2.3392039874576898,
+        "sd": 0.4674962527853135,
+        "n": 5
+      },
+      "F2-new": {
+        "mean": 5.035045163343094,
+        "sd": 1.5119857178001523,
+        "n": 8
+      },
+      "F2-small": {
+        "mean": 6.547380002076649,
+        "sd": 0.789740188646313,
+        "n": 4
+      },
+      "F2-large": {
+        "mean": 9.404766542400928,
+        "sd": 1.6173588935065513,
+        "n": 4
+      },
+      "F2-subj2": {
+        "mean": 11.539884517361259,
+        "sd": 2.3015766596610168,
+        "n": 6
+      },
+      "F2-arm": {
+        "mean": 7.074656040926843,
+        "sd": 3.265345934375557,
+        "n": 4
+      },
+      "P-ref": {
+        "mean": 2.2618904419348906,
+        "sd": 0.3773493505512828,
+        "n": 8
+      },
+      "P-rearr1": {
+        "mean": 4.412881347380256,
+        "sd": 0.9182111931241973,
+        "n": 8
+      },
+      "P-rearr2": {
+        "mean": 3.085765043383877,
+        "sd": 0.928430347246494,
+        "n": 8
+      },
+      "P-people": {
+        "mean": 2.1885903965881983,
+        "sd": 0.2464857916027692,
+        "n": 4
+      },
+      "P-empty": {
+        "mean": 5.8618210138815225,
+        "sd": 1.0632077978502865,
+        "n": 4
+      },
+      "F2, over 5 sets": {
+        "mean": 7.920346453221754,
+        "sd": 2.5607494743583583,
+        "n": 5
+      },
+      "F2, over sweeps": {
+        "mean": 7.754879952020383,
+        "sd": 3.148994537791118,
+        "n": 26
+      },
+      "phantom, over 5 sets": {
+        "mean": 3.562189648633749,
+        "sd": 1.5665658395832611,
+        "n": 5
+      },
+      "phantom, over sweeps": {
+        "mean": 3.4464356344834712,
+        "sd": 1.458113416435231,
+        "n": 32
+      }
+    },
+    "n": {
+      "F1-test": 5,
+      "F2-new": 8,
+      "F2-small": 4,
+      "F2-large": 4,
+      "F2-subj2": 6,
+      "F2-arm": 4,
+      "P-ref": 8,
+      "P-rearr1": 8,
+      "P-rearr2": 8,
+      "P-people": 4,
+      "P-empty": 4,
+      "F2, over 5 sets": 5,
+      "F2, over sweeps": 26,
+      "phantom, over 5 sets": 5,
+      "phantom, over sweeps": 32
+    },
+    "check_expected": {
+      "F1-test (2 s)": [
+        2.34,
+        0.47
+      ],
+      "F2 over 5 sets (2 s)": [
+        7.92,
+        2.56
+      ],
+      "phantom sets (1 s)": [
+        2.28,
+        4.43,
+        3.11,
+        2.24,
+        5.85
+      ]
+    },
+    "check_got": {
+      "F1-test (2 s)": [
+        2.34,
+        0.47
+      ],
+      "F2 over 5 sets (2 s)": [
+        7.92,
+        2.56
+      ],
+      "phantom sets (1 s)": [
+        2.28,
+        4.43,
+        3.11,
+        2.24,
+        5.85
+      ]
+    },
+    "check_ok": true,
+    "source_files": [
+      "runs/repro/track-v2map-3XX/scr_track.json",
+      "runs/track-v2map-4XXA/scr_track.json",
+      "runs/track-v2map-4XXB/scr_track.json",
+      "runs/track-v2map-4XXC/scr_track.json",
+      "runs/track-v2map-4XXD/scr_track.json",
+      "runs/track-v2map-4XXE/scr_track.json",
+      "runs/track-v2map-5XXA-exam/scr_track.json",
+      "runs/track-v2map-5XXB-exam/scr_track.json",
+      "runs/track-v2map-5XXC-exam/scr_track.json",
+      "runs/track-v2map-5XXD-exam/scr_track.json",
+      "runs/track-v2map-5XXE-exam/scr_track.json"
+    ],
+    "latex": {
+      "F1-test": "2.34\\pm0.47",
+      "F2-new": "5.04\\pm1.51",
+      "F2-small": "6.55\\pm0.79",
+      "F2-large": "9.40\\pm1.62",
+      "F2-subj2": "11.54\\pm2.30",
+      "F2-arm": "7.07\\pm3.27",
+      "P-ref": "2.26\\pm0.38",
+      "P-rearr1": "4.41\\pm0.92",
+      "P-rearr2": "3.09\\pm0.93",
+      "P-people": "2.19\\pm0.25",
+      "P-empty": "5.86\\pm1.06",
+      "F2, over 5 sets": "7.92\\pm2.56",
+      "F2, over sweeps": "7.75\\pm3.15",
+      "phantom, over 5 sets": "3.56\\pm1.57",
+      "phantom, over sweeps": "3.45\\pm1.46"
+    },
+    "note": "window 2 s; SD ddof=1. D2: the paper's F2 / phantom headline is the mean over the 5 sets."
+  },
+  {
+    "id": "M3",
+    "values": {
+      "exam_mean": 2.2618904419348906,
+      "generic_mean": 13.574465143284884,
+      "p_exact": 0.0078125,
+      "exam_lower": 8
+    },
+    "n": 8,
+    "check_expected": [
+      2.28,
+      13.57
+    ],
+    "check_got": [
+      2.28,
+      13.57
+    ],
+    "check_ok": true,
+    "source_files": [
+      "runs/track-v2map-5XXA-exam/scr_track.json",
+      "runs/track-v2map-5XXA-generic/scr_track.json"
+    ],
+    "latex": "p=0.0078",
+    "note": "window 2 s; paired by sweep; exact two-sided Wilcoxon (min. p for n=8 is 0.0078)"
+  },
+  {
+    "id": "M4",
+    "values": {
+      "v1-3XX / eval_train_3XX": {
+        "near_frames": 134,
+        "near_median": 2.3,
+        "far_frames": 6,
+        "far_median": 5.7
+      },
+      "v1-4XXA / eval_test_4XXA": {
+        "near_frames": 18,
+        "near_median": 4.6,
+        "far_frames": 330,
+        "far_median": 9.1
+      },
+      "v1-4XXA / eval_test_4XXB": {
+        "near_frames": 7,
+        "near_median": 21.7,
+        "far_frames": 148,
+        "far_median": 31.4
+      },
+      "v1-4XXA / eval_test_4XXC": {
+        "near_frames": 11,
+        "near_median": 35.4,
+        "far_frames": 144,
+        "far_median": 46.9
+      },
+      "v1-4XXB / eval_test_4XXB": {
+        "near_frames": 19,
+        "near_median": 5.6,
+        "far_frames": 136,
+        "far_median": 9.1
+      },
+      "v1-4XXC / eval_test_4XXC": {
+        "near_frames": 0,
+        "near_median": null,
+        "far_frames": 155,
+        "far_median": 11.0
+      },
+      "v1-4XXC / eval_test_4XXD": {
+        "near_frames": 0,
+        "near_median": null,
+        "far_frames": 234,
+        "far_median": 14.4
+      },
+      "v1-4XXC / eval_test_4XXE": {
+        "near_frames": 21,
+        "near_median": 7.2,
+        "far_frames": 134,
+        "far_median": 10.8
+      },
+      "s1-e120-2XX / eval_train_2XX_run-205+run-211": {
+        "near_frames": 58,
+        "near_median": 4.9,
+        "far_frames": 19,
+        "far_median": 8.1
+      },
+      "s1-e120-2XX / eval_train_3XX": {
+        "near_frames": 26,
+        "near_median": 11.6,
+        "far_frames": 114,
+        "far_median": 25.3
+      },
+      "all files pooled": {
+        "near_frames": 294,
+        "near_median": 4.1,
+        "far_frames": 1420,
+        "far_median": 13.4
+      }
+    },
+    "n": 1714,
+    "check_expected": [
+      4.1,
+      13.4
+    ],
+    "check_got": [
+      4.1,
+      13.4
+    ],
+    "check_ok": true,
+    "source_files": [
+      "runs/coverage_error.md"
+    ],
+    "latex": null,
+    "note": "lookup of the existing PnP analysis (v1 networks, oracle map, 10 evaluations incl. cross-block and outdated-map cases); per-set rows use repo names. D4 (Kabsch) needs Tier 1 block B1."
+  },
+  {
+    "id": "M5",
+    "values": {
+      "6.3 mm run": "fixed recipe, 360x640, PnP, 30 epochs (s1-2XX)",
+      "7.3 mm run": "same, 720x1280 input (s3-full-2XX)",
+      "differences from final 3.4 mm": "epochs 30 vs 120; PnP vs Kabsch",
+      "footnote a": "15.8 mm: 15 epochs, PnP (first recipe, fp32 head off); 5.1 mm: 120 epochs, PnP"
+    },
+    "n": null,
+    "check_expected": null,
+    "check_got": null,
+    "check_ok": null,
+    "source_files": [
+      "git show 27adf4c3~1:runs/s1-2XX/config.json",
+      "git show 27adf4c3~1:runs/s3-full-2XX/config.json",
+      "runs/s1-base-2XX/config.json",
+      "runs/s1-e120-2XX/config.json",
+      "summary.md (4.1)"
+    ],
+    "latex": null,
+    "note": "lookup done by hand on 2026-11-20 (missing_numbers.md, 5.1); not recomputed"
+  },
+  {
+    "id": "M6",
+    "values": {
+      "self": [
+        2.3392039874576898,
+        2.2169609468707874,
+        2.2475010885872218
+      ],
+      "oracle": [
+        1.8546975616885581,
+        1.9520525466315064,
+        2.121441452290903
+      ],
+      "paired_diff": [
+        0.4845064257691316,
+        0.26490840023928097,
+        0.1260596362963189
+      ],
+      "self_mean": 2.2678886743052327,
+      "oracle_mean": 1.9760638535369892,
+      "mean_gap": 0.29182482076824345
+    },
+    "n": 3,
+    "check_expected": {
+      "self": [
+        2.34,
+        2.22,
+        2.25
+      ],
+      "self_mean": 2.27,
+      "oracle": [
+        1.85,
+        1.95,
+        2.12
+      ]
+    },
+    "check_got": {
+      "self": [
+        2.34,
+        2.22,
+        2.25
+      ],
+      "self_mean": 2.27,
+      "oracle": [
+        1.85,
+        1.95,
+        2.12
+      ]
+    },
+    "check_ok": true,
+    "source_files": [
+      "runs/repro/track-v2map-3XX/scr_track.json",
+      "runs/repro/track-v2map-3XX-seed1/scr_track.json",
+      "runs/repro/track-v2map-3XX-seed2/scr_track.json",
+      "runs/track-3XX/scr_track.json",
+      "runs/track-3XX-seed1/scr_track.json",
+      "runs/track-3XX-seed2/scr_track.json"
+    ],
+    "latex": {
+      "seed-mean gap": "0.29",
+      "seed-0 gap": "0.48",
+      "paired range": "0.13--0.48"
+    },
+    "note": "window 2 s; pairing by seed number (self-mapped: mapping + training seed; oracle: training seed)"
+  },
+  {
+    "id": "M7",
+    "values": {
+      "full SLAM | F2": {
+        "n": 26,
+        "ours": 7.754879952020383,
+        "orbslam": 3.699197640139368,
+        "diff": 4.055682311881015,
+        "ci": [
+          2.807062212408218,
+          5.31704020851419
+        ],
+        "p": 5.036592483520508e-06,
+        "p_spec": 5.036592483520508e-06,
+        "orb_lower": 23,
+        "left_out": 0
+      },
+      "full SLAM | phantom (exam-view scans)": {
+        "n": 32,
+        "ours": 3.4464356344834712,
+        "orbslam": 2.3269260897315744,
+        "diff": 1.1195095447518968,
+        "ci": [
+          0.5240478506699126,
+          1.7198349776925541
+        ],
+        "p": 0.00207323394715786,
+        "p_spec": 0.00207323394715786,
+        "orb_lower": 22,
+        "left_out": 0
+      },
+      "full SLAM | all 63 test sweeps": {
+        "n": 63,
+        "ours": 5.136648237988722,
+        "orbslam": 2.851760918636423,
+        "diff": 2.2848873193522996,
+        "ci": [
+          1.6019073531849704,
+          3.0199288770174797
+        ],
+        "p": 1.3035496628852043e-07,
+        "p_spec": 1.3035496628852043e-07,
+        "orb_lower": 50,
+        "left_out": 0
+      },
+      "full SLAM, online poses | F2": {
+        "n": 26,
+        "ours": 7.754879952020383,
+        "orbslam": 4.503504269395777,
+        "diff": 3.251375682624605,
+        "ci": [
+          2.1086610687503775,
+          4.401346218717651
+        ],
+        "p": 2.2709369659423828e-05,
+        "p_spec": 2.2709369659423828e-05,
+        "orb_lower": 21,
+        "left_out": 0
+      },
+      "full SLAM, online poses | phantom (exam-view scans)": {
+        "n": 32,
+        "ours": 3.4464356344834712,
+        "orbslam": 2.213414287476803,
+        "diff": 1.2330213470066678,
+        "ci": [
+          0.5967780641109877,
+          1.8573538065659472
+        ],
+        "p": 0.0012352922931313515,
+        "p_spec": 0.0012352922931313515,
+        "orb_lower": 25,
+        "left_out": 0
+      },
+      "full SLAM, online poses | all 63 test sweeps": {
+        "n": 63,
+        "ours": 5.136648237988722,
+        "orbslam": 3.1270277860522175,
+        "diff": 2.0096204519365033,
+        "ci": [
+          1.4024327903324747,
+          2.650602037819537
+        ],
+        "p": 2.827776866202437e-07,
+        "p_spec": 2.827776866202437e-07,
+        "orb_lower": 51,
+        "left_out": 0
+      },
+      "localisation only | F2": {
+        "n": 26,
+        "ours": 7.754879952020383,
+        "orbslam": 7.481922391675785,
+        "diff": 0.27295756034459695,
+        "ci": [
+          -6.32345491318119,
+          4.151329604373074
+        ],
+        "p": 0.0009347796440124512,
+        "p_spec": 0.0009347796440124512,
+        "orb_lower": 21,
+        "left_out": 0
+      },
+      "localisation only | phantom (exam-view scans)": {
+        "n": 32,
+        "ours": 3.4464356344834712,
+        "orbslam": 2.4095232640978805,
+        "diff": 1.0369123703855903,
+        "ci": [
+          0.3786249154523623,
+          1.6644990697711475
+        ],
+        "p": 0.005712004844099283,
+        "p_spec": 0.005712004844099283,
+        "orb_lower": 23,
+        "left_out": 0
+      },
+      "localisation only | all 63 test sweeps": {
+        "n": 63,
+        "ours": 5.136648237988722,
+        "orbslam": 4.458367099186155,
+        "diff": 0.678281138802567,
+        "ci": [
+          -2.140610552114026,
+          2.3815237525313977
+        ],
+        "p": 8.8663038145384e-06,
+        "p_spec": 8.8663038145384e-06,
+        "orb_lower": 49,
+        "left_out": 0
+      },
+      "localisation only, run 2 | F2": {
+        "n": 26,
+        "ours": 7.754879952020383,
+        "orbslam": 4.2952606859833145,
+        "diff": 3.459619266037069,
+        "ci": [
+          2.3351368374111616,
+          4.576121296080138
+        ],
+        "p": 4.082918167114258e-06,
+        "p_spec": 4.082918167114258e-06,
+        "orb_lower": 23,
+        "left_out": 0
+      },
+      "localisation only, run 2 | phantom (exam-view scans)": {
+        "n": 32,
+        "ours": 3.4464356344834712,
+        "orbslam": 2.3437369130437595,
+        "diff": 1.1026987214397117,
+        "ci": [
+          0.4900297293364994,
+          1.6946949833619613
+        ],
+        "p": 0.0025649620220065117,
+        "p_spec": 0.0025649620220065117,
+        "orb_lower": 23,
+        "left_out": 0
+      },
+      "localisation only, run 2 | all 63 test sweeps": {
+        "n": 63,
+        "ours": 5.136648237988722,
+        "orbslam": 3.0932429274709246,
+        "diff": 2.0434053105177976,
+        "ci": [
+          1.4214120014674823,
+          2.6801973195993654
+        ],
+        "p": 1.0808586082475381e-07,
+        "p_spec": 1.0808586082475381e-07,
+        "orb_lower": 51,
+        "left_out": 0
+      },
+      "localisation only, run 3 | F2": {
+        "n": 26,
+        "ours": 7.754879952020383,
+        "orbslam": 5.3170941986639955,
+        "diff": 2.437785753356388,
+        "ci": [
+          0.1268539771534587,
+          4.283545558274025
+        ],
+        "p": 0.001971602439880371,
+        "p_spec": 0.001971602439880371,
+        "orb_lower": 20,
+        "left_out": 0
+      },
+      "localisation only, run 3 | phantom (exam-view scans)": {
+        "n": 32,
+        "ours": 3.4464356344834712,
+        "orbslam": 2.310496392514567,
+        "diff": 1.1359392419689038,
+        "ci": [
+          0.48538546248634534,
+          1.7619532296941645
+        ],
+        "p": 0.0025649620220065117,
+        "p_spec": 0.0025649620220065117,
+        "orb_lower": 24,
+        "left_out": 0
+      },
+      "localisation only, run 3 | all 63 test sweeps": {
+        "n": 63,
+        "ours": 5.136648237988722,
+        "orbslam": 3.507459344016959,
+        "diff": 1.6291888939717627,
+        "ci": [
+          0.6309273080311442,
+          2.480080470377221
+        ],
+        "p": 9.752775142996223e-06,
+        "p_spec": 9.752775142996223e-06,
+        "orb_lower": 49,
+        "left_out": 0
+      },
+      "each frame relocalised | F2": {
+        "n": 26,
+        "ours": 7.754879952020383,
+        "orbslam": 4.403145632686682,
+        "diff": 3.3517343193337017,
+        "ci": [
+          2.257228541804041,
+          4.516762401440156
+        ],
+        "p": 4.082918167114258e-06,
+        "p_spec": 4.082918167114258e-06,
+        "orb_lower": 23,
+        "left_out": 0
+      },
+      "each frame relocalised | phantom (exam-view scans)": {
+        "n": 32,
+        "ours": 3.4464356344834712,
+        "orbslam": 2.4306200914610594,
+        "diff": 1.0158155430224112,
+        "ci": [
+          0.30823438318370555,
+          1.7032621539496273
+        ],
+        "p": 0.014803256839513779,
+        "p_spec": 0.014803256839513779,
+        "orb_lower": 23,
+        "left_out": 0
+      },
+      "each frame relocalised | all 63 test sweeps": {
+        "n": 63,
+        "ours": 5.136648237988722,
+        "orbslam": 3.1901673394360364,
+        "diff": 1.9464808985526854,
+        "ci": [
+          1.2812468585209005,
+          2.6072728579225215
+        ],
+        "p": 7.697404016062316e-07,
+        "p_spec": 7.697404016062316e-07,
+        "orb_lower": 51,
+        "left_out": 0
+      },
+      "localisation only, 3 runs | all 63 test sweeps": {
+        "orbslam_means": [
+          4.458367099186155,
+          3.0932429274709246,
+          3.507459344016959
+        ],
+        "spread": [
+          3.0932429274709246,
+          4.458367099186155
+        ]
+      }
+    },
+    "n": 63,
+    "check_expected": {
+      "final": [
+        63,
+        5.14,
+        2.85,
+        -2.3,
+        -3.03,
+        -1.62,
+        12
+      ],
+      "online": [
+        63,
+        5.14,
+        3.12,
+        -2.02,
+        -2.66,
+        -1.42,
+        12
+      ],
+      "loc": [
+        63,
+        5.14,
+        4.46,
+        -0.68,
+        -2.38,
+        2.13,
+        14
+      ],
+      "loc-r2": [
+        63,
+        5.14,
+        3.1,
+        -2.05,
+        -2.67,
+        -1.43,
+        12
+      ],
+      "loc-r3": [
+        63,
+        5.14,
+        3.55,
+        -1.59,
+        -2.48,
+        -0.52,
+        14
+      ],
+      "reloc": [
+        63,
+        5.14,
+        3.19,
+        -1.96,
+        -2.61,
+        -1.3,
+        11
+      ]
+    },
+    "check_got": {
+      "final": [
+        63,
+        5.14,
+        2.85,
+        -2.3,
+        -3.03,
+        -1.62,
+        12
+      ],
+      "online": [
+        63,
+        5.14,
+        3.12,
+        -2.02,
+        -2.66,
+        -1.42,
+        12
+      ],
+      "loc": [
+        63,
+        5.14,
+        4.46,
+        -0.68,
+        -2.38,
+        2.13,
+        14
+      ],
+      "loc-r2": [
+        63,
+        5.14,
+        3.1,
+        -2.05,
+        -2.67,
+        -1.43,
+        12
+      ],
+      "loc-r3": [
+        63,
+        5.14,
+        3.55,
+        -1.59,
+        -2.48,
+        -0.52,
+        14
+      ],
+      "reloc": [
+        63,
+        5.14,
+        3.19,
+        -1.96,
+        -2.61,
+        -1.3,
+        11
+      ]
+    },
+    "check_ok": true,
+    "source_files": [
+      "runs/paper_final/slam-3XX-loc-r2/slam_eval.json",
+      "runs/paper_final/slam-3XX-loc-r3/slam_eval.json",
+      "runs/paper_final/slam-3XX-loc/slam_eval.json",
+      "runs/paper_final/slam-3XX-online/slam_eval.json",
+      "runs/paper_final/slam-3XX-reloc/slam_eval.json",
+      "runs/paper_final/slam-3XX/slam_eval.json",
+      "runs/paper_final/slam-4XXA-loc-r2/slam_eval.json",
+      "runs/paper_final/slam-4XXA-loc-r3/slam_eval.json",
+      "runs/paper_final/slam-4XXA-loc/slam_eval.json",
+      "runs/paper_final/slam-4XXA-online/slam_eval.json",
+      "runs/paper_final/slam-4XXA-reloc/slam_eval.json",
+      "runs/paper_final/slam-4XXA/slam_eval.json",
+      "runs/paper_final/slam-4XXB-loc-r2/slam_eval.json",
+      "runs/paper_final/slam-4XXB-loc-r3/slam_eval.json",
+      "runs/paper_final/slam-4XXB-loc/slam_eval.json",
+      "runs/paper_final/slam-4XXB-online/slam_eval.json",
+      "runs/paper_final/slam-4XXB-reloc/slam_eval.json",
+      "runs/paper_final/slam-4XXB/slam_eval.json",
+      "runs/paper_final/slam-4XXC-loc-r2/slam_eval.json",
+      "runs/paper_final/slam-4XXC-loc-r3/slam_eval.json",
+      "runs/paper_final/slam-4XXC-loc/slam_eval.json",
+      "runs/paper_final/slam-4XXC-online/slam_eval.json",
+      "runs/paper_final/slam-4XXC-reloc/slam_eval.json",
+      "runs/paper_final/slam-4XXC/slam_eval.json",
+      "runs/paper_final/slam-4XXD-loc-r2/slam_eval.json",
+      "runs/paper_final/slam-4XXD-loc-r3/slam_eval.json",
+      "runs/paper_final/slam-4XXD-loc/slam_eval.json",
+      "runs/paper_final/slam-4XXD-online/slam_eval.json",
+      "runs/paper_final/slam-4XXD-reloc/slam_eval.json",
+      "runs/paper_final/slam-4XXD/slam_eval.json",
+      "runs/paper_final/slam-4XXE-loc-r2/slam_eval.json",
+      "runs/paper_final/slam-4XXE-loc-r3/slam_eval.json",
+      "runs/paper_final/slam-4XXE-loc/slam_eval.json",
+      "runs/paper_final/slam-4XXE-online/slam_eval.json",
+      "runs/paper_final/slam-4XXE-reloc/slam_eval.json",
+      "runs/paper_final/slam-4XXE/slam_eval.json",
+      "runs/paper_final/slam-5XXA-exam-loc-r2/slam_eval.json",
+      "runs/paper_final/slam-5XXA-exam-loc-r3/slam_eval.json",
+      "runs/paper_final/slam-5XXA-exam-loc/slam_eval.json",
+      "runs/paper_final/slam-5XXA-exam-online/slam_eval.json",
+      "runs/paper_final/slam-5XXA-exam-reloc/slam_eval.json",
+      "runs/paper_final/slam-5XXA-exam/slam_eval.json",
+      "runs/paper_final/slam-5XXA-generic-loc/slam_eval.json",
+      "runs/paper_final/slam-5XXA-generic-online/slam_eval.json",
+      "runs/paper_final/slam-5XXA-generic-reloc/slam_eval.json",
+      "runs/paper_final/slam-5XXB-exam-loc-r2/slam_eval.json",
+      "runs/paper_final/slam-5XXB-exam-loc-r3/slam_eval.json",
+      "runs/paper_final/slam-5XXB-exam-loc/slam_eval.json",
+      "runs/paper_final/slam-5XXB-exam-online/slam_eval.json",
+      "runs/paper_final/slam-5XXB-exam-reloc/slam_eval.json",
+      "runs/paper_final/slam-5XXB-exam/slam_eval.json",
+      "runs/paper_final/slam-5XXC-exam-loc-r2/slam_eval.json",
+      "runs/paper_final/slam-5XXC-exam-loc-r3/slam_eval.json",
+      "runs/paper_final/slam-5XXC-exam-loc/slam_eval.json",
+      "runs/paper_final/slam-5XXC-exam-online/slam_eval.json",
+      "runs/paper_final/slam-5XXC-exam-reloc/slam_eval.json",
+      "runs/paper_final/slam-5XXC-exam/slam_eval.json",
+      "runs/paper_final/slam-5XXC-oldB-loc/slam_eval.json",
+      "runs/paper_final/slam-5XXC-oldB-online/slam_eval.json",
+      "runs/paper_final/slam-5XXC-oldB-reloc/slam_eval.json",
+      "runs/paper_final/slam-5XXC-oldB/slam_eval.json",
+      "runs/paper_final/slam-5XXD-exam-loc-r2/slam_eval.json",
+      "runs/paper_final/slam-5XXD-exam-loc-r3/slam_eval.json",
+      "runs/paper_final/slam-5XXD-exam-loc/slam_eval.json",
+      "runs/paper_final/slam-5XXD-exam-online/slam_eval.json",
+      "runs/paper_final/slam-5XXD-exam-reloc/slam_eval.json",
+      "runs/paper_final/slam-5XXD-exam/slam_eval.json",
+      "runs/paper_final/slam-5XXE-exam-loc-r2/slam_eval.json",
+      "runs/paper_final/slam-5XXE-exam-loc-r3/slam_eval.json",
+      "runs/paper_final/slam-5XXE-exam-loc/slam_eval.json",
+      "runs/paper_final/slam-5XXE-exam-online/slam_eval.json",
+      "runs/paper_final/slam-5XXE-exam-reloc/slam_eval.json",
+      "runs/paper_final/slam-5XXE-exam/slam_eval.json",
+      "runs/paper_final/slam-5XXE-oldC-loc/slam_eval.json",
+      "runs/paper_final/slam-5XXE-oldC-online/slam_eval.json",
+      "runs/paper_final/slam-5XXE-oldC-reloc/slam_eval.json",
+      "runs/paper_final/slam-5XXE-oldC/slam_eval.json",
+      "runs/slam-3XX-loc-r2/slam_eval.json",
+      "runs/slam-3XX-loc-r3/slam_eval.json",
+      "runs/slam-3XX-loc/slam_eval.json",
+      "runs/slam-3XX-online/slam_eval.json",
+      "runs/slam-3XX-reloc/slam_eval.json",
+      "runs/slam-3XX/slam_eval.json",
+      "runs/slam-4XXA-loc-r2/slam_eval.json",
+      "runs/slam-4XXA-loc-r3/slam_eval.json",
+      "runs/slam-4XXA-loc/slam_eval.json",
+      "runs/slam-4XXA-online/slam_eval.json",
+      "runs/slam-4XXA-reloc/slam_eval.json",
+      "runs/slam-4XXA/slam_eval.json",
+      "runs/slam-4XXB-loc-r2/slam_eval.json",
+      "runs/slam-4XXB-loc-r3/slam_eval.json",
+      "runs/slam-4XXB-loc/slam_eval.json",
+      "runs/slam-4XXB-online/slam_eval.json",
+      "runs/slam-4XXB-reloc/slam_eval.json",
+      "runs/slam-4XXB/slam_eval.json",
+      "runs/slam-4XXC-loc-r2/slam_eval.json",
+      "runs/slam-4XXC-loc-r3/slam_eval.json",
+      "runs/slam-4XXC-loc/slam_eval.json",
+      "runs/slam-4XXC-online/slam_eval.json",
+      "runs/slam-4XXC-reloc/slam_eval.json",
+      "runs/slam-4XXC/slam_eval.json",
+      "runs/slam-4XXD-loc-r2/slam_eval.json",
+      "runs/slam-4XXD-loc-r3/slam_eval.json",
+      "runs/slam-4XXD-loc/slam_eval.json",
+      "runs/slam-4XXD-online/slam_eval.json",
+      "runs/slam-4XXD-reloc/slam_eval.json",
+      "runs/slam-4XXD/slam_eval.json",
+      "runs/slam-4XXE-loc-r2/slam_eval.json",
+      "runs/slam-4XXE-loc-r3/slam_eval.json",
+      "runs/slam-4XXE-loc/slam_eval.json",
+      "runs/slam-4XXE-online/slam_eval.json",
+      "runs/slam-4XXE-reloc/slam_eval.json",
+      "runs/slam-4XXE/slam_eval.json",
+      "runs/slam-5XXA-exam-loc-r2/slam_eval.json",
+      "runs/slam-5XXA-exam-loc-r3/slam_eval.json",
+      "runs/slam-5XXA-exam-loc/slam_eval.json",
+      "runs/slam-5XXA-exam-online/slam_eval.json",
+      "runs/slam-5XXA-exam-reloc/slam_eval.json",
+      "runs/slam-5XXA-exam/slam_eval.json",
+      "runs/slam-5XXA-generic-loc/slam_eval.json",
+      "runs/slam-5XXA-generic-online/slam_eval.json",
+      "runs/slam-5XXA-generic-reloc/slam_eval.json",
+      "runs/slam-5XXB-exam-loc-r2/slam_eval.json",
+      "runs/slam-5XXB-exam-loc-r3/slam_eval.json",
+      "runs/slam-5XXB-exam-loc/slam_eval.json",
+      "runs/slam-5XXB-exam-online/slam_eval.json",
+      "runs/slam-5XXB-exam-reloc/slam_eval.json",
+      "runs/slam-5XXB-exam/slam_eval.json",
+      "runs/slam-5XXC-exam-loc-r2/slam_eval.json",
+      "runs/slam-5XXC-exam-loc-r3/slam_eval.json",
+      "runs/slam-5XXC-exam-loc/slam_eval.json",
+      "runs/slam-5XXC-exam-online/slam_eval.json",
+      "runs/slam-5XXC-exam-reloc/slam_eval.json",
+      "runs/slam-5XXC-exam/slam_eval.json",
+      "runs/slam-5XXC-oldB-loc/slam_eval.json",
+      "runs/slam-5XXC-oldB-online/slam_eval.json",
+      "runs/slam-5XXC-oldB-reloc/slam_eval.json",
+      "runs/slam-5XXC-oldB/slam_eval.json",
+      "runs/slam-5XXD-exam-loc-r2/slam_eval.json",
+      "runs/slam-5XXD-exam-loc-r3/slam_eval.json",
+      "runs/slam-5XXD-exam-loc/slam_eval.json",
+      "runs/slam-5XXD-exam-online/slam_eval.json",
+      "runs/slam-5XXD-exam-reloc/slam_eval.json",
+      "runs/slam-5XXD-exam/slam_eval.json",
+      "runs/slam-5XXE-exam-loc-r2/slam_eval.json",
+      "runs/slam-5XXE-exam-loc-r3/slam_eval.json",
+      "runs/slam-5XXE-exam-loc/slam_eval.json",
+      "runs/slam-5XXE-exam-online/slam_eval.json",
+      "runs/slam-5XXE-exam-reloc/slam_eval.json",
+      "runs/slam-5XXE-exam/slam_eval.json",
+      "runs/slam-5XXE-oldC-loc/slam_eval.json",
+      "runs/slam-5XXE-oldC-online/slam_eval.json",
+      "runs/slam-5XXE-oldC-reloc/slam_eval.json",
+      "runs/slam-5XXE-oldC/slam_eval.json"
+    ],
+    "latex": {
+      "full SLAM": "lower on 50 of 63 sweeps, on average by 2.28\\,mm (95\\,\\% bootstrap interval 1.60--3.02\\,mm; Wilcoxon $p<0.001$)",
+      "full SLAM, online poses": "lower on 51 of 63 sweeps, on average by 2.01\\,mm (95\\,\\% bootstrap interval 1.40--2.65\\,mm; Wilcoxon $p<0.001$)",
+      "localisation only": "lower on 49 of 63 sweeps, on average by 0.68\\,mm (95\\,\\% bootstrap interval -2.14--2.38\\,mm; Wilcoxon $p<0.001$)",
+      "localisation only, run 2": "lower on 51 of 63 sweeps, on average by 2.04\\,mm (95\\,\\% bootstrap interval 1.42--2.68\\,mm; Wilcoxon $p<0.001$)",
+      "localisation only, run 3": "lower on 49 of 63 sweeps, on average by 1.63\\,mm (95\\,\\% bootstrap interval 0.63--2.48\\,mm; Wilcoxon $p<0.001$)",
+      "each frame relocalised": "lower on 51 of 63 sweeps, on average by 1.95\\,mm (95\\,\\% bootstrap interval 1.28--2.61\\,mm; Wilcoxon $p<0.001$)",
+      "localisation only, run-to-run": "3.09--4.46\\,mm"
+    },
+    "note": "ours 2 s vs ORB-SLAM3 2 s (runs/paper_final); diff = proposed - ORB-SLAM3; bootstrap 10 000 x default_rng(0) in the order of compare_stats.py; 'p' = scipy default (as compare_stats), 'p_spec' = exact for n <= 25"
+  },
+  {
+    "id": "M8",
+    "values": [
+      "persweep_orbslam.csv",
+      "persweep_orbslam.tex"
+    ],
+    "n": 63,
+    "check_expected": "column means = per-set means",
+    "check_got": "ok",
+    "check_ok": true,
+    "source_files": [
+      "runs/paper_final/slam-3XX-loc/slam_eval.json",
+      "runs/paper_final/slam-3XX-reloc/slam_eval.json",
+      "runs/paper_final/slam-3XX/slam_eval.json",
+      "runs/paper_final/slam-4XXA-loc/slam_eval.json",
+      "runs/paper_final/slam-4XXA-reloc/slam_eval.json",
+      "runs/paper_final/slam-4XXA/slam_eval.json",
+      "runs/paper_final/slam-4XXB-loc/slam_eval.json",
+      "runs/paper_final/slam-4XXB-reloc/slam_eval.json",
+      "runs/paper_final/slam-4XXB/slam_eval.json",
+      "runs/paper_final/slam-4XXC-loc/slam_eval.json",
+      "runs/paper_final/slam-4XXC-reloc/slam_eval.json",
+      "runs/paper_final/slam-4XXC/slam_eval.json",
+      "runs/paper_final/slam-4XXD-loc/slam_eval.json",
+      "runs/paper_final/slam-4XXD-reloc/slam_eval.json",
+      "runs/paper_final/slam-4XXD/slam_eval.json",
+      "runs/paper_final/slam-4XXE-loc/slam_eval.json",
+      "runs/paper_final/slam-4XXE-reloc/slam_eval.json",
+      "runs/paper_final/slam-4XXE/slam_eval.json",
+      "runs/paper_final/slam-5XXA-exam-loc/slam_eval.json",
+      "runs/paper_final/slam-5XXA-exam-reloc/slam_eval.json",
+      "runs/paper_final/slam-5XXA-exam/slam_eval.json",
+      "runs/paper_final/slam-5XXB-exam-loc/slam_eval.json",
+      "runs/paper_final/slam-5XXB-exam-reloc/slam_eval.json",
+      "runs/paper_final/slam-5XXB-exam/slam_eval.json",
+      "runs/paper_final/slam-5XXC-exam-loc/slam_eval.json",
+      "runs/paper_final/slam-5XXC-exam-reloc/slam_eval.json",
+      "runs/paper_final/slam-5XXC-exam/slam_eval.json",
+      "runs/paper_final/slam-5XXD-exam-loc/slam_eval.json",
+      "runs/paper_final/slam-5XXD-exam-reloc/slam_eval.json",
+      "runs/paper_final/slam-5XXD-exam/slam_eval.json",
+      "runs/paper_final/slam-5XXE-exam-loc/slam_eval.json",
+      "runs/paper_final/slam-5XXE-exam-reloc/slam_eval.json",
+      "runs/paper_final/slam-5XXE-exam/slam_eval.json",
+      "runs/repro/track-v2map-3XX/scr_track.json",
+      "runs/track-v2map-4XXA/scr_track.json",
+      "runs/track-v2map-4XXB/scr_track.json",
+      "runs/track-v2map-4XXC/scr_track.json",
+      "runs/track-v2map-4XXD/scr_track.json",
+      "runs/track-v2map-4XXE/scr_track.json",
+      "runs/track-v2map-5XXA-exam/scr_track.json",
+      "runs/track-v2map-5XXB-exam/scr_track.json",
+      "runs/track-v2map-5XXC-exam/scr_track.json",
+      "runs/track-v2map-5XXD-exam/scr_track.json",
+      "runs/track-v2map-5XXE-exam/scr_track.json"
+    ],
+    "latex": null,
+    "note": "window 2 s; ORB-SLAM3 from runs/paper_final"
+  },
+  {
+    "id": "M9",
+    "values": {
+      "hand-eye": "rgbd-us/tools/merge_hand_eye.py: one T_marker_cam and one board pose fitted jointly by robust least squares on the ChArUco corner positions of the still frames (< 5 deg/s) of calib_201 + calib_202; 3.5 mm board-corner error. Not cv2.calibrateHandEye.",
+      "orbslam3": "ORB_SLAM3/src/Tracking.cc, Tracking::Track(), localisation branch: 'if(mState==LOST)' -> 'if(mState==LOST || mState==RECENTLY_LOST)'; reloc mode sets RECENTLY_LOST before every frame (Examples/RGB-D/rgbd_online.cc:110)",
+      "for the user": "phantom manufacturer; sweep direction, length, plane orientation; ethics committee, date, number"
+    },
+    "n": null,
+    "check_expected": null,
+    "check_got": null,
+    "check_ok": null,
+    "source_files": [
+      "rgbd-us/note_RPR.md:81",
+      "ORB_SLAM3: git diff src/Tracking.cc"
+    ],
+    "latex": null,
+    "note": "lookup done by hand on 2026-11-20 (missing_numbers.md, 5.1)"
+  },
+  {
+    "id": "M10",
+    "values": "not run (optional)",
+    "n": null,
+    "check_expected": null,
+    "check_got": null,
+    "check_ok": null,
+    "source_files": [
+      "runs/polaris-track.md"
+    ],
+    "latex": null,
+    "note": ""
+  }
+]

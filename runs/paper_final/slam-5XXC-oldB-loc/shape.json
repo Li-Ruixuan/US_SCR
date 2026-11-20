@@ -1,0 +1,76 @@
+{
+ "args": {
+  "json": [
+   "runs/paper_final/slam-5XXC-oldB-loc/poses/fold0_run-517_orbslam3.json",
+   "runs/paper_final/slam-5XXC-oldB-loc/poses/fold0_run-518_orbslam3.json",
+   "runs/paper_final/slam-5XXC-oldB-loc/poses/fold0_run-519_orbslam3.json",
+   "runs/paper_final/slam-5XXC-oldB-loc/poses/fold0_run-520_orbslam3.json",
+   "runs/paper_final/slam-5XXC-oldB-loc/poses/fold0_run-521_orbslam3.json",
+   "runs/paper_final/slam-5XXC-oldB-loc/poses/fold0_run-522_orbslam3.json",
+   "runs/paper_final/slam-5XXC-oldB-loc/poses/fold0_run-523_orbslam3.json",
+   "runs/paper_final/slam-5XXC-oldB-loc/poses/fold0_run-524_orbslam3.json"
+  ],
+  "gaps": [
+   1,
+   8,
+   30
+  ],
+  "out": "runs/paper_final/slam-5XXC-oldB-loc/shape.md"
+ },
+ "sweeps": {
+  "slam-5XXC-oldB-loc|orbslam3": {
+   "run-521": {
+    "absolute": 12.575367783535047,
+    "shape": 10.766209277778001,
+    "in_1": 0.045874617510485396,
+    "out_1": 0.07577683601505181,
+    "true_out_1": 0.19924100479373147,
+    "in_8": 0.28130711005260717,
+    "out_8": 0.3266719836046389,
+    "true_out_8": 1.6110980514473627,
+    "in_30": 0.8756836016566959,
+    "out_30": 0.9346216880624384,
+    "true_out_30": 5.978851795509645
+   },
+   "run-522": {
+    "absolute": 31.635068847967677,
+    "shape": 3.123745776266282,
+    "in_1": 0.0378705247326711,
+    "out_1": 0.056427758225964714,
+    "true_out_1": 0.2708333453304266,
+    "in_8": 0.22960103689873296,
+    "out_8": 0.2005704164807458,
+    "true_out_8": 2.1056843593695693,
+    "in_30": 0.7021106768651912,
+    "out_30": 0.4532363827272466,
+    "true_out_30": 7.8767467857284945
+   },
+   "run-523": {
+    "absolute": 9.967935645842527,
+    "shape": 5.190465053977536,
+    "in_1": 0.05509901511342337,
+    "out_1": 0.08893768341215966,
+    "true_out_1": 0.21664774680750604,
+    "in_8": 0.3239281842035547,
+    "out_8": 0.4454586555800672,
+    "true_out_8": 1.706864191253941,
+    "in_30": 0.8908582066685145,
+    "out_30": 1.3103228539520715,
+    "true_out_30": 6.425601714056567
+   },
+   "run-524": {
+    "absolute": 22.513294293803682,
+    "shape": 23.225331368604436,
+    "in_1": 0.0467493761053035,
+    "out_1": 0.07551472365183917,
+    "true_out_1": 0.2332287085055431,
+    "in_8": 0.29463328790375,
+    "out_8": 0.2768388877685579,
+    "true_out_8": 2.0435606279664134,
+    "in_30": 0.9456289475095367,
+    "out_30": 0.6505441686917418,
+    "true_out_30": 7.758414092828869
+   }
+  }
+ }
+}

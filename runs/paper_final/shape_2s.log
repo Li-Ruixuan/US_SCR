@@ -1,0 +1,90 @@
+slam-3XX run-313 orbslam3: absolute 2.74, shape 1.07, in_1 0.06, out_1 0.06, true_out_1 0.33, in_8 0.27, out_8 0.23, true_out_8 2.79, in_30 0.62, out_30 0.28, true_out_30 10.43
+slam-3XX run-314 orbslam3: absolute 1.18, shape 1.01, in_1 0.06, out_1 0.06, true_out_1 0.29, in_8 0.26, out_8 0.22, true_out_8 2.42, in_30 0.47, out_30 0.30, true_out_30 9.44
+slam-3XX run-315 orbslam3: absolute 1.62, shape 1.43, in_1 0.08, out_1 0.08, true_out_1 0.30, in_8 0.48, out_8 0.34, true_out_8 2.42, in_30 1.13, out_30 0.52, true_out_30 8.76
+slam-3XX run-316 orbslam3: absolute 1.16, shape 1.16, in_1 0.08, out_1 0.07, true_out_1 0.50, in_8 0.40, out_8 0.30, true_out_8 4.04, in_30 0.81, out_30 0.44, true_out_30 15.00
+slam-3XX run-317 orbslam3: absolute 2.32, shape 2.00, in_1 0.10, out_1 0.10, true_out_1 0.45, in_8 0.62, out_8 0.53, true_out_8 3.45, in_30 1.18, out_30 0.75, true_out_30 12.60
+
+| split | source | sweeps | absolute | **shape** | k = 1: in / **out** (true) | k = 8: in / **out** (true) | k = 30: in / **out** (true) |
+|---|---|---|---|---|---|---|---|
+| slam-3XX | orbslam3 | 5 | 1.80 | **1.33** | 0.07 / **0.07** (0.4) | 0.40 / **0.32** (3.0) | 0.84 / **0.46** (11.2) |
+-> runs/paper_final/slam-3XX/shape.md
+slam-3XX-loc run-313 orbslam3: absolute 2.60, shape 1.02, in_1 0.05, out_1 0.06, true_out_1 0.33, in_8 0.23, out_8 0.23, true_out_8 2.79, in_30 0.47, out_30 0.32, true_out_30 10.43
+slam-3XX-loc run-314 orbslam3: absolute 1.51, shape 0.74, in_1 0.05, out_1 0.05, true_out_1 0.29, in_8 0.25, out_8 0.22, true_out_8 2.42, in_30 0.37, out_30 0.26, true_out_30 9.44
+slam-3XX-loc run-315 orbslam3: absolute 1.70, shape 1.61, in_1 0.07, out_1 0.08, true_out_1 0.30, in_8 0.33, out_8 0.34, true_out_8 2.42, in_30 0.73, out_30 0.61, true_out_30 8.76
+slam-3XX-loc run-316 orbslam3: absolute 1.36, shape 0.95, in_1 0.07, out_1 0.07, true_out_1 0.50, in_8 0.35, out_8 0.30, true_out_8 4.04, in_30 0.61, out_30 0.42, true_out_30 15.00
+slam-3XX-loc run-317 orbslam3: absolute 2.07, shape 2.14, in_1 0.10, out_1 0.10, true_out_1 0.45, in_8 0.58, out_8 0.49, true_out_8 3.45, in_30 0.93, out_30 0.69, true_out_30 12.60
+
+| split | source | sweeps | absolute | **shape** | k = 1: in / **out** (true) | k = 8: in / **out** (true) | k = 30: in / **out** (true) |
+|---|---|---|---|---|---|---|---|
+| slam-3XX-loc | orbslam3 | 5 | 1.85 | **1.29** | 0.07 / **0.07** (0.4) | 0.35 / **0.31** (3.0) | 0.62 / **0.46** (11.2) |
+-> runs/paper_final/slam-3XX-loc/shape.md
+slam-3XX-loc-r2 run-313 orbslam3: absolute 2.15, shape 0.82, in_1 0.05, out_1 0.06, true_out_1 0.33, in_8 0.23, out_8 0.23, true_out_8 2.79, in_30 0.46, out_30 0.30, true_out_30 10.43
+slam-3XX-loc-r2 run-314 orbslam3: absolute 1.27, shape 0.88, in_1 0.05, out_1 0.06, true_out_1 0.29, in_8 0.26, out_8 0.22, true_out_8 2.42, in_30 0.44, out_30 0.28, true_out_30 9.44
+slam-3XX-loc-r2 run-315 orbslam3: absolute 1.46, shape 1.37, in_1 0.07, out_1 0.08, true_out_1 0.30, in_8 0.32, out_8 0.34, true_out_8 2.42, in_30 0.70, out_30 0.56, true_out_30 8.76
+slam-3XX-loc-r2 run-316 orbslam3: absolute 1.36, shape 1.11, in_1 0.07, out_1 0.07, true_out_1 0.50, in_8 0.38, out_8 0.30, true_out_8 4.04, in_30 0.68, out_30 0.40, true_out_30 15.00
+slam-3XX-loc-r2 run-317 orbslam3: absolute 1.96, shape 2.02, in_1 0.10, out_1 0.10, true_out_1 0.45, in_8 0.59, out_8 0.50, true_out_8 3.45, in_30 0.99, out_30 0.62, true_out_30 12.60
+
+| split | source | sweeps | absolute | **shape** | k = 1: in / **out** (true) | k = 8: in / **out** (true) | k = 30: in / **out** (true) |
+|---|---|---|---|---|---|---|---|
+| slam-3XX-loc-r2 | orbslam3 | 5 | 1.64 | **1.24** | 0.07 / **0.07** (0.4) | 0.36 / **0.32** (3.0) | 0.65 / **0.43** (11.2) |
+-> runs/paper_final/slam-3XX-loc-r2/shape.md
+slam-3XX-loc-r3 run-313 orbslam3: absolute 2.61, shape 1.01, in_1 0.05, out_1 0.06, true_out_1 0.33, in_8 0.24, out_8 0.23, true_out_8 2.79, in_30 0.50, out_30 0.31, true_out_30 10.43
+slam-3XX-loc-r3 run-314 orbslam3: absolute 1.20, shape 0.82, in_1 0.05, out_1 0.05, true_out_1 0.29, in_8 0.25, out_8 0.21, true_out_8 2.42, in_30 0.38, out_30 0.32, true_out_30 9.44
+slam-3XX-loc-r3 run-315 orbslam3: absolute 1.60, shape 1.37, in_1 0.07, out_1 0.08, true_out_1 0.30, in_8 0.35, out_8 0.36, true_out_8 2.42, in_30 0.66, out_30 0.60, true_out_30 8.76
+slam-3XX-loc-r3 run-316 orbslam3: absolute 1.29, shape 1.07, in_1 0.07, out_1 0.07, true_out_1 0.50, in_8 0.37, out_8 0.30, true_out_8 4.04, in_30 0.65, out_30 0.40, true_out_30 15.00
+slam-3XX-loc-r3 run-317 orbslam3: absolute 2.08, shape 2.01, in_1 0.10, out_1 0.10, true_out_1 0.45, in_8 0.60, out_8 0.49, true_out_8 3.45, in_30 0.93, out_30 0.60, true_out_30 12.60
+
+| split | source | sweeps | absolute | **shape** | k = 1: in / **out** (true) | k = 8: in / **out** (true) | k = 30: in / **out** (true) |
+|---|---|---|---|---|---|---|---|
+| slam-3XX-loc-r3 | orbslam3 | 5 | 1.76 | **1.25** | 0.07 / **0.07** (0.4) | 0.36 / **0.32** (3.0) | 0.62 / **0.45** (11.2) |
+-> runs/paper_final/slam-3XX-loc-r3/shape.md
+Traceback (most recent call last):
+  File "/data2/u0137815/US_SCR/tools/us_analysis.py", line 33, in <module>
+    from dataloader import RPRConfig, RPRDataset, load_hand_eye, load_us_roi, test_sweeps   # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data2/u0137815/US_SCR/dataloader.py", line 31, in <module>
+    import torch
+  File "/data2/u0137815/conda/envs/usrgbd/lib/python3.11/site-packages/torch/__init__.py", line 2247, in <module>
+    from torch import _VF as _VF, functional as functional  # usort: skip
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data2/u0137815/conda/envs/usrgbd/lib/python3.11/site-packages/torch/functional.py", line 8, in <module>
+    import torch.nn.functional as F
+  File "/data2/u0137815/conda/envs/usrgbd/lib/python3.11/site-packages/torch/nn/__init__.py", line 8, in <module>
+    from torch.nn.modules import *  # usort: skip # noqa: F403
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data2/u0137815/conda/envs/usrgbd/lib/python3.11/site-packages/torch/nn/modules/__init__.py", line 1, in <module>
+    from .module import Module  # usort: skip
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data2/u0137815/conda/envs/usrgbd/lib/python3.11/site-packages/torch/nn/modules/module.py", line 17, in <module>
+    from torch.utils._python_dispatch import is_traceable_wrapper_subclass
+  File "/data2/u0137815/conda/envs/usrgbd/lib/python3.11/site-packages/torch/utils/__init__.py", line 8, in <module>
+    from torch.utils import (
+  File "/data2/u0137815/conda/envs/usrgbd/lib/python3.11/site-packages/torch/utils/data/__init__.py", line 1, in <module>
+    from torch.utils.data.dataloader import (
+  File "/data2/u0137815/conda/envs/usrgbd/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 26, in <module>
+    import torch.utils.data.graph_settings
+  File "/data2/u0137815/conda/envs/usrgbd/lib/python3.11/site-packages/torch/utils/data/graph_settings.py", line 8, in <module>
+    from torch.utils.data.datapipes.iter.sharding import (
+  File "/data2/u0137815/conda/envs/usrgbd/lib/python3.11/site-packages/torch/utils/data/datapipes/__init__.py", line 1, in <module>
+    from torch.utils.data.datapipes import dataframe as dataframe, iter as iter, map as map
+  File "/data2/u0137815/conda/envs/usrgbd/lib/python3.11/site-packages/torch/utils/data/datapipes/iter/__init__.py", line 1, in <module>
+    from torch.utils.data.datapipes.iter.callable import (
+  File "/data2/u0137815/conda/envs/usrgbd/lib/python3.11/site-packages/torch/utils/data/datapipes/iter/callable.py", line 8, in <module>
+    from torch.utils.data._utils.collate import default_collate
+  File "/data2/u0137815/conda/envs/usrgbd/lib/python3.11/site-packages/torch/utils/data/_utils/__init__.py", line 53, in <module>
+    from . import collate, fetch, pin_memory, signal_handling, worker
+  File "/data2/u0137815/conda/envs/usrgbd/lib/python3.11/site-packages/torch/utils/data/_utils/worker.py", line 78, in <module>
+    @dataclass(frozen=True, slots=True)
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data2/u0137815/conda/envs/usrgbd/lib/python3.11/dataclasses.py", line 1222, in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data2/u0137815/conda/envs/usrgbd/lib/python3.11/dataclasses.py", line 1027, in _process_class
+    _init_fn(all_init_fields,
+  File "/data2/u0137815/conda/envs/usrgbd/lib/python3.11/dataclasses.py", line 580, in _init_fn
+    return _create_fn('__init__',
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/data2/u0137815/conda/envs/usrgbd/lib/python3.11/dataclasses.py", line 434, in _create_fn
+    return ns['__create_fn__'](**locals)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
