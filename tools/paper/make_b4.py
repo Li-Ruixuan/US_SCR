@@ -37,16 +37,19 @@ MODE = {"loc": "localize", "reloc": "reloc"}
 def targets():
     """(new folder, template folder, rgbd_online mode)."""
     t = []
-    for s in MAIN:                                   # B4b: reloc repeats on the 11 main splits
-        for r in ("r2", "r3"):
-            t.append((f"slam-{s}-reloc-{r}", f"slam-{s}-reloc", "reloc"))
+    # Order = priority, so that a stopped script still has the runs the paper needs most.
+    # B4a: replacements for the three trajectories that stop before the end of the sequence (ORB-SLAM3
+    # stopped; found by comparing end times with the other modes of the same split, 2026-11-20):
+    # P-rearr2 60 % loc ends at 268 s and reloc at 261 s of 579 s; P-rearr1 60 % reloc ends at 504 s of 549 s.
+    t.append(("slam-5XXC-exam-occ60-loc-r4", "slam-5XXC-exam-occ60-loc", "loc"))
+    t.append(("slam-5XXC-exam-occ60-reloc-r2", "slam-5XXC-exam-occ60-reloc", "reloc"))
+    t.append(("slam-5XXB-exam-occ60-reloc-r2", "slam-5XXB-exam-occ60-reloc", "reloc"))
     for s in OCC:                                    # B4b: loc repeats on the occluded settings
         for r in ("r2", "r3"):
             t.append((f"slam-{s}-loc-{r}", f"slam-{s}-loc", "loc"))
-    # B4a: the original P-rearr2 60 % runs are incomplete (5 of 8 sweeps unposed). The loc repeats r2, r3
-    # above plus r4 give three complete-or-reported runs; reloc gets one new run.
-    t.append(("slam-5XXC-exam-occ60-loc-r4", "slam-5XXC-exam-occ60-loc", "loc"))
-    t.append(("slam-5XXC-exam-occ60-reloc-r2", "slam-5XXC-exam-occ60-reloc", "reloc"))
+    for s in MAIN:                                   # B4c (optional): reloc repeats on the 11 main splits
+        for r in ("r2", "r3"):
+            t.append((f"slam-{s}-reloc-{r}", f"slam-{s}-reloc", "reloc"))
     return t
 
 
