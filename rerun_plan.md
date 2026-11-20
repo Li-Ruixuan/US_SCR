@@ -238,19 +238,7 @@ runs/paper_final/
 
 
 
-
-On the training PC, in tmux:
-
 cd /data2/u0137815/US_SCR
 git pull
-python tools/paper/make_b4.py --first 11 > runs/paper_final/b4_orbslam.sh
-grep -c '^if \[ -e runs/slam' runs/paper_final/b4_orbslam.sh
-grep 'has no slam_eval' runs/paper_final/b4_orbslam.sh
-The first grep should print 11 and the second nothing.
-
-Run both, one after the other. Training load would disturb ORB-SLAM3's real-time playback, so they shouldn't overlap:
-
 mkdir -p runs/abl
-bash runs/paper_final/b4_orbslam.sh 2>&1 | tee runs/paper_final/b4_orbslam.log; bash tools/paper/ablations.sh 2>&1 | tee runs/abl/ablations.log
-
-
+bash tools/paper/ablations.sh 2>&1 | tee runs/abl/ablations.log
