@@ -1,0 +1,109 @@
+%% Supplementary material for the TBME manuscript (does not count towards the page limit)
+%% Compile: pdflatex supplementary; bibtex supplementary; pdflatex supplementary (x2)
+\documentclass[journal]{IEEEtran}
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{url}
+
+\newcommand{\tbd}[1]{\textcolor{red}{[TODO: #1]}}
+\newcommand{\Sval}{S-val}
+\newcommand{\Stest}{S-test}
+\newcommand{\Snew}{S-new}
+\newcommand{\Sctrl}{S-ctrl}
+
+% number supplementary sections and tables S1, S2, ...
+\renewcommand{\thesection}{S\arabic{section}}
+\renewcommand{\thetable}{S\arabic{table}}
+\renewcommand{\thefigure}{S\arabic{figure}}
+
+\begin{document}
+
+\title{Supplementary Material for ``Freehand 3D Ultrasound Without an External Tracker: Probe-Mounted RGB-D Tracking by Self-Mapped Scene Coordinate Regression''}
+\author{Ruixuan~Li, Yipeng~Hu, and Emmanuel~Vander~Poorten}
+\markboth{IEEE Transactions on Biomedical Engineering}{Li \MakeLowercase{\textit{et al.}}: Supplementary Material}
+\maketitle
+
+Section, table and figure numbers without the prefix S refer to the main paper. Session names, metrics and systems are defined there (Sec.~III).
+
+%======================================================================
+\section{Comparison With a Tracker-Made Map for Every System}
+\label{sec:s_compare}
+%======================================================================
+Table~\ref{tab:s_compare} compares the methods with a tracker-made map for every system, so that only the method differs. As single-image localisers, SCR anchors are about $8\times$ more accurate than pose-regression anchors (\Stest{} 1.8 vs.\ 15.3\,mm, \Snew{} 6.0 vs.\ 49.0\,mm) and give a pose for every frame, whereas the pose-regression anchors were accepted for 37--93\,\% of frames; classical anchors reach 2.6 and 5.3\,mm. One SCR network on every frame replaces anchors plus odometry: it is more accurate than the hybrid on \Sval{} (3.35 vs.\ 4.2\,mm) and \Stest{} (1.85 vs.\ 2.6\,mm), within 0.15\,mm of it on every \Snew{} block, and slightly better on the \Snew{} mean (6.48 vs.\ 6.54\,mm), with lower jitter.
+
+Against the classical pipeline, SCR is more accurate where the room scan covers the sweep viewpoints (\Sval{} 3.35 vs.\ 4.2\,mm, \Stest{} 1.85 vs.\ 3.1\,mm), on par under the strict protocol (2.98 vs.\ 3.0\,mm), and behind in \Snew{} (6.48 vs.\ 4.76\,mm; pooled 5.45\,mm). Its shape error is lower on every split. The same holds without a tracker: on our tracker-free map, the classical pipeline gives 3.65 / 2.66\,mm on \Stest{}, against 2.35 / 1.73\,mm for ours on the same frames, but 5.78\,mm on \Snew{} against 7.92\,mm for ours. SIFT copes better with views the room scan does not cover. With pooled room scans (all scans of the day up to the block, with objects moved between blocks), the SCR network improved the \Snew{} B--E error from 6.82 to 5.53\,mm, whereas the classical pipeline broke (4.90 to 13.93\,mm), because SIFT confidently matches objects that have since moved.
+
+\begin{table*}[t]
+  \caption{Comparison with a tracker-made map for every system, so that only the method differs. Error at the US image (mm) and jitter (\Stest{} / \Snew{}, mm). Strict: \Stest{} using only the room scan recorded before the sweeps. Pooled: all room scans of the day up to the block. Bold: best per column.}
+  \label{tab:s_compare}
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}lcccccccccc@{}}
+    \toprule
+    System & \Sval & \Stest & Strict & \Snew{} A & B & C & D & E & \Snew{} mean & Jitter\\
+    \midrule
+    Classical odometry only & 37.0 & 9.4 & 9.8 & 15.1 & 11.3 & 8.9 & 12.7 & 12.9 & 12.2 & --\\
+    Pose regression (anchors + odometry) & -- & 8.5 & -- & 43.6 & 30.0 & 41.3 & 57.8 & 48.3 & 44.2 & --\\
+    Classical anchors + odometry & 4.2 & 3.1 & 3.0 & \textbf{4.2} & \textbf{3.4} & 4.9 & \textbf{6.3} & \textbf{5.0} & \textbf{4.76} & 1.09 / 1.28\\
+    \quad pooled scans & -- & -- & -- & -- & 5.5 & 21.1 & 18.9 & 10.2 & -- & --\\
+    Hybrid: SCR anchors + odometry & 4.2 & 2.6 & -- & 5.0 & 5.7 & 5.9 & 9.6 & 6.5 & 6.54 & 1.08 / 1.29\\
+    SCR network on every frame & 3.35 & \textbf{1.85} & 2.98 & 5.14 & 5.77 & 5.63 & 9.63 & 6.25 & 6.48 & \textbf{0.93} / 1.15\\
+    \quad pooled scans & -- & -- & -- & 5.14 & 3.76 & \textbf{3.98} & 8.46 & 5.92 & 5.45 & -- / \textbf{1.07}\\
+    \bottomrule
+  \end{tabular}
+\end{table*}
+
+%======================================================================
+\section{Ultrasound Images}
+\label{sec:s_us}
+%======================================================================
+The US images add no information to the camera pose in our set-up (10 tests). In-plane registration of frames 10 rows apart is less accurate than assuming no in-plane motion (1.91 vs.\ 1.55\,mm). Speckle decorrelation estimates the out-of-plane distance with 0.27--0.43\,mm error, but the camera is more accurate between nearby frames (0.07 / 0.19 / 0.24\,mm vs.\ 0.19 / 0.78 / 1.83\,mm for speckle over 1 / 4 / 8 frames). Networks with US input, alone or fused with RGB, do not improve on RGB alone, and the best fusion weight of the US estimate is zero. The US-only method of Li et al.\ \cite{li2024longterm} reproduces its published accuracy on its own data (21.4 vs.\ 22.8\,mm published) but on our sweeps is no better than assuming no motion (zero-shot 129\,mm, fine-tuned 75--125\,mm, trained from scratch 49--56\,mm, vs.\ 49--58\,mm for zero motion).
+
+%======================================================================
+\section{Protocol Variants, Training Length and Seeds}
+\label{sec:s_variants}
+%======================================================================
+\emph{Strict protocol.} With the \Stest{} map built only from the room scan recorded before the sweeps, our system gives 2.94\,mm (oracle map 2.98, classical pipeline 3.0\,mm).
+
+\emph{Real time.} Smoothing with a 0.25\,s delay matches offline smoothing on \Stest{} (2.34\,mm); fully causal smoothing gives 2.42\,mm.
+
+\emph{Training length.} Training for 20 / 40 / 80 / 120 epochs on \Sctrl{} A gives 2.53 / 2.34 / 2.37 / 2.28\,mm, so 40 epochs (about 13 instead of 40\,min) suffice.
+
+\emph{Seeds.} Three training seeds give 2.22--2.34\,mm on \Stest{} (mean 2.27\,mm); the oracle map gives 1.85, 1.95 and 2.12\,mm. Per \Sctrl{} block: A $2.26\pm0.03$, B $4.20\pm0.23$, C $3.17\pm0.12$, D $2.22\pm0.03$, E $6.00\pm0.27$\,mm.
+
+\emph{Smoothing across tracker dropouts.} Smoothing every sweep as one piece instead of restarting at the breaks caused by tracker dropouts gave results identical to two decimals on all splits.
+
+%======================================================================
+\section{Ground-Truth Check}
+\label{sec:s_gt}
+%======================================================================
+In every session the probe marker was at the near edge of the tracker's measurement volume (median distance 0.93 / 0.88 / 0.90\,m for \Stest{} / \Snew{} / \Sctrl{}; the pyramid volume starts at about 0.95\,m). The tracker noise at the US image was 0.24 / 0.25 / 0.12\,mm. Our error shows no trend with marker distance: distance bands lie within about 1\,mm of each other, and the rank correlation between error and distance is $-0.23$ to $+0.30$. The reference is the same in all sessions, so a bias common to all of them cannot be excluded. \tbd{optional figure: error against marker distance per session}
+
+%======================================================================
+\section{ORB-SLAM3 Details}
+\label{sec:s_orbslam}
+%======================================================================
+\emph{Version and settings.} Commit 4452a3c (10 Feb.\ 2022); RGB-D mode, default ORB vocabulary, 1250 ORB features on 8 pyramid levels (scale factor 1.2), viewer off, each sequence played in real time.
+
+\emph{Change to localisation mode.} In localisation mode, ORB-SLAM3 relocalises only after it has declared the camera lost, which in this mode never happens. We changed one line so that it relocalises as soon as tracking fails. \tbd{file, function and the changed line}
+
+\emph{Repeated runs.} ORB-SLAM3 varies from run to run. On \Snew{} E in localisation only, the sweep with an arm across the view gave 81.5, 4.65 and 28.2\,mm in three runs (block E 24.0, 5.0 and 10.9\,mm); with each frame relocalised it gave 5.03\,mm.
+
+\emph{Paired comparison.} Per sweep, ORB-SLAM3 is lower than our system on 51 of 63 sweeps in full SLAM, 49 in localisation only and 52 with each frame relocalised. With each frame relocalised it is on average 1.96\,mm lower (95\,\% bootstrap interval 1.30--2.61\,mm; Wilcoxon $p<0.001$). \tbd{mean paired differences and Wilcoxon $p$ for full SLAM and localisation only}
+
+\emph{Per-sweep results.} \tbd{table of per-sweep errors for ours and the three ORB-SLAM3 modes, all 63 test sweeps}
+
+%======================================================================
+\section{Coverage at the Level of Single Frames}
+\label{sec:s_frames}
+%======================================================================
+With the oracle map, the anchor error depends on whether the room scan contains a nearby viewpoint: sweep frames with a room-scan pose within 30\,mm and $10^\circ$ have a median anchor error of 4.1\,mm, the others 13.4\,mm. Adding real views near the sweeps closes the gap: with earlier sweeps of the same block added to the map with tracker labels, the \Snew{} A anchor error drops from 5.6 to 2.0\,mm (classical pipeline 5.9 to 3.7\,mm) and D from 8.6 to 3.3\,mm. Labelling the same views with the system's own poses does not help (A 5.3 to 5.0\,mm), because the network learns the label errors. Where the scan goes matters more than its length: the first 20 / 40 / 60\,s of each \Stest{} scan give 3.00 / 2.03 / 1.85\,mm at the US image with the oracle map, while the longer \Snew{} A scan, which misses the sweep viewpoints, gives 5.14\,mm.
+
+\bibliographystyle{IEEEtran}
+\bibliography{bib}
+
+\end{document}
