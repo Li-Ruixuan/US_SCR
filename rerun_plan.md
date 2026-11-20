@@ -236,9 +236,6 @@ runs/paper_final/
 ```
 
 
-
-
-cd /data2/u0137815/US_SCR
-git pull
-mkdir -p runs/abl
-bash tools/paper/ablations.sh 2>&1 | tee runs/abl/ablations.log
+ FileNotFoundError: [Errno 2] No such file or directory: 'runs/abl/v2-5XXB-exam/best.pt'
+FAILED runs/abl/track-v2-5XXB-exam
+=== 2026-11-20 23:29:37 runs/abl/v2-5XXC-exam
