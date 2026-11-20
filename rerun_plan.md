@@ -234,3 +234,49 @@ runs/paper_final/
   numbers/               missing_numbers.json, missing_numbers_report.md
   coverage_error.md
 ```
+
+
+
+
+
+
+2. On the training PC: update the repo and start a tmux session, because step 4 takes 4–5 h.
+
+
+tmux new -s b4
+cd /data2/u0137815/US_SCR
+conda activate usrgbd
+git pull
+3. B1: near/far anchors with Kabsch (GPU, minutes). These finish before ORB-SLAM3 starts, so they don't compete for the CPU. They write new eval_*_kabsch folders and overwrite nothing. bigclean-2XX is the F1-val oracle network behind the 3.35 mm value in the paper.
+
+
+python scr_anchor.py eval --ckpt runs/v2-4XXA/best.pt --test-root /data2/u0137815/rgbd-us/data/test_4XXB --solver kabsch
+python scr_anchor.py eval --ckpt runs/v2-4XXA/best.pt --test-root /data2/u0137815/rgbd-us/data/test_4XXC --solver kabsch
+python scr_anchor.py eval --ckpt runs/bigclean-2XX/best.pt --test-root /data2/u0137815/rgbd-us/data/train_3XX --solver kabsch
+python tools/coverage_error.py runs/v2-3XX/eval_train_3XX_kabsch/scr_eval.json runs/v2-4XX?/eval_test_4XX?_kabsch/scr_eval.json runs/bigclean-2XX/eval_*_kabsch/scr_eval.json --out runs/paper_final/coverage_error.md
+4. B4: generate the ORB-SLAM3 script and check it.
+
+
+python tools/paper/make_b4.py > runs/paper_final/b4_orbslam.sh
+grep -c 'rgbd_online' runs/paper_final/b4_orbslam.sh
+grep SKIP runs/paper_final/b4_orbslam.sh
+The first grep should print 33 and the second should print nothing. If not, stop and send me the output.
+
+5. Run it.
+
+
+bash runs/paper_final/b4_orbslam.sh 2>&1 | tee runs/paper_final/b4_orbslam.log
+The runs play in real time, one after the other, so don't start other CPU-heavy work on that machine meanwhile. Detach with Ctrl-b d and come back with tmux attach -t b4. The script checks every run for completeness, flags a run that stops early as INCOMPLETE and doesn't repeat it.
+
+6. When it finishes, send me:
+
+
+tail -40 runs/paper_final/b4_orbslam.log
+grep -E 'INCOMPLETE|SKIP' runs/paper_final/b4_orbslam.log
+cat runs/paper_final/coverage_error.md
+
+
+
+
+
+
